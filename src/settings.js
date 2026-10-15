@@ -62,6 +62,6 @@ export default {
   /**
    * 底部版权文本内容
    */
-  footerContent: 'Copyright © 2026 QTools 管理后台 | Powered by RuoYi'
+  footerContent: 'Copyright © 2026 青兔管理后台 | Powered by RuoYi'
 }
 

@@ -1,4 +1,4 @@
-# QTools 管理后台（QTools-M）
+# 青兔管理后台（QTools-M）
 
 > 一句话定位：基于若依 RuoYi-Vue3（Vue 3 + Vite + Element Plus）的 QTools 后台管理端。
 
@@ -166,11 +166,11 @@ const baseUrl = 'http://localhost:8080' // 后端接口
 
 | 文件 | 变量 | 值 |
 | --- | --- | --- |
-| `.env.development` | `VITE_APP_TITLE` | `QTools 管理后台` |
+| `.env.development` | `VITE_APP_TITLE` | `青兔管理后台` |
 | `.env.development` | `VITE_APP_BASE_API` | `/dev-api` |
-| `.env.production` | `VITE_APP_TITLE` | `QTools 管理后台` |
+| `.env.production` | `VITE_APP_TITLE` | `青兔管理后台` |
 | `.env.production` | `VITE_APP_BASE_API` | `/prod-api` |
-| `.env.staging` | `VITE_APP_TITLE` | `QTools 管理后台` |
+| `.env.staging` | `VITE_APP_TITLE` | `青兔管理后台` |
 | `.env.staging` | `VITE_APP_BASE_API` | `/stage-api` |
 
 - `VITE_APP_TITLE` 通过 `index.html` 中的 `<title>%VITE_APP_TITLE%</title>` 生效，同时被 `src/settings.js` 读取为网页标题。
@@ -183,9 +183,9 @@ const baseUrl = 'http://localhost:8080' // 后端接口
 
 | 项 | 上游 | 本仓库 |
 | --- | --- | --- |
-| 品牌文案 | 若依 | 三个 `.env.*` 的 `VITE_APP_TITLE` 改为 `QTools 管理后台`；`package.json` 的 `name` 为 `qtools-m`、`description` 为 `QTools 管理后台（基于若依 RuoYi-Vue3）` |
-| 底部版权 | 若依 | `src/settings.js` 的 `footerContent` 改为 QTools 版权 |
-| 首页文案 | 若依介绍 | `src/views/index.vue` 的主标题与简介改为 QTools 说明 |
+| 品牌文案 | 若依 | 三个 `.env.*` 的 `VITE_APP_TITLE` 改为 `青兔管理后台`；`package.json` 的 `name` 为 `qtools-m`、`description` 为 `青兔管理后台（QTools-M，基于若依 RuoYi-Vue3）` |
+| 底部版权 | 若依 | `src/settings.js` 的 `footerContent` 改为青兔版权 |
+| 首页文案 | 若依介绍 | `src/views/index.vue` 的主标题与简介改为青兔说明 |
 | 开发监听 | 默认监听所有网卡 | `server.host = 'localhost'`，仅监听本机 |
 | 锁文件 | 忽略所有锁文件 | **提交 `package-lock.json`**（保证依赖可复现），仅忽略 `yarn.lock` |
 

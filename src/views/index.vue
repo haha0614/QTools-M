@@ -2,7 +2,7 @@
   <div class="app-container home">
     <el-row :gutter="20">
       <el-col :sm="24" :lg="12" style="padding-left: 20px">
-        <h2>QTools 管理后台</h2>
+        <h2>青兔管理后台</h2>
         <p>
           青兔在线工具箱的后台管理端：基于若依框架提供系统管理、系统监控、定时任务与代码生成能力。工具站的工具列表（tool_info）与访问埋点（tool_visit）由后端 qtools-tool 模块提供数据与接口，管理端暂未提供对应页面（可按需自行开发）。前台用户站为独立工程 QTools-C。
         </p>
