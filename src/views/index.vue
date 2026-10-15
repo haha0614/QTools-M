@@ -4,7 +4,7 @@
       <el-col :sm="24" :lg="12" style="padding-left: 20px">
         <h2>QTools 管理后台</h2>
         <p>
-          QTools 简易在线工具箱的后台管理端：维护对外展示的工具列表（tool_info）与工具访问埋点（tool_visit），并沿用若依框架自带的系统管理、系统监控、定时任务与代码生成能力。前台用户站点为独立工程 QTools-C，其接口由本后端 qtools-tool 模块提供。
+          青兔在线工具箱的后台管理端：基于若依框架提供系统管理、系统监控、定时任务与代码生成能力。工具站的工具列表（tool_info）与访问埋点（tool_visit）由后端 qtools-tool 模块提供数据与接口，管理端暂未提供对应页面（可按需自行开发）。前台用户站为独立工程 QTools-C。
         </p>
         <p>
           <b>当前版本:</b> <span>v{{ version }}</span>

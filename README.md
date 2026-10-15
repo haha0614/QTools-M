@@ -1,122 +1,220 @@
-<p align="center">
-	<img alt="logo" src="https://oscimg.oschina.net/oscnet/up-d3d0a9303e11d522a06cd263f3079027715.png">
-</p>
-<h1 align="center" style="margin: 30px 0 30px; font-weight: bold;">RuoYi v3.9.2</h1>
-<h4 align="center">基于SpringBoot+Vue3前后端分离的Java快速开发框架</h4>
-<p align="center">
-	<a href="https://gitee.com/y_project/RuoYi-Vue/stargazers"><img src="https://gitee.com/y_project/RuoYi-Vue/badge/star.svg?theme=dark"></a>
-	<a href="https://gitee.com/y_project/RuoYi-Vue"><img src="https://img.shields.io/badge/RuoYi-v3.9.2-brightgreen.svg"></a>
-	<a href="https://gitee.com/y_project/RuoYi-Vue/blob/master/LICENSE"><img src="https://img.shields.io/github/license/mashape/apistatus.svg"></a>
-</p>
+# QTools 管理后台（QTools-M）
 
-## 平台简介
+> 一句话定位：基于若依 RuoYi-Vue3（Vue 3 + Vite + Element Plus）的 QTools 后台管理端。
 
-* 本仓库为前端技术栈 [Vue3](https://v3.cn.vuejs.org) + [Element Plus](https://element-plus.org/zh-CN) + [Vite](https://cn.vitejs.dev) 版本。
-* 配套后端代码仓库地址[RuoYi-Vue](https://gitee.com/y_project/RuoYi-Vue) 或 [RuoYi-Vue-fast](https://gitcode.com/yangzongzhuan/RuoYi-Vue-fast) 版本。
-* 阿里云折扣场：[点我进入](http://aly.ruoyi.vip)，腾讯云秒杀场：[点我进入](http://txy.ruoyi.vip)&nbsp;&nbsp;
+## 简介
 
-# 版本对比
+本仓库是「青兔在线工具箱（QTools）」的**后台管理端**前端工程，上游为 [RuoYi-Vue3](https://gitee.com/y_project/RuoYi-Vue) 3.9.2，对接本项目自研的后端 **QTools**（Spring Boot 3.5.16 + 若依，默认端口 `8080`）。
 
-RuoYi-Vue 前端项目的三个主要演进版本，方便你直观对比其技术栈差异（并行开发维护）。
+它服务于 QTools 后端，**当前实际可用的能力主要是若依框架自带的系统管理、系统监控与系统工具**；QTools 业务数据（工具列表 `tool_info`、访问埋点 `tool_visit`）目前**没有**对应的管理端页面，详见下文「功能一览」。
 
-| 项目名称      | **RuoYi-Vue2** | **RuoYi-Vue3** | **RuoYi-Vue3-TypeScript**   |
-| :---          | :---           | :---           | :---                        |
-| **前端框架**  | Vue 2         | Vue 3          | Vue 3                       |
-| **脚本语言**  | JavaScript    | JavaScript     | TypeScript                  |
-| **构建工具**  | Vue CLI       | Vite           | Vite                        |
-| **UI 组件库** | Element UI    | Element Plus   | Element Plus                |
-| **状态管理**  | Vuex          | Pinia          | Pinia                       |
-| **路由管理**  | Vue Router 3  | Vue Router 4   | Vue Router 4                |
-| **核心特点**  | 1. 技术栈经典稳定<br>2. 社区资料丰富<br>3. 当前维护重心已转移 | 1. 现代前端技术栈<br>2. 开发体验与性能更优<br>3. 官方主推的活跃版本 | 1. 类型加持，减少沟通成本<br>2. 开发时有提示，效率更高<br>3. 多人协作企业级开发项目 |
-| **仓库地址**  | [RuoYi-Vue2](https://gitcode.com/yangzongzhuan/RuoYi-Vue2) | [RuoYi-Vue3](https://gitcode.com/yangzongzhuan/RuoYi-Vue3) | [RuoYi-Vue3-TypeScript](https://gitcode.com/yangzongzhuan/RuoYi-Vue3/tree/typescript) |
+前台用户站点「青兔在线工具箱」是独立工程 **QTools-C**，它与本管理端互不依赖，共用同一个后端。
 
-## 前端运行
+## 相关仓库
 
-```bash
-# 克隆项目
-git clone https://github.com/yangzongzhuan/RuoYi-Vue3.git
+| 仓库 | 说明 | 地址 |
+| --- | --- | --- |
+| **QTools** | 后端服务（Spring Boot 3.5.16 + 若依 3.9.2，端口 8080） | https://github.com/haha0614/QTools |
+| **QTools-C** | 前台用户站（Vue 3 + Vite 5，dev 端口 5173） | https://github.com/haha0614/QTools-C |
+| **QTools-M** | 管理后台（本项目，基于 RuoYi-Vue3 3.9.2） | https://github.com/haha0614/QTools-M |
 
-# 进入项目目录
-cd RuoYi-Vue3
+## 功能一览
 
-# 安装依赖
-yarn --registry=https://registry.npmmirror.com
+| 模块 | 说明 |
+| --- | --- |
+| 系统管理 | 用户、角色、菜单、部门、岗位、字典、参数、通知公告（若依自带） |
+| 系统监控 | 在线用户、定时任务、操作日志、登录日志、缓存监控、服务监控、连接池监视（Druid）（若依自带） |
+| 系统工具 | 表单构建、代码生成、系统接口（若依自带） |
+| 登录 / 首页 / 个人中心 | 若依自带 |
+| **工具列表（`tool_info`）** | ⚠️ **暂无管理页面**，后台看不到、也改不了工具数据 |
+| **访问埋点（`tool_visit`）** | ⚠️ **暂无管理页面**，无访问量统计视图 |
 
-# 启动服务
-yarn dev
+> **重要说明**：本仓库 `src/views` 与 `src/api` 下**没有**任何针对 `tool_info` / `tool_visit` 的页面或接口模块（仅在首页文案里提到了这两个表名）。目前这两张表的数据**只能通过数据库或后端接口直接查看**。
+>
+> 如果需要在后台维护工具列表、查看访问埋点，需要自行基于若依开发页面，并在**后端菜单表里配置菜单与权限**——本管理端的菜单与路由由后端按登录用户的权限动态下发（若依动态路由），新增页面光有 `.vue` 文件是不会出现在侧边栏里的。
 
-# 构建测试环境 yarn build:stage
-# 构建生产环境 yarn build:prod
-# 前端访问地址 http://localhost:80
+后端为前台工具站提供的两个匿名接口（**前台 QTools-C 直连调用，与管理端无关**）：
+
+| 接口 | 方法 | 说明 |
+| --- | --- | --- |
+| `/api/toolInfo/list` | GET | 工具列表，匿名可访问 |
+| `/api/toolVisit/add` | POST | 访问埋点上报，匿名可访问 |
+
+## 技术栈
+
+版本取自 `package.json`：
+
+| 类别 | 依赖 | 版本 |
+| --- | --- | --- |
+| 框架 | vue | 3.5.26 |
+| 路由 | vue-router | 4.6.4 |
+| 构建 | vite | 6.4.1 |
+| 构建插件 | @vitejs/plugin-vue | 5.2.4 |
+| UI 组件库 | element-plus | 2.13.1 |
+| 图标 | @element-plus/icons-vue | 2.3.2 |
+| 状态管理 | pinia | 3.0.4 |
+| 组合式工具 | @vueuse/core | 14.1.0 |
+| HTTP | axios | 1.13.2 |
+| 图表 | echarts | 5.6.0 |
+| 富文本 | @vueup/vue-quill | 1.2.0 |
+| 样式 | sass-embedded | 1.97.2 |
+| 按需自动导入 | unplugin-auto-import | 0.18.6 |
+| 其他 | js-cookie / jsencrypt / nprogress / file-saver / fuse.js / js-beautify / clipboard / vue-cropper / vuedraggable | 见 `package.json` |
+
+## 目录结构
+
+```text
+QTools-M
+├─ vite/                 # Vite 插件集合（自动导入、SVG 图标、压缩等）
+├─ vite.config.js        # Vite 配置：dev 端口 80、仅监听本机、/dev-api 代理、后端地址
+├─ index.html            # 入口 HTML，标题取 %VITE_APP_TITLE%
+├─ .env.development      # 开发环境变量（VITE_APP_TITLE / VITE_APP_BASE_API）
+├─ .env.production       # 生产环境变量
+├─ .env.staging          # 预发环境变量
+├─ bin/                  # Windows 批处理脚本（package / build / run-web）
+├─ html/ie.html          # 低版本 IE 提示页
+├─ public/               # 静态资源
+├─ package-lock.json     # npm 锁文件（本工程提交，保证依赖可复现）
+└─ src
+   ├─ api/               # 接口封装：login、menu、system/*、monitor/*、tool/gen
+   ├─ assets/            # 图标、图片、logo、全局样式（styles）
+   ├─ components/        # 全局通用组件：Pagination、DictTag、Editor、FileUpload、
+   │                     #   ImageUpload/ImagePreview、RightToolbar、Crontab、iFrame 等
+   ├─ directive/         # 自定义指令：common、permission（v-hasPermi / v-hasRole）
+   ├─ layout/            # 后台整体布局（侧边栏、顶栏、标签页、设置抽屉）
+   ├─ plugins/           # 全局挂载方法：auth、cache、download、modal、tab
+   ├─ router/            # 路由定义（静态路由；业务菜单由后端动态下发）
+   ├─ store/             # Pinia 状态：modules（app、user、permission、dict、tagsView…）
+   ├─ utils/             # 工具方法：request、auth、permission、dict、ruoyi、generator…
+   ├─ views/             # 页面
+   │  ├─ index.vue       # 首页（QTools 说明与版本信息）
+   │  ├─ system/         # 系统管理：user、role、menu、dept、post、dict、config、notice
+   │  ├─ monitor/        # 系统监控：online、job、operlog、logininfor、cache、server、druid
+   │  ├─ tool/           # 系统工具：build（表单构建）、gen（代码生成）、swagger（系统接口）
+   │  ├─ error/          # 错误页（401/404）
+   │  └─ redirect/       # 路由重定向中转页
+   ├─ App.vue            # 根组件
+   ├─ main.js            # 应用入口
+   ├─ permission.js      # 路由守卫（登录校验、动态路由注入）
+   └─ settings.js        # 界面设置（标题、主题、标签页、底部版权文案等）
 ```
 
-## 内置功能
+## 快速开始
 
-1.  用户管理：用户是系统操作者，该功能主要完成系统用户配置。
-2.  部门管理：配置系统组织机构（公司、部门、小组），树结构展现支持数据权限。
-3.  岗位管理：配置系统用户所属担任职务。
-4.  菜单管理：配置系统菜单，操作权限，按钮权限标识等。
-5.  角色管理：角色菜单权限分配、设置角色按机构进行数据范围权限划分。
-6.  字典管理：对系统中经常使用的一些较为固定的数据进行维护。
-7.  参数管理：对系统动态配置常用参数。
-8.  通知公告：系统通知公告信息发布维护。
-9.  操作日志：系统正常操作日志记录和查询；系统异常信息日志记录和查询。
-10. 登录日志：系统登录日志记录查询包含登录异常。
-11. 在线用户：当前系统中活跃用户状态监控。
-12. 定时任务：在线（添加、修改、删除)任务调度包含执行结果日志。
-13. 代码生成：前后端代码的生成（java、html、xml、sql）支持CRUD下载 。
-14. 系统接口：根据业务代码自动生成相关的api接口文档。
-15. 服务监控：监视当前系统CPU、内存、磁盘、堆栈等相关信息。
-16. 缓存监控：对系统的缓存信息查询，命令统计等。
-17. 在线构建器：拖动表单元素生成相应的HTML代码。
-18. 连接池监视：监视当前系统数据库连接池状态，可进行分析SQL找出系统性能瓶颈。
+### 前置条件
 
-## 在线体验
+- **Node.js 18+**（Vite 6 要求）与 npm
+- 后端 **QTools** 已在 `http://localhost:8080` 运行
+- 后端依赖的 **MySQL 8** 与 **Redis** 已就绪（后端启动所需，数据表由后端的 SQL 脚本初始化）
 
-- admin/admin123  
-- 陆陆续续收到一些打赏，为了更好的体验已用于演示服务器升级。谢谢各位小伙伴。
+### 安装与启动
 
-演示地址：http://vue.ruoyi.vip  
-文档地址：http://doc.ruoyi.vip
+```bash
+npm install
+npm run dev           # http://localhost（端口 80）
+```
 
-## 演示图
+`server.open = true`，启动后会自动打开浏览器。
 
-<table>
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/cd1f90be5f2684f4560c9519c0f2a232ee8.jpg"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/1cbcf0e6f257c7d3a063c0e3f2ff989e4b3.jpg"/></td>
-    </tr>
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-8074972883b5ba0622e13246738ebba237a.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-9f88719cdfca9af2e58b352a20e23d43b12.png"/></td>
-    </tr>
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-39bf2584ec3a529b0d5a3b70d15c9b37646.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-936ec82d1f4872e1bc980927654b6007307.png"/></td>
-    </tr>
-	<tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-b2d62ceb95d2dd9b3fbe157bb70d26001e9.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-d67451d308b7a79ad6819723396f7c3d77a.png"/></td>
-    </tr>	 
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/5e8c387724954459291aafd5eb52b456f53.jpg"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/644e78da53c2e92a95dfda4f76e6d117c4b.jpg"/></td>
-    </tr>
-	<tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-8370a0d02977eebf6dbf854c8450293c937.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-49003ed83f60f633e7153609a53a2b644f7.png"/></td>
-    </tr>
-	<tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-d4fe726319ece268d4746602c39cffc0621.png"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-c195234bbcd30be6927f037a6755e6ab69c.png"/></td>
-    </tr>
-    <tr>
-        <td><img src="https://oscimg.oschina.net/oscnet/b6115bc8c31de52951982e509930b20684a.jpg"/></td>
-        <td><img src="https://oscimg.oschina.net/oscnet/up-5e4daac0bb59612c5038448acbcef235e3a.png"/></td>
-    </tr>
-</table>
+### 登录
 
+浏览器访问 `http://localhost`，使用若依默认管理员账号登录：
 
-## 若依前后端分离交流群
+- 账号：`admin`
+- 密码：若依默认初始密码 `admin123`
 
-QQ群： [![加入QQ群](https://img.shields.io/badge/已满-937441-blue.svg)](https://jq.qq.com/?_wv=1027&k=5bVB1og) [![加入QQ群](https://img.shields.io/badge/已满-887144332-blue.svg)](https://jq.qq.com/?_wv=1027&k=5eiA4DH) [![加入QQ群](https://img.shields.io/badge/已满-180251782-blue.svg)](https://jq.qq.com/?_wv=1027&k=5AxMKlC) [![加入QQ群](https://img.shields.io/badge/已满-104180207-blue.svg)](https://jq.qq.com/?_wv=1027&k=51G72yr) [![加入QQ群](https://img.shields.io/badge/已满-186866453-blue.svg)](https://jq.qq.com/?_wv=1027&k=VvjN2nvu) [![加入QQ群](https://img.shields.io/badge/已满-201396349-blue.svg)](https://jq.qq.com/?_wv=1027&k=5vYAqA05) [![加入QQ群](https://img.shields.io/badge/已满-101456076-blue.svg)](https://jq.qq.com/?_wv=1027&k=kOIINEb5) [![加入QQ群](https://img.shields.io/badge/已满-101539465-blue.svg)](https://jq.qq.com/?_wv=1027&k=UKtX5jhs) [![加入QQ群](https://img.shields.io/badge/已满-264312783-blue.svg)](https://jq.qq.com/?_wv=1027&k=EI9an8lJ) [![加入QQ群](https://img.shields.io/badge/已满-167385320-blue.svg)](https://jq.qq.com/?_wv=1027&k=SWCtLnMz) [![加入QQ群](https://img.shields.io/badge/已满-104748341-blue.svg)](https://jq.qq.com/?_wv=1027&k=96Dkdq0k) [![加入QQ群](https://img.shields.io/badge/已满-160110482-blue.svg)](https://jq.qq.com/?_wv=1027&k=0fsNiYZt) [![加入QQ群](https://img.shields.io/badge/已满-170801498-blue.svg)](https://jq.qq.com/?_wv=1027&k=7xw4xUG1) [![加入QQ群](https://img.shields.io/badge/已满-108482800-blue.svg)](https://jq.qq.com/?_wv=1027&k=eCx8eyoJ) [![加入QQ群](https://img.shields.io/badge/已满-101046199-blue.svg)](https://jq.qq.com/?_wv=1027&k=SpyH2875) [![加入QQ群](https://img.shields.io/badge/已满-136919097-blue.svg)](https://jq.qq.com/?_wv=1027&k=tKEt51dz) [![加入QQ群](https://img.shields.io/badge/已满-143961921-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=0vBbSb0ztbBgVtn3kJS-Q4HUNYwip89G&authKey=8irq5PhutrZmWIvsUsklBxhj57l%2F1nOZqjzigkXZVoZE451GG4JHPOqW7AW6cf0T&noverify=0&group_code=143961921) [![加入QQ群](https://img.shields.io/badge/已满-174951577-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=ZFAPAbp09S2ltvwrJzp7wGlbopsc0rwi&authKey=HB2cxpxP2yspk%2Bo3WKTBfktRCccVkU26cgi5B16u0KcAYrVu7sBaE7XSEqmMdFQp&noverify=0&group_code=174951577) [![加入QQ群](https://img.shields.io/badge/已满-161281055-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=Fn2aF5IHpwsy8j6VlalNJK6qbwFLFHat&authKey=uyIT%2B97x2AXj3odyXpsSpVaPMC%2Bidw0LxG5MAtEqlrcBcWJUA%2FeS43rsF1Tg7IRJ&noverify=0&group_code=161281055) [![加入QQ群](https://img.shields.io/badge/已满-138988063-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=XIzkm_mV2xTsUtFxo63bmicYoDBA6Ifm&authKey=dDW%2F4qsmw3x9govoZY9w%2FoWAoC4wbHqGal%2BbqLzoS6VBarU8EBptIgPKN%2FviyC8j&noverify=0&group_code=138988063) [![加入QQ群](https://img.shields.io/badge/已满-151450850-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=DkugnCg68PevlycJSKSwjhFqfIgrWWwR&authKey=pR1Pa5lPIeGF%2FFtIk6d%2FGB5qFi0EdvyErtpQXULzo03zbhopBHLWcuqdpwY241R%2F&noverify=0&group_code=151450850) [![加入QQ群](https://img.shields.io/badge/已满-224622315-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=F58bgRa-Dp-rsQJThiJqIYv8t4-lWfXh&authKey=UmUs4CVG5OPA1whvsa4uSespOvyd8%2FAr9olEGaWAfdLmfKQk%2FVBp2YU3u2xXXt76&noverify=0&group_code=224622315) [![加入QQ群](https://img.shields.io/badge/已满-287842588-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=Nxb2EQ5qozWa218Wbs7zgBnjLSNk_tVT&authKey=obBKXj6SBKgrFTJZx0AqQnIYbNOvBB2kmgwWvGhzxR67RoRr84%2Bus5OadzMcdJl5&noverify=0&group_code=287842588) [![加入QQ群](https://img.shields.io/badge/已满-187944233-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=numtK1M_I4eVd2Gvg8qtbuL8JgX42qNh&authKey=giV9XWMaFZTY%2FqPlmWbkB9g3fi0Ev5CwEtT9Tgei0oUlFFCQLDp4ozWRiVIzubIm&noverify=0&group_code=187944233) [![加入QQ群](https://img.shields.io/badge/已满-228578329-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=G6r5KGCaa3pqdbUSXNIgYloyb8e0_L0D&authKey=4w8tF1eGW7%2FedWn%2FHAypQksdrML%2BDHolQSx7094Agm7Luakj9EbfPnSTxSi2T1LQ&noverify=0&group_code=228578329) [![加入QQ群](https://img.shields.io/badge/已满-191164766-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=GsOo-OLz53J8y_9TPoO6XXSGNRTgbFxA&authKey=R7Uy%2Feq%2BZsoKNqHvRKhiXpypW7DAogoWapOawUGHokJSBIBIre2%2FoiAZeZBSLuBc&noverify=0&group_code=191164766) [![加入QQ群](https://img.shields.io/badge/已满-174569686-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=PmYavuzsOthVqfdAPbo4uAeIbu7Ttjgc&authKey=p52l8%2FXa4PS1JcEmS3VccKSwOPJUZ1ZfQ69MEKzbrooNUljRtlKjvsXf04bxNp3G&noverify=0&group_code=174569686) [![加入QQ群](https://img.shields.io/badge/已满-127358632-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=M9y5NjAl44lAL_Vh2crmEehZU_PMU6KS&authKey=ZSDz8hEREWSaPuxQV3gEwqGIaGjfRNnkB4rJjf0IvXhrSUGSGwQFmBA%2Boe8HFxyl&noverify=0&group_code=127358632) [![加入QQ群](https://img.shields.io/badge/113071109-blue.svg)](http://qm.qq.com/cgi-bin/qm/qr?_wv=1027&k=UGnoqRcFRxUaX-JAUNrSDbPimKrllp4x&authKey=Bbzf8Bc0XaQhq5c4QOg46Uqngd%2FvtIixrLvCM1EkPf41diqKXKZqXVwAxHTxJ8R1&noverify=0&group_code=113071109) 点击按钮入群。
+> ⚠️ **首次登录后请立即修改管理员密码**。仓库是公开的，默认口令人人皆知；改成强口令再对外使用。
+>
+> 登录页的验证码由后端提供：管理端请求 `/dev-api/captchaImage`，经代理转发到后端的 `/captchaImage`。**后端未启动时验证码是空白的，也登录不了。**
+
+### 构建与预览
+
+```bash
+npm run build:prod    # 生产构建，产物在 dist/
+npm run build:stage   # 预发构建（--mode staging）
+npm run preview       # 预览构建产物
+```
+
+## 配置说明
+
+### 开发服务器（`vite.config.js`）
+
+| 配置 | 值 | 说明 |
+| --- | --- | --- |
+| `server.port` | `80` | 开发地址即 `http://localhost` |
+| `server.host` | `'localhost'` | **仅监听本机回环地址**，出于安全考虑，管理后台不暴露给局域网内其他机器 |
+| `server.open` | `true` | 启动后自动打开浏览器 |
+
+### 后端地址与代理（`vite.config.js`）
+
+后端地址写在文件顶部的常量里：
+
+```js
+const baseUrl = 'http://localhost:8080' // 后端接口
+```
+
+代理规则：
+
+| 前缀 | 目标 | 处理 |
+| --- | --- | --- |
+| `/dev-api` | `http://localhost:8080` | `rewrite` 去掉 `/dev-api` 前缀，即 `/dev-api/captchaImage` → `/captchaImage` |
+| `^/v3/api-docs/(.*)` | `http://localhost:8080` | 直通，用于 springdoc 接口文档代理 |
+
+> 管理端的接口前缀是 `/dev-api`；前台工具站的接口路径是 `/api/...`（由 QTools-C 直连后端）。两者互不影响，不要混淆。
+
+### 环境变量（`.env.*`）
+
+| 文件 | 变量 | 值 |
+| --- | --- | --- |
+| `.env.development` | `VITE_APP_TITLE` | `QTools 管理后台` |
+| `.env.development` | `VITE_APP_BASE_API` | `/dev-api` |
+| `.env.production` | `VITE_APP_TITLE` | `QTools 管理后台` |
+| `.env.production` | `VITE_APP_BASE_API` | `/prod-api` |
+| `.env.staging` | `VITE_APP_TITLE` | `QTools 管理后台` |
+| `.env.staging` | `VITE_APP_BASE_API` | `/stage-api` |
+
+- `VITE_APP_TITLE` 通过 `index.html` 中的 `<title>%VITE_APP_TITLE%</title>` 生效，同时被 `src/settings.js` 读取为网页标题。
+- `VITE_APP_BASE_API` 是 axios 的请求前缀（`src/utils/request.js`）。**开发环境下它必须与 `vite.config.js` 里的代理前缀 `/dev-api` 一致**，否则请求打不到后端。
+- 部署到生产/预发时，需要由 Nginx 等把 `/prod-api`、`/stage-api` 反向代理到后端。
+
+## 上游改动说明
+
+本仓库基于 [RuoYi-Vue3](https://gitee.com/y_project/RuoYi-Vue) 3.9.2 二次开发（非 Git fork），相对上游的改动集中在品牌文案与本地开发安全：
+
+| 项 | 上游 | 本仓库 |
+| --- | --- | --- |
+| 品牌文案 | 若依 | 三个 `.env.*` 的 `VITE_APP_TITLE` 改为 `QTools 管理后台`；`package.json` 的 `name` 为 `qtools-m`、`description` 为 `QTools 管理后台（基于若依 RuoYi-Vue3）` |
+| 底部版权 | 若依 | `src/settings.js` 的 `footerContent` 改为 QTools 版权 |
+| 首页文案 | 若依介绍 | `src/views/index.vue` 的主标题与简介改为 QTools 说明 |
+| 开发监听 | 默认监听所有网卡 | `server.host = 'localhost'`，仅监听本机 |
+| 锁文件 | 忽略所有锁文件 | **提交 `package-lock.json`**（保证依赖可复现），仅忽略 `yarn.lock` |
+
+框架代码本身与上游保持一致，因此若依的官方文档与生态资料基本适用。
+
+## 常见问题
+
+**1. 启动时报 80 端口被占用或权限不足**
+
+`80` 是特权/常用端口。若被 IIS、其他 Web 服务或已被系统保留的端口占用，Vite 会启动失败。处理办法：停掉占用端口的进程，或把 `vite.config.js` 里的 `server.port` 改成一个高位端口（如 `8081`），访问地址随之变化。
+
+**2. 登录失败 / 验证码是空白**
+
+先确认后端 QTools 是否已在 `http://localhost:8080` 运行（数据库 MySQL、Redis 也要就绪）。后端没起来时，`/dev-api/captchaImage` 走代理会报错，登录页验证码区域就是空白，此时任何账号都登不上。
+
+**3. 默认密码必须修改**
+
+默认管理员口令是若依公开的默认值，仓库也是公开的。首次登录后请立即在「个人中心 / 用户管理」里修改为强口令；对外提供访问前务必确认已改。
+
+**4. 需要从局域网其他机器访问**
+
+出于安全考虑，开发服务器目前只监听本机。确有需要时，把 `vite.config.js` 里 `server.host` 改为 `true`（或 `0.0.0.0`）即可被同网段访问——**这意味着管理后台会暴露给局域网内的任何人，请先修改默认管理员密码，并自行承担相应风险**；长期方案是走反向代理 + HTTPS，而不是长期开放 dev server。
+
+**5. npm 安装时出现 install-scripts 相关警告**
+
+新版 npm（11.19+）会对依赖的安装脚本给出警告，属于提示信息，**不影响依赖安装与 `npm run dev` / `npm run build:prod`**，可以忽略。
+
+## 许可与致谢
+
+- 本仓库沿用上游许可：**MIT**（见 `LICENSE`，版权归 RuoYi 所有）。
+- 上游项目：**RuoYi-Vue3 / RuoYi-Vue** — https://gitee.com/y_project/RuoYi-Vue ，本项目保留其署名与许可声明。
+- 感谢若依开源社区提供的后台管理框架。
