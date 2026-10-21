@@ -116,7 +116,8 @@ function logout() {
     type: 'warning'
   }).then(() => {
     userStore.logOut().then(() => {
-      location.href = '/index'
+      // 用 base 拼绝对路径：生产 base 为 /admin-ui/，写死 '/index' 会跳到用户端 SPA
+      location.href = import.meta.env.BASE_URL + 'index'
     })
   }).catch(() => { })
 }

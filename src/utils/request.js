@@ -88,7 +88,8 @@ service.interceptors.response.use(res => {
         ElMessageBox.confirm('登录状态已过期，您可以继续留在该页面，或者重新登录', '系统提示', { confirmButtonText: '重新登录', cancelButtonText: '取消', type: 'warning' }).then(() => {
           isRelogin.show = false
           useUserStore().logOut().then(() => {
-            location.href = '/index'
+            // 用 base 拼绝对路径：生产 base 为 /admin-ui/，写死 '/index' 会跳到用户端 SPA
+            location.href = import.meta.env.BASE_URL + 'index'
           })
       }).catch(() => {
         isRelogin.show = false

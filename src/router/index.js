@@ -167,7 +167,9 @@ export const dynamicRoutes = [
 ]
 
 const router = createRouter({
-  history: createWebHistory(),
+  // 必须显式传 base：生产构建 base 为 /admin-ui/（见 vite.config.js），
+  // 默认的 createWebHistory() 会让 /admin-ui/index 这类深链匹配不到路由、整站落到 404 页
+  history: createWebHistory(import.meta.env.BASE_URL),
   routes: constantRoutes,
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
