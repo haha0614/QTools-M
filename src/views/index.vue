@@ -77,6 +77,25 @@
               </div>
             </el-col>
           </el-row>
+          <!-- 新增的 3 个指标：完播率 / 今日 UV / 累计 UV（独立一行，不影响上面 5 卡布局） -->
+          <el-row :gutter="16">
+            <el-col v-for="card in mediaExtraCards" :key="card.key" :xs="12" :sm="8" :md="8">
+              <div class="stat-card media-metric">
+                <div class="stat-card__body">
+                  <div class="stat-card__icon" :style="{ color: card.color }">
+                    <el-icon :size="22"><component :is="card.icon" /></el-icon>
+                  </div>
+                  <div class="stat-card__meta">
+                    <div class="stat-card__value">{{ card.value }}</div>
+                    <div class="stat-card__label">{{ card.label }}</div>
+                    <el-tooltip v-if="card.tip" :content="card.tip" placement="bottom" :show-after="200">
+                      <div class="stat-card__hint">{{ card.hint }}</div>
+                    </el-tooltip>
+                  </div>
+                </div>
+              </div>
+            </el-col>
+          </el-row>
           <!-- 全部指标为 0 时的引导文案（不遮挡图表，仅在无任何埋点时提示） -->
           <div v-if="mediaAllZero" class="media-empty-tip">暂无媒体埋点数据，先在媒体站产生一些播放/点击</div>
         </el-card>
@@ -115,6 +134,34 @@
       </el-col>
     </el-row>
 
+    <!-- 下钻弹窗：单个视频播放 / 单张图片点击的近 N 天趋势 -->
+    <el-dialog
+      v-model="targetDialogVisible"
+      :title="targetDialogTitle"
+      width="640px"
+      append-to-body
+      @opened="renderTargetChart"
+      @closed="disposeTargetChart"
+    >
+      <div v-loading="targetLoading">
+        <el-row :gutter="12">
+          <el-col v-for="item in targetNumbers" :key="item.key" :span="item.span">
+            <div class="target-num">
+              <div class="target-num__value">{{ item.value }}</div>
+              <div class="target-num__label">{{ item.label }}</div>
+            </div>
+          </el-col>
+        </el-row>
+        <div class="target-chart-title">
+          {{ targetStats.targetType === "photo" ? "近 7 天点击趋势" : "近 7 天播放趋势" }}
+        </div>
+        <div class="chart-hold">
+          <div v-show="targetStats.daily.length" ref="targetChartRef" class="chart chart--target" />
+          <el-empty v-if="!targetStats.daily.length" :image-size="60" description="暂无趋势数据" />
+        </div>
+      </div>
+    </el-dialog>
+
     <!-- 媒体站看板加载失败提示（独立于工具看板，互不覆盖） -->
     <el-alert
       v-if="mediaErrorMsg"
@@ -139,8 +186,9 @@
 
 <script setup name="Index">
 import * as echarts from "echarts"
+import { ElMessage } from "element-plus"
 import { getStatsOverview } from "@/api/qtool/info"
-import { getMediaStats } from "@/api/media"
+import { getMediaStats, getMediaTargetStats } from "@/api/media"
 
 const router = useRouter()
 
@@ -172,6 +220,12 @@ const mediaStats = reactive({
   pageViewCount: 0,
   totalPlayMs: 0,
   favCount: 0,
+  // 后端 stats/overview 新增字段：UV 与完播
+  uvToday: 0,
+  uvTotal: 0,
+  playEndCount: 0,
+  completedPlayCount: 0,
+  completionRate: 0,
   trendDays: 7,
   topVideos: [],
   topPhotos: []
@@ -181,6 +235,23 @@ const mediaVideoRef = ref(null)
 const mediaPhotoRef = ref(null)
 let mediaVideoChart = null
 let mediaPhotoChart = null
+
+// ---- 下钻弹窗：单个媒体目标的趋势（视频播放 / 图片点击） ----
+const targetDialogVisible = ref(false)
+const targetLoading = ref(false)
+const targetChartRef = ref(null)
+let targetChart = null
+const targetStats = reactive({
+  targetType: "video",
+  targetKey: "",
+  title: "",
+  playCount: 0,
+  playEndCount: 0,
+  completedCount: 0,
+  completionRate: 0,
+  totalPlayMs: 0,
+  daily: []
+})
 
 // 横向条形图默认从下往上画，反转后第一名在最上方
 const mediaVideoRows = computed(() => [...(mediaStats.topVideos || [])].reverse())
@@ -194,6 +265,40 @@ const mediaCards = computed(() => [
   { key: "totalPlayMs", label: "累计观看时长", value: formatPlayMs(mediaStats.totalPlayMs), icon: "Timer", color: "#909399" },
   { key: "favCount", label: "收藏量", value: mediaStats.favCount, icon: "Star", color: "#f56c6c" }
 ])
+
+// 媒体站新增 3 个小指标卡（完播率 / 今日 UV / 累计 UV）
+const mediaExtraCards = computed(() => [
+  {
+    key: "completionRate",
+    label: "完播率",
+    value: formatPercent(mediaStats.completionRate),
+    icon: "Odometer",
+    color: "#409eff",
+    hint: `播放完成 ${mediaStats.completedPlayCount ?? 0} / ${mediaStats.playEndCount ?? 0}`,
+    tip: `播放完成 ${mediaStats.completedPlayCount ?? 0} / ${mediaStats.playEndCount ?? 0}（完播次数 / 播放结束事件数）`
+  },
+  { key: "uvToday", label: "今日 UV", value: mediaStats.uvToday ?? 0, icon: "User", color: "#67c23a" },
+  { key: "uvTotal", label: "累计 UV", value: mediaStats.uvTotal ?? 0, icon: "UserFilled", color: "#e6a23c" }
+])
+
+// 弹窗顶部数字：视频看完播率与时长，图片只看点击量
+const targetNumbers = computed(() => {
+  if (targetStats.targetType === "photo") {
+    return [{ key: "playCount", label: "点击量", value: targetStats.playCount ?? 0, span: 24 }]
+  }
+  return [
+    { key: "playCount", label: "播放量", value: targetStats.playCount ?? 0, span: 6 },
+    { key: "completionRate", label: "完播率", value: formatPercent(targetStats.completionRate), span: 6 },
+    { key: "totalPlayMs", label: "累计观看时长", value: formatPlayMs(targetStats.totalPlayMs), span: 6 },
+    { key: "completedCount", label: "完播次数", value: targetStats.completedCount ?? 0, span: 6 }
+  ]
+})
+
+// 弹窗标题：优先用后端回填的 title，没有就退回 targetKey
+const targetDialogTitle = computed(() => {
+  const name = targetStats.title || targetStats.targetKey || "统计详情"
+  return `${targetStats.targetType === "photo" ? "图片" : "视频"}统计 · ${name}`
+})
 
 // 全部计数为 0 时说明还没产生埋点
 const mediaAllZero = computed(
@@ -219,6 +324,14 @@ function formatPlayMs(ms) {
   if (hour > 0) return minute > 0 ? `${hour} 小时 ${minute} 分` : `${hour} 小时`
   if (minute > 0) return second > 0 ? `${minute} 分 ${second} 秒` : `${minute} 分`
   return `${second} 秒`
+}
+
+/** 百分比展示：后端已是 0-100 的数值，最多保留 2 位小数并去掉多余的 0 */
+function formatPercent(value) {
+  const num = Number(value)
+  if (!Number.isFinite(num) || num <= 0) return "0%"
+  const fixed = num >= 100 ? "100" : num.toFixed(2).replace(/\.?0+$/, "")
+  return `${fixed}%`
 }
 
 // 顶部四个指标卡（值随接口刷新）
@@ -316,6 +429,8 @@ function handleResize() {
   rankChart?.resize()
   mediaVideoChart?.resize()
   mediaPhotoChart?.resize()
+  // 弹窗里的图表只在可见时重绘：隐藏时容器尺寸为 0，resize 会把它画坏
+  if (targetDialogVisible.value) targetChart?.resize()
 }
 
 /** 跳到工具维护页（菜单未授权时静默忽略） */
@@ -343,6 +458,12 @@ async function loadMedia() {
       pageViewCount: data.pageViewCount ?? 0,
       totalPlayMs: data.totalPlayMs ?? 0,
       favCount: data.favCount ?? 0,
+      // 新增字段：后端未升级时这里是 undefined，统一兜底为 0
+      uvToday: data.uvToday ?? 0,
+      uvTotal: data.uvTotal ?? 0,
+      playEndCount: data.playEndCount ?? 0,
+      completedPlayCount: data.completedPlayCount ?? 0,
+      completionRate: data.completionRate ?? 0,
       trendDays: data.trendDays ?? 7,
       topVideos: Array.isArray(data.topVideos) ? data.topVideos : [],
       topPhotos: Array.isArray(data.topPhotos) ? data.topPhotos : []
@@ -366,6 +487,8 @@ function renderMediaCharts() {
       mediaVideoChart = null
     } else {
       mediaVideoChart = mediaVideoChart || echarts.init(mediaVideoRef.value)
+      // series.data 用对象挂载 key/title：点击时从 params.data 直接反查 targetKey，
+      // 不依赖 y 轴 label（label 可能是 title，也可能重名）
       mediaVideoChart.setOption({
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
         grid: { left: 8, right: 40, top: 16, bottom: 16, containLabel: true },
@@ -379,12 +502,18 @@ function renderMediaCharts() {
             name: "播放量",
             type: "bar",
             barMaxWidth: 18,
+            cursor: "pointer",
             itemStyle: { borderRadius: [0, 4, 4, 0] },
-            label: { show: true, position: "right" },
-            data: mediaVideoRows.value.map(item => item.count ?? 0)
+            label: { show: true, position: "right", formatter: param => String(param.value ?? 0) },
+            data: mediaVideoRows.value.map(item => ({
+              value: item.count ?? 0,
+              key: item.key,
+              title: item.title || null
+            }))
           }
         ]
       })
+      bindMediaBarClick(mediaVideoChart, "video")
     }
   }
 
@@ -394,6 +523,7 @@ function renderMediaCharts() {
       mediaPhotoChart = null
     } else {
       mediaPhotoChart = mediaPhotoChart || echarts.init(mediaPhotoRef.value)
+      // 图片同理：key 形如 albumId:seq，直接挂在 data 对象上
       mediaPhotoChart.setOption({
         tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
         grid: { left: 8, right: 40, top: 16, bottom: 16, containLabel: true },
@@ -407,14 +537,117 @@ function renderMediaCharts() {
             name: "点击量",
             type: "bar",
             barMaxWidth: 18,
+            cursor: "pointer",
             itemStyle: { borderRadius: [0, 4, 4, 0] },
-            label: { show: true, position: "right" },
-            data: mediaPhotoRows.value.map(item => item.count ?? 0)
+            label: { show: true, position: "right", formatter: param => String(param.value ?? 0) },
+            data: mediaPhotoRows.value.map(item => ({
+              value: item.count ?? 0,
+              key: item.key,
+              title: item.title || null
+            }))
           }
         ]
       })
+      bindMediaBarClick(mediaPhotoChart, "photo")
     }
   }
+}
+
+/**
+ * 给排行条形图绑定点击下钻。
+ * 先 off 再 on，保证重复渲染不会叠加监听器（setOption 会复用同一实例）。
+ */
+function bindMediaBarClick(chart, targetType) {
+  if (!chart) return
+  chart.off("click")
+  chart.on("click", params => {
+    // params.data 就是 series.data 里的对象 {value, key, title}
+    const datum = params?.data
+    const targetKey = datum && typeof datum === "object" ? datum.key : null
+    if (!targetKey) return
+    const title = datum.title || null
+    openTargetStats(targetType, targetKey, title)
+  })
+}
+
+/** 打开下钻弹窗并拉取该目标的趋势；失败只提示，不阻塞页面 */
+async function openTargetStats(targetType, targetKey, title) {
+  // 重置上一个目标的数据，避免切换时闪现旧内容
+  Object.assign(targetStats, {
+    targetType,
+    targetKey,
+    title: title || "",
+    playCount: 0,
+    playEndCount: 0,
+    completedCount: 0,
+    completionRate: 0,
+    totalPlayMs: 0,
+    daily: []
+  })
+  targetDialogVisible.value = true
+  targetLoading.value = true
+  try {
+    const res = await getMediaTargetStats({ targetType, targetKey, days: 7 })
+    const data = res.data || {}
+    Object.assign(targetStats, {
+      targetType: data.targetType || targetType,
+      targetKey: data.targetKey || targetKey,
+      title: data.title || title || "",
+      playCount: data.playCount ?? 0,
+      playEndCount: data.playEndCount ?? 0,
+      completedCount: data.completedCount ?? 0,
+      completionRate: data.completionRate ?? 0,
+      totalPlayMs: data.totalPlayMs ?? 0,
+      daily: Array.isArray(data.daily) ? data.daily : []
+    })
+    await nextTick()
+    renderTargetChart()
+  } catch (err) {
+    console.error("[Dashboard] 媒体目标统计加载失败：", err)
+    ElMessage.warning("该目标的统计数据加载失败，请稍后再试")
+  } finally {
+    targetLoading.value = false
+  }
+}
+
+/** 绘制弹窗里的近 7 天折线（实例复用，无数据不画） */
+function renderTargetChart() {
+  const el = targetChartRef.value
+  if (!el || !targetStats.daily.length) return
+  targetChart = targetChart || echarts.init(el)
+  const isPhoto = targetStats.targetType === "photo"
+  const daily = targetStats.daily
+  // notMerge = true：切换不同目标时完全替换配置，避免残留上一个目标的点
+  targetChart.setOption(
+    {
+      tooltip: { trigger: "axis" },
+      grid: { left: 40, right: 16, top: 24, bottom: 32 },
+      xAxis: {
+        type: "category",
+        boundaryGap: false,
+        data: daily.map(item => String(item.date || "").slice(5))
+      },
+      yAxis: { type: "value", minInterval: 1 },
+      series: [
+        {
+          name: isPhoto ? "点击量" : "播放量",
+          type: "line",
+          smooth: true,
+          symbolSize: 6,
+          areaStyle: { opacity: 0.15 },
+          data: daily.map(item => item.count ?? 0)
+        }
+      ]
+    },
+    true
+  )
+  targetChart.resize()
+}
+
+/** 弹窗关闭：销毁图表实例，下次打开重新 init（容器随弹窗销毁） */
+function disposeTargetChart() {
+  targetChart?.dispose()
+  targetChart = null
 }
 
 onMounted(() => {
@@ -429,10 +662,12 @@ onBeforeUnmount(() => {
   rankChart?.dispose()
   mediaVideoChart?.dispose()
   mediaPhotoChart?.dispose()
+  targetChart?.dispose()
   trendChart = null
   rankChart = null
   mediaVideoChart = null
   mediaPhotoChart = null
+  targetChart = null
 })
 </script>
 
@@ -505,6 +740,56 @@ onBeforeUnmount(() => {
   margin-top: 4px;
   font-size: 13px;
   color: var(--el-text-color-secondary);
+}
+
+/* 完播率卡片下的补充说明（el-tooltip 触发区） */
+.stat-card__hint {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--el-text-color-placeholder);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 只在媒体指标卡内允许文字收缩，避免长副标题撑破窄屏卡片（不影响工具看板） */
+.media-metric .stat-card__meta {
+  min-width: 0;
+}
+
+/* ---- 下钻弹窗 ---- */
+.target-num {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  text-align: center;
+  background: var(--el-fill-color-lighter);
+
+  &__value {
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--el-text-color-primary);
+  }
+
+  &__label {
+    margin-top: 2px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
+}
+
+.target-chart-title {
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--el-text-color-regular);
+}
+
+/* 弹窗折线图固定 240px 高 */
+.chart--target {
+  height: 240px;
 }
 
 @media (max-width: 767px) {

@@ -122,6 +122,18 @@ export function getMediaStats() {
   })
 }
 
+// 单个媒体目标的统计（视频播放曲线 / 图片点击曲线 / 相册打开曲线）
+// 参数：{ targetType: 'video'|'photo'|'album', targetKey: string, days: number }
+// 返回：{ targetType, targetKey, title, playCount, playEndCount, completedCount,
+//        completionRate, totalPlayMs, daily: [{ date, count }] }
+export function getMediaTargetStats(params) {
+  return request({
+    url: BASE + '/stats/target',
+    method: 'get',
+    params
+  })
+}
+
 // 触发重建索引（异步，同一时刻只允许 1 个）
 export function startScan(type) {
   return request({
