@@ -172,8 +172,25 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
-            <el-form-item label="图标名称" prop="icon">
-              <el-input v-model="form.icon" placeholder="请输入图标名称" />
+            <el-form-item label="图标" prop="icon">
+              <!-- Element Plus 图标选择器：下拉项带图标预览，支持输入关键字过滤 -->
+              <el-select
+                v-model="form.icon"
+                filterable
+                clearable
+                placeholder="请选择 Element Plus 图标"
+                style="width: 100%"
+              >
+                <template #prefix>
+                  <el-icon v-if="isGlobalIcon(form.icon)"><component :is="form.icon" /></el-icon>
+                </template>
+                <el-option v-for="name in epIconNames" :key="name" :label="name" :value="name">
+                  <span class="icon-option">
+                    <el-icon :size="16"><component :is="name" /></el-icon>
+                    <span>{{ name }}</span>
+                  </span>
+                </el-option>
+              </el-select>
             </el-form-item>
           </el-col>
           <el-col :span="24">
@@ -205,6 +222,16 @@
 <script setup name="Info">
 import { listInfo, getInfo, delInfo, addInfo, updateInfo } from "@/api/qtool/info"
 import InfoViewDrawer from "./view"
+import * as ElementPlusIcons from "@element-plus/icons-vue"
+
+/**
+ * 图标选择器的候选值：Element Plus 全部图标名。
+ * 若依在 main.js 里已用 app.use(elementIcons) 把同一批图标注册为全局组件，
+ * 这里直接取包的命名集合（过滤掉非组件导出），按字母序排列便于搜索。
+ */
+const epIconNames = Object.keys(ElementPlusIcons)
+  .filter(name => /^[A-Z]/.test(name))
+  .sort()
 
 const instance = getCurrentInstance()
 const { proxy } = instance
@@ -396,5 +423,11 @@ getList()
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* 图标选择器的下拉项：图标 + 名称 */
+.icon-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 </style>
