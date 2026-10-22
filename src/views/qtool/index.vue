@@ -135,6 +135,15 @@
       </el-table-column>
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
+          <!-- 打开：直接在新标签页打开该工具的前端页面（未配置路由时禁用） -->
+          <el-button
+            link
+            type="primary"
+            icon="TopRight"
+            :disabled="!scope.row.toolRoute"
+            @click="handleOpenPage(scope.row)"
+            v-hasPermi="['qtool:admin:list']"
+          >打开</el-button>
           <el-button link type="primary" icon="View" @click="handleViewData(scope.row)" v-hasPermi="['qtool:admin:query']">详情</el-button>
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['qtool:admin:edit']">修改</el-button>
           <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['qtool:admin:remove']">删除</el-button>
@@ -399,6 +408,19 @@ function handleDelete(row) {
 /** 详情按钮操作 */
 function handleViewData(row) {
   proxy.$refs["infoViewRef"].open(row.id)
+}
+
+/**
+ * 打开按钮操作：直接在新标签页打开该工具的前台页面。
+ * 与「详情」抽屉的分工：抽屉看后台元数据，打开看用户实际看到的页面。
+ */
+function handleOpenPage(row) {
+  const url = resolveToolUrl(row.toolRoute)
+  if (!url) {
+    proxy.$modal.msgWarning("该工具未配置前端访问路由")
+    return
+  }
+  window.open(url, "_blank", "noopener,noreferrer")
 }
 
 /** 导出按钮操作 */
