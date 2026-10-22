@@ -231,6 +231,7 @@
 <script setup name="Info">
 import { listInfo, getInfo, delInfo, addInfo, updateInfo } from "@/api/qtool/info"
 import InfoViewDrawer from "./view"
+import { resolveToolUrl } from "@/utils/qtool"
 import * as ElementPlusIcons from "@element-plus/icons-vue"
 
 /**
@@ -257,17 +258,9 @@ function isGlobalIcon(name) {
 }
 
 /**
- * 把后台配置的前端路由解析成可点击地址：
- *  - 已是完整地址（http/https）时原样返回；
- *  - 以 / 开头的站内路由拼当前站点源（前台与后台同源，均为 nginx / 8080 统一入口）；
- *  - 前后台分开部署时，可用 VITE_APP_USER_SITE_URL 覆盖站点源。
+ * 把后台配置的前端路由解析成可点击地址。
+ * 具体规则见 @/utils/qtool 的 resolveToolUrl（抽屉内嵌 iframe 复用同一份解析）。
  */
-function resolveToolUrl(route) {
-  if (!route) return ''
-  if (/^https?:\/\//i.test(route)) return route
-  const origin = import.meta.env.VITE_APP_USER_SITE_URL || window.location.origin
-  return origin.replace(/\/+$/, '') + (route.startsWith('/') ? route : '/' + route)
-}
 
 const infoList = ref([])
 const open = ref(false)
