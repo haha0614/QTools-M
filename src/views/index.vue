@@ -548,7 +548,7 @@ function renderMediaCharts() {
         yAxis: {
           type: "category",
           axisLabel: { width: 120, overflow: "truncate", ellipsis: "…", fontSize: 12 },
-          data: mediaPhotoRows.value.map(item => item.key || "-")
+          data: mediaPhotoRows.value.map(item => item.title || item.key || "-")
         },
         series: [
           {
