@@ -42,3 +42,11 @@ export function delInfo(id) {
     method: 'delete'
   })
 }
+
+// 工具站数据看板总览（总量指标 + 近 N 天趋势 + 工具访问排行）
+export function getStatsOverview() {
+  return request({
+    url: '/api/qtool/stats/overview',
+    method: 'get'
+  })
+}

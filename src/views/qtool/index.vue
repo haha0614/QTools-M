@@ -125,7 +125,13 @@
           </span>
         </template>
       </el-table-column>
-      <el-table-column label="显示顺序" align="center" prop="sort" />
+      <el-table-column label="显示顺序" align="center" prop="sort" min-width="90" />
+      <!-- 访问次数来自 tool_visit 埋点统计（后端列表 SQL 的子查询），未访问过显示 0 -->
+      <el-table-column label="访问次数" align="center" prop="visitCount" min-width="100">
+        <template #default="scope">
+          <span :class="{ 'visit-zero': !scope.row.visitCount }">{{ scope.row.visitCount ?? 0 }}</span>
+        </template>
+      </el-table-column>
       <el-table-column label="状态" align="center" prop="status">
         <template #default="scope">
           <el-tag :type="scope.row.status === '0' ? 'success' : 'info'" size="small">
@@ -417,5 +423,9 @@ getList()
   display: flex;
   align-items: center;
   gap: 8px;
+}
+/* 访问次数为 0 时弱化显示 */
+.visit-zero {
+  color: var(--el-text-color-placeholder);
 }
 </style>
