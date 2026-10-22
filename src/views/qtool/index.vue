@@ -54,7 +54,7 @@
           plain
           icon="Plus"
           @click="handleAdd"
-          v-hasPermi="['tool:info:add']"
+          v-hasPermi="['qtool:admin:add']"
         >新增</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -64,7 +64,7 @@
           icon="Edit"
           :disabled="single"
           @click="handleUpdate"
-          v-hasPermi="['tool:info:edit']"
+          v-hasPermi="['qtool:admin:edit']"
         >修改</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -74,7 +74,7 @@
           icon="Delete"
           :disabled="multiple"
           @click="handleDelete"
-          v-hasPermi="['tool:info:remove']"
+          v-hasPermi="['qtool:admin:remove']"
         >删除</el-button>
       </el-col>
       <el-col :span="1.5">
@@ -83,7 +83,7 @@
           plain
           icon="Download"
           @click="handleExport"
-          v-hasPermi="['tool:info:export']"
+          v-hasPermi="['qtool:admin:export']"
         >导出</el-button>
       </el-col>
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
@@ -97,12 +97,18 @@
       <el-table-column label="前端访问路由" align="center" prop="toolRoute" />
       <el-table-column label="图标名称" align="center" prop="icon" />
       <el-table-column label="显示顺序" align="center" prop="sort" />
-      <el-table-column label="状态" align="center" prop="status" />
+      <el-table-column label="状态" align="center" prop="status">
+        <template #default="scope">
+          <el-tag :type="scope.row.status === '0' ? 'success' : 'info'" size="small">
+            {{ scope.row.status === '0' ? '正常' : '停用' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
         <template #default="scope">
-          <el-button link type="primary" icon="View" @click="handleViewData(scope.row)" v-hasPermi="['tool:info:query']">详情</el-button>
-          <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['tool:info:edit']">修改</el-button>
-          <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['tool:info:remove']">删除</el-button>
+          <el-button link type="primary" icon="View" @click="handleViewData(scope.row)" v-hasPermi="['qtool:admin:query']">详情</el-button>
+          <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['qtool:admin:edit']">修改</el-button>
+          <el-button link type="primary" icon="Delete" @click="handleDelete(scope.row)" v-hasPermi="['qtool:admin:remove']">删除</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -144,6 +150,15 @@
           <el-col :span="24">
             <el-form-item label="显示顺序" prop="sort">
               <el-input v-model="form.sort" placeholder="请输入显示顺序" />
+            </el-form-item>
+          </el-col>
+          <el-col :span="24">
+            <el-form-item label="状态" prop="status">
+              <!-- 0 正常（前台可见）/ 1 停用（前台列表接口不再返回） -->
+              <el-radio-group v-model="form.status">
+                <el-radio value="0">正常</el-radio>
+                <el-radio value="1">停用</el-radio>
+              </el-radio-group>
             </el-form-item>
           </el-col>
         </el-row>
@@ -223,7 +238,8 @@ function reset() {
     toolRoute: null,
     icon: null,
     sort: null,
-    status: null,
+    // 新建默认「正常」，否则 status 为 null 时前台列表接口（where status='0'）查不到新工具
+    status: '0',
     createTime: null,
     updateTime: null
   }
@@ -306,11 +322,10 @@ function handleViewData(row) {
 
 /** 导出按钮操作 */
 function handleExport() {
-  proxy.download('tool/info/export', {
+  proxy.download('api/qtool/info/export', {
     ...queryParams.value
   }, `info_${new Date().getTime()}.xlsx`)
 }
 
 getList()
-console.log("111")
 </script>
