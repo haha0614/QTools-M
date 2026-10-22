@@ -93,9 +93,38 @@
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="工具ID" align="center" prop="id" />
       <el-table-column label="工具名称" align="center" prop="toolName" />
-      <el-table-column label="工具描述" align="center" prop="toolDesc" />
-      <el-table-column label="前端访问路由" align="center" prop="toolRoute" />
-      <el-table-column label="图标名称" align="center" prop="icon" />
+      <el-table-column label="工具描述" align="center" prop="toolDesc" min-width="180" show-overflow-tooltip />
+      <el-table-column label="前端访问路由" align="center" prop="toolRoute" min-width="170">
+        <template #default="scope">
+          <!-- 前台与后台同源（nginx / 8080 统一入口），拼上站点源即可直接在新标签页打开 -->
+          <el-link
+            v-if="scope.row.toolRoute"
+            type="primary"
+            :underline="false"
+            :href="resolveToolUrl(scope.row.toolRoute)"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {{ scope.row.toolRoute }}
+          </el-link>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="图标" align="center" prop="icon" min-width="140">
+        <template #default="scope">
+          <span class="tool-icon-cell">
+            <!-- 一、Element Plus 图标：若依在 main.js 里把所有 EP 图标注册为全局组件，
+                 因此存 'Document' / 'EditPen' / 'Key' 这类名字时可直接用 <component :is> -->
+            <el-icon v-if="isGlobalIcon(scope.row.icon)" :size="16">
+              <component :is="scope.row.icon" />
+            </el-icon>
+            <!-- 二、若依 SVG 图标（src/assets/icons/svg），如 list / build / image -->
+            <svg-icon v-else-if="scope.row.icon" :icon-class="scope.row.icon" />
+            <!-- 三、都匹配不上时只显示名称，避免出现空白单元格 -->
+            <span class="tool-icon-name">{{ scope.row.icon || '-' }}</span>
+          </span>
+        </template>
+      </el-table-column>
       <el-table-column label="显示顺序" align="center" prop="sort" />
       <el-table-column label="状态" align="center" prop="status">
         <template #default="scope">
@@ -177,7 +206,32 @@
 import { listInfo, getInfo, delInfo, addInfo, updateInfo } from "@/api/qtool/info"
 import InfoViewDrawer from "./view"
 
-const { proxy } = getCurrentInstance()
+const instance = getCurrentInstance()
+const { proxy } = instance
+
+/**
+ * 图标名是否为已注册的全局组件。
+ * 若依在 main.js 里执行 app.use(elementIcons)，把 @element-plus/icons-vue 里的全部图标
+ * 以组件名（如 Document / EditPen / Key）注册到全局，所以可直接判断注册表里有没有同名组件。
+ */
+function isGlobalIcon(name) {
+  if (!name) return false
+  const components = instance?.appContext?.components || {}
+  return Object.prototype.hasOwnProperty.call(components, name)
+}
+
+/**
+ * 把后台配置的前端路由解析成可点击地址：
+ *  - 已是完整地址（http/https）时原样返回；
+ *  - 以 / 开头的站内路由拼当前站点源（前台与后台同源，均为 nginx / 8080 统一入口）；
+ *  - 前后台分开部署时，可用 VITE_APP_USER_SITE_URL 覆盖站点源。
+ */
+function resolveToolUrl(route) {
+  if (!route) return ''
+  if (/^https?:\/\//i.test(route)) return route
+  const origin = import.meta.env.VITE_APP_USER_SITE_URL || window.location.origin
+  return origin.replace(/\/+$/, '') + (route.startsWith('/') ? route : '/' + route)
+}
 
 const infoList = ref([])
 const open = ref(false)
@@ -329,3 +383,18 @@ function handleExport() {
 
 getList()
 </script>
+
+<style scoped>
+/* 图标列：图标与名称同一行展示，名称过长时省略 */
+.tool-icon-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+}
+.tool-icon-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+</style>
