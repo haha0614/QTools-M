@@ -114,6 +114,14 @@ export function getStats() {
   })
 }
 
+// 媒体站数据看板（播放量/点击量/浏览量/观看时长/收藏量/排行）
+export function getMediaStats() {
+  return request({
+    url: BASE + '/stats/overview',
+    method: 'get'
+  })
+}
+
 // 触发重建索引（异步，同一时刻只允许 1 个）
 export function startScan(type) {
   return request({
