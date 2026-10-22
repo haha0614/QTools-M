@@ -113,7 +113,7 @@
             </div>
           </template>
           <div class="chart-hold">
-            <div v-show="mediaVideoRows.length" ref="mediaVideoRef" class="chart chart--media" />
+            <div v-show="mediaVideoRows.length" ref="mediaVideoRef" class="chart chart--media" :style="{ height: mediaVideoHeight + 'px' }" />
             <el-empty v-if="!mediaVideoRows.length" :image-size="70" description="暂无视频播放数据" />
           </div>
         </el-card>
@@ -127,7 +127,7 @@
             </div>
           </template>
           <div class="chart-hold">
-            <div v-show="mediaPhotoRows.length" ref="mediaPhotoRef" class="chart chart--media" />
+            <div v-show="mediaPhotoRows.length" ref="mediaPhotoRef" class="chart chart--media" :style="{ height: mediaPhotoHeight + 'px' }" />
             <el-empty v-if="!mediaPhotoRows.length" :image-size="70" description="暂无图片点击数据" />
           </div>
         </el-card>
@@ -478,6 +478,18 @@ async function loadMedia() {
   }
 }
 
+/**
+ * 图表高度随条数自适应：条目少时不硬拉 300px，否则几条条形之间会隔出大片空白。
+ * 每条按 46px 估算，上下留白 56px，整体夹在 150–320px。
+ */
+function mediaChartHeight(rows) {
+  const n = (rows || []).length
+  return Math.min(320, Math.max(150, n * 46 + 56))
+}
+
+const mediaVideoHeight = computed(() => mediaChartHeight(mediaVideoRows.value))
+const mediaPhotoHeight = computed(() => mediaChartHeight(mediaPhotoRows.value))
+
 /** 绘制两站排行：左热门视频（label 用 title || key）、右热门图片（label 用 key） */
 function renderMediaCharts() {
   if (mediaVideoRef.value) {
@@ -495,13 +507,16 @@ function renderMediaCharts() {
         xAxis: { type: "value", minInterval: 1 },
         yAxis: {
           type: "category",
+          // 视频标题可能很长：限制标签宽度并截断。否则 containLabel 按最长标签预留宽度，
+          // 会把绘图区整块挤到右侧（表现为条形图与标签之间出现大片空白）
+          axisLabel: { width: 120, overflow: "truncate", ellipsis: "…", fontSize: 12 },
           data: mediaVideoRows.value.map(item => item.title || item.key || "-")
         },
         series: [
           {
             name: "播放量",
             type: "bar",
-            barMaxWidth: 18,
+            barMaxWidth: 22,
             cursor: "pointer",
             itemStyle: { borderRadius: [0, 4, 4, 0] },
             label: { show: true, position: "right", formatter: param => String(param.value ?? 0) },
@@ -514,6 +529,8 @@ function renderMediaCharts() {
         ]
       })
       bindMediaBarClick(mediaVideoChart, "video")
+      // 容器高度随条数变化，setOption 后需要按新尺寸重算布局
+      mediaVideoChart.resize()
     }
   }
 
@@ -530,13 +547,14 @@ function renderMediaCharts() {
         xAxis: { type: "value", minInterval: 1 },
         yAxis: {
           type: "category",
+          axisLabel: { width: 120, overflow: "truncate", ellipsis: "…", fontSize: 12 },
           data: mediaPhotoRows.value.map(item => item.key || "-")
         },
         series: [
           {
             name: "点击量",
             type: "bar",
-            barMaxWidth: 18,
+            barMaxWidth: 22,
             cursor: "pointer",
             itemStyle: { borderRadius: [0, 4, 4, 0] },
             label: { show: true, position: "right", formatter: param => String(param.value ?? 0) },
@@ -549,6 +567,7 @@ function renderMediaCharts() {
         ]
       })
       bindMediaBarClick(mediaPhotoChart, "photo")
+      mediaPhotoChart.resize()
     }
   }
 }
