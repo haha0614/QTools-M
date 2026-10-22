@@ -314,6 +314,22 @@ mysql -uroot -p --default-character-set=utf8mb4 qtools -e "source E:/111/project
 
 框架代码本身与上游保持一致，因此若依的官方文档与生态资料基本适用。
 
+## 自定义管理端
+
+品牌相关的改动只有两处，都在本仓库内：
+
+| 改什么 | 位置 | 影响面 |
+| :--- | :--- | :--- |
+| 浏览器标题 / 侧栏 Logo 文案 / 登录页标题 | `.env.development`、`.env.production`、`.env.staging` 的 `VITE_APP_TITLE` | 经 `index.html:10` 的 `%VITE_APP_TITLE%` 注入，同时被 `src/settings.js:5`、`src/layout/components/Sidebar/Logo.vue:28`、`src/views/login.vue:74`、`src/views/register.vue:84` 读取 |
+| 页脚版权 | `src/settings.js:65` 的 `footerContent` | 布局页脚与「界面设置」抽屉里的版权文案 |
+
+- 三个 `.env.*` 要一起改，否则切换环境（`development` / `staging` / `production`）后标题会变回旧值。
+- `src/views/index.vue`（首页看板）里没有硬编码的站点名，想在首页加标题就在该文件里加。
+- 主题与组件样式集中在 `src/assets/styles/`：`index.scss` 里 `@use` 了 `element-ui.scss`、`sidebar.scss`、`btn.scss`、`ruoyi.scss` 等；`variables.module.scss` 里是侧栏/菜单配色等 SCSS 变量。
+- 默认管理员账号 `admin / admin123` 来自若依，**首次登录后请立即改密码**。
+
+完整的端到端改造步骤（含前台品牌、工具表与媒体内容）见 **[自定义与迁移指南](../QTools/doc/自定义与迁移指南.md)**。
+
 ## 常见问题
 
 **1. 启动报端口 5174 已被占用**
