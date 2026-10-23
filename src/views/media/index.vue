@@ -20,6 +20,7 @@
       <div class="media-toolbar-right">
         <el-button icon="Refresh" :loading="statsLoading" @click="refreshAll">刷新</el-button>
         <el-button icon="PriceTag" @click="openTagManager" v-hasPermi="['media:admin:list']">标签管理</el-button>
+        <el-button icon="Setting" @click="openEditPolicy" v-hasPermi="['media:admin:edit']">编辑策略</el-button>
         <el-input-number v-model="scanLimit" :min="0" :max="10000" :step="1" :disabled="scanRunning"
           controls-position="right" class="scan-limit" title="试跑条数：只对重建缩略图 / 生成精灵图预览生效，0 = 不限" />
         <el-button type="primary" plain icon="RefreshRight" :loading="scanRunning" :disabled="scanRunning" @click="handleScan('scan')"
@@ -332,8 +333,10 @@
             <el-tag :type="(scope.row.useCount || 0) > 0 ? 'primary' : 'info'" size="small">{{ scope.row.useCount || 0 }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="110" align="center" fixed="right">
+        <el-table-column label="操作" width="180" align="center" fixed="right">
           <template #default="scope">
+            <el-button link type="primary" icon="Edit" @click="openTagEdit(scope.row)"
+              v-hasPermi="['media:admin:edit']">改名/改色</el-button>
             <el-button link type="danger" icon="Delete" :loading="tagDeletingId === scope.row.id" @click="handleDeleteTag(scope.row)"
               v-hasPermi="['media:admin:edit']">删除</el-button>
           </template>
@@ -347,11 +350,49 @@
         <el-button @click="tagVisible = false">关 闭</el-button>
       </template>
     </el-dialog>
+
+    <!-- 标签改名 / 改色：PATCH /api/media/admin/tags/{id} -->
+    <el-dialog v-model="tagEditVisible" title="编辑标签" width="min(420px, 92vw)" append-to-body>
+      <el-form :model="tagEditForm" label-width="72px">
+        <el-form-item label="名称">
+          <el-input v-model="tagEditForm.name" maxlength="32" show-word-limit placeholder="标签名称（1-32 字符）"
+            @keyup.enter="submitTagEdit" />
+        </el-form-item>
+        <el-form-item label="颜色">
+          <el-color-picker v-model="tagEditForm.color" />
+          <span class="tag-create-color">{{ tagEditForm.color || '不设颜色' }}</span>
+        </el-form-item>
+      </el-form>
+      <p class="tag-edit-tip">改名会同步到所有已关联该标签的视频；改成已存在的名称会被拒绝。</p>
+      <template #footer>
+        <el-button @click="tagEditVisible = false">取 消</el-button>
+        <el-button type="primary" :loading="tagEditSaving" @click="submitTagEdit" v-hasPermi="['media:admin:edit']">保 存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 站端编辑策略：三档（禁止编辑 / 本地编辑 / 完全编辑） -->
+    <el-dialog v-model="policyVisible" title="编辑策略" width="min(600px, 94vw)" append-to-body>
+      <div v-loading="policyLoading" class="policy-box">
+        <p class="policy-lead">决定站端访客能对媒体库做什么。保存后访客刷新页面即生效。</p>
+        <el-radio-group v-model="policyForm.level" class="policy-group">
+          <div v-for="opt in POLICY_OPTIONS" :key="opt.value" class="policy-item" :class="{ 'is-on': policyForm.level === opt.value }"
+            @click="policyForm.level = opt.value">
+            <el-radio :value="opt.value">{{ opt.label }}</el-radio>
+            <span class="policy-desc">{{ opt.desc }}</span>
+          </div>
+        </el-radio-group>
+        <p class="policy-warn">若把本实例挂在公网做演示，请选「本地编辑」或「禁止编辑」，否则陌生人可修改你的媒体库</p>
+      </div>
+      <template #footer>
+        <el-button @click="policyVisible = false">取 消</el-button>
+        <el-button type="primary" :loading="policySaving" @click="submitEditPolicy" v-hasPermi="['media:admin:edit']">保 存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="Media">
-import { listVideos, listAlbums, listPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag } from '@/api/media'
+import { listVideos, listAlbums, listPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag, getEditPolicy, setEditPolicy } from '@/api/media'
 
 const { proxy } = getCurrentInstance()
 
@@ -424,6 +465,22 @@ const tagCreating = ref(false)
 const tagDeletingId = ref(null)
 const tagQuery = reactive({ keyword: '', pageNum: 1, pageSize: 20 })
 const tagForm = reactive({ name: '', color: null })
+
+/* 标签改名 / 改色 */
+const tagEditVisible = ref(false)
+const tagEditSaving = ref(false)
+const tagEditForm = reactive({ id: null, name: '', color: null })
+
+/* 站端编辑策略（三档）：与后端 GET/PUT /api/media/admin/edit-policy 对齐 */
+const POLICY_OPTIONS = [
+  { value: 'off', label: '禁止编辑', desc: '站端所有编辑入口禁用：只能浏览，不能评分 / 打标签 / 加标记' },
+  { value: 'local', label: '本地编辑', desc: '允许编辑，但只写访客自己的浏览器（localStorage），服务端数据不变' },
+  { value: 'full', label: '完全编辑', desc: '允许编辑并写入服务端（匿名访客也能修改媒体库）' }
+]
+const policyVisible = ref(false)
+const policyLoading = ref(false)
+const policySaving = ref(false)
+const policyForm = reactive({ level: 'full' })
 
 // 前端过滤：名称或颜色包含关键词（颜色支持输 #abc 之类）
 const filteredTags = computed(() => {
@@ -1117,6 +1174,77 @@ function handleDeleteTag(row) {
   })
 }
 
+/* ------------------------------------------------------- 标签改名 / 改色 + 编辑策略 */
+
+function openTagEdit(row) {
+  if (!row || row.id == null) return
+  tagEditForm.id = row.id
+  tagEditForm.name = row.name || ''
+  tagEditForm.color = row.color || null
+  tagEditVisible.value = true
+}
+
+function submitTagEdit() {
+  const name = (tagEditForm.name || '').trim()
+  if (!name) {
+    proxy.$modal.msgWarning('请填写标签名称')
+    return
+  }
+  if (name.length > TAG_NAME_MAX) {
+    proxy.$modal.msgWarning('标签名最长 ' + TAG_NAME_MAX + ' 个字符')
+    return
+  }
+  if (tagEditSaving.value) return
+  const color = tagEditForm.color ? String(tagEditForm.color).trim() : ''
+  tagEditSaving.value = true
+  updateTag(tagEditForm.id, { name: name, color: color }).then(() => {
+    proxy.$modal.msgSuccess('标签已更新')
+    tagEditVisible.value = false
+    loadTags()
+  }).catch(err => {
+    proxy.$modal.notifyError({
+      title: isConflict(err) ? '标签名称已存在' : '更新标签失败',
+      message: isConflict(err) ? '换一个名称再试，或先删除同名标签' : (errorText(err) || '请求失败，请查看后端日志'),
+      duration: 8000
+    })
+  }).finally(() => {
+    tagEditSaving.value = false
+  })
+}
+
+function policyLabel(level) {
+  const hit = POLICY_OPTIONS.find(opt => opt.value === level)
+  return hit ? hit.label : level
+}
+
+/** 打开弹窗时读一次当前策略：读到之前按要求显示「完全编辑」（与后端缺省一致） */
+function openEditPolicy() {
+  policyVisible.value = true
+  policyLoading.value = true
+  getEditPolicy().then(res => {
+    const level = res && res.level ? res.level : ''
+    policyForm.level = POLICY_OPTIONS.some(opt => opt.value === level) ? level : 'full'
+  }).catch(err => {
+    policyForm.level = 'full'
+    proxy.$modal.notifyWarning({ title: '编辑策略读取失败', message: (errorText(err) || '接口未就绪') + '，当前按「完全编辑」显示', duration: 8000 })
+  }).finally(() => {
+    policyLoading.value = false
+  })
+}
+
+function submitEditPolicy() {
+  if (policySaving.value) return
+  policySaving.value = true
+  setEditPolicy(policyForm.level).then(() => {
+    proxy.$modal.msgSuccess('编辑策略已保存：' + policyLabel(policyForm.level) + '（访客刷新页面后生效）')
+    policyVisible.value = false
+  }).catch(err => {
+    proxy.$modal.notifyError({ title: '保存编辑策略失败', message: errorText(err) || '请求失败，请查看后端日志', duration: 8000 })
+  }).finally(() => {
+    policySaving.value = false
+  })
+}
+
 // ------------------------------------------------------------------ 工具
 
 /** 空筛选值不传给后端（hidden=all 由后端归一化，这里直接省略） */
@@ -1387,6 +1515,56 @@ onBeforeUnmount(() => { stopScanPolling() })
   font-size: 12px;
   color: var(--el-text-color-regular);
   font-family: var(--el-font-family-monospace, monospace);
+}
+.tag-edit-tip {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+
+/* 编辑策略弹窗：三档单选 + 每档一行说明 + 红字公网提示 */
+.policy-box {
+  min-height: 150px;
+}
+.policy-lead {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+}
+.policy-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+.policy-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 6px;
+  transition: border-color 0.12s, background 0.12s;
+}
+.policy-item.is-on {
+  border-color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+.policy-desc {
+  padding-left: 24px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--el-text-color-secondary);
+}
+.policy-warn {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger);
+  font-size: 12.5px;
+  line-height: 1.6;
 }
 @media (max-width: 560px) {
   .media-page :deep(.el-pagination__sizes),

@@ -196,3 +196,30 @@ export function deleteTag(id) {
     method: 'delete'
   })
 }
+
+// 标签改名 / 改色：body { name?, color? }（改名同样做重名校验，重名后端返回 409）
+export function updateTag(id, data) {
+  return request({
+    url: BASE + '/tags/' + id,
+    method: 'patch',
+    data: data || {}
+  })
+}
+
+// 站端编辑策略（三档）：GET → { level: 'off' | 'local' | 'full' }
+// off = 禁止编辑；local = 只能本地编辑（localStorage）；full = 完全编辑（写接口）
+export function getEditPolicy() {
+  return request({
+    url: BASE + '/edit-policy',
+    method: 'get'
+  })
+}
+
+// 修改编辑策略：body { level }，level ∈ off / local / full
+export function setEditPolicy(level) {
+  return request({
+    url: BASE + '/edit-policy',
+    method: 'put',
+    data: { level: level }
+  })
+}
