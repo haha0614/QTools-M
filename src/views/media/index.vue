@@ -19,11 +19,23 @@
       </div>
       <div class="media-toolbar-right">
         <el-button icon="Refresh" :loading="statsLoading" @click="refreshAll">刷新</el-button>
-        <el-button type="primary" plain icon="RefreshRight" :loading="scanRunning" :disabled="scanRunning" @click="handleScan('full')"
+        <el-input-number v-model="scanLimit" :min="0" :max="10000" :step="1" :disabled="scanRunning"
+          controls-position="right" class="scan-limit" title="试跑条数：只对重建缩略图 / 生成精灵图预览生效，0 = 不限" />
+        <el-button type="primary" plain icon="RefreshRight" :loading="scanRunning" :disabled="scanRunning" @click="handleScan('scan')"
           v-hasPermi="['media:admin:scan']">重建索引</el-button>
         <el-button type="primary" plain icon="Picture" :loading="scanRunning" :disabled="scanRunning" @click="handleScan('thumb')"
           v-hasPermi="['media:admin:scan']">重建缩略图</el-button>
+        <el-button type="primary" plain icon="Film" :loading="scanRunning" :disabled="scanRunning" @click="handleScan('sprite,preview')"
+          v-hasPermi="['media:admin:scan']">生成精灵图/预览</el-button>
+        <el-button type="danger" plain icon="Delete" :loading="scanRunning" :disabled="scanRunning" @click="handleGc"
+          v-hasPermi="['media:admin:scan']">清理派生文件(GC)</el-button>
       </div>
+    </div>
+
+    <!-- 生成类任务的成本提示：全片解码，别一上来就全量跑 -->
+    <div class="scan-tip">
+      精灵图 / 预览视频是<strong>全片解码</strong>：176 个视频约需 5 小时，建议先在工具栏填「试跑条数」（如 3）跑一小批再全量。
+      「清理派生文件(GC)」只删 thumbs/v、thumbs/s、thumbs/pv2 下的孤儿派生文件（媒体源与索引不受影响），但删除不可撤销。
     </div>
 
     <!-- 扫描进度 -->
@@ -362,6 +374,8 @@ const previewNatural = ref('')
 
 const scanJob = ref(null)
 const scanRunning = ref(false)
+/** 试跑条数：0 = 不限；只对 thumb / sprite,preview 生效（后端对 scan / gc 会 400） */
+const scanLimit = ref(0)
 let scanTimer = null
 
 /** 统计卡片：6 张（视频/相册/图片/人物/总占用/回收站） */
@@ -810,35 +824,65 @@ function handleTrashPurge(row) {
 
 // ------------------------------------------------------------------ 重建索引
 
+/** mode → 确认文案；scan / thumb 是原先的「重建索引」「重建缩略图」，行为不变 */
 const SCAN_CONFIRM = {
-  full: '重建索引会重新扫描媒体根并刷新索引数据库：不会删除任何文件，会保留隐藏状态与人物归属。确认执行？',
-  thumb: '重建缩略图会增量补齐缺失的缩略图：不会删除任何已有文件，也不会重新生成已存在的缩略图。确认执行？'
+  scan: '重建索引会重新扫描媒体根并刷新索引数据库：不会删除任何文件，会保留隐藏状态与人物归属。确认执行？',
+  thumb: '重建缩略图会增量补齐缺失的缩略图：不会删除任何已有文件，也不会重新生成已存在的缩略图。确认执行？',
+  'sprite,preview': '精灵图 / 预览视频是【全片解码】，176 个视频约需 5 小时：只新增产物，不删除也不重建已存在的文件。'
+    + '想先试跑请把工具栏的「试跑条数」设成 3 之类的小数字。确认执行？'
 }
-const SCAN_TITLE = { full: '重建索引', thumb: '重建缩略图' }
+/** GC 的确认文案：真删，必须让人看清删什么、不删什么 */
+const GC_CONFIRM = '清理派生文件(GC) 会真删 thumbs/v、thumbs/s、thumbs/pv2 里「既不在索引中、也没有同名源文件」的孤儿派生文件。'
+  + '媒体源文件与索引数据库不受影响，但删除不可撤销。确认执行？'
+
+/** 任务 type（后端落库值）→ 中文名；后端 scan 落库仍是 full，兼容旧数据 */
+const SCAN_TITLE = {
+  full: '重建索引',
+  scan: '重建索引',
+  thumb: '重建缩略图',
+  sprite: '生成精灵图',
+  preview: '生成预览视频',
+  'sprite,preview': '生成精灵图/预览',
+  gc: '清理派生文件(GC)'
+}
 
 function scanTypeText(type) {
   return SCAN_TITLE[type] || type || 'full'
 }
 
-/** 重建索引 / 重建缩略图共用同一个进度轮询组件，只是 scan type 不同 */
-function handleScan(type = 'full') {
-  const scanType = type === 'thumb' ? 'thumb' : 'full'
-  proxy.$modal.confirm(SCAN_CONFIRM[scanType]).then(() => {
-    scanRunning.value = true
-    startScan(scanType).then(res => {
-      proxy.$modal.msgSuccess('已开始' + SCAN_TITLE[scanType])
-      attachScanJob((res && (res.id || res.jobId)) || null, scanType)
-    }).catch(err => {
-      scanRunning.value = false
-      const detail = errorText(err)
-      if (isConflict(err)) {
-        proxy.$modal.msgWarning(detail || '已有扫描在运行，请等待结束后再触发')
-        resumeLatestScan()
-      } else if (detail) {
-        proxy.$modal.notifyError({ title: SCAN_TITLE[scanType] + '失败', message: detail, duration: 8000 })
-      }
-    })
+/** 四种触发共用一套「起任务 → 轮询 job 日志 → 完成提示 + 刷新」流程，只是 mode 与确认文案不同 */
+function handleScan(mode = 'scan') {
+  const jobMode = mode
+  // limit 只对逐条生成的 mode 生效；scan / gc 传了后端会 400，这里直接不发
+  const limit = jobMode === 'scan' || jobMode === 'gc' ? 0 : Number(scanLimit.value) || 0
+  proxy.$modal.confirm(SCAN_CONFIRM[jobMode] || SCAN_CONFIRM.scan).then(() => {
+    runScanTask(jobMode, { limit: limit })
   }).catch(() => {})
+}
+
+/** GC：二次确认按钮明确写「确认删除」，请求带 confirm=true（后端没有它直接 400） */
+function handleGc() {
+  proxy.$modal.confirm(GC_CONFIRM, '清理派生文件(GC)', { confirmButtonText: '确认删除', type: 'error' }).then(() => {
+    runScanTask('gc', { confirm: true })
+  }).catch(() => {})
+}
+
+function runScanTask(mode, options) {
+  const title = scanTypeText(mode)
+  scanRunning.value = true
+  startScan(mode, options).then(res => {
+    proxy.$modal.msgSuccess('已开始' + title)
+    attachScanJob((res && (res.id || res.jobId)) || null, mode)
+  }).catch(err => {
+    scanRunning.value = false
+    const detail = errorText(err)
+    if (isConflict(err)) {
+      proxy.$modal.msgWarning(detail || '已有扫描在运行，请等待结束后再触发')
+      resumeLatestScan()
+    } else {
+      proxy.$modal.notifyError({ title: title + '失败', message: detail || '请求失败，请查看后端日志', duration: 8000 })
+    }
+  })
 }
 
 function attachScanJob(jobId, type = 'full') {
@@ -860,16 +904,40 @@ function pollScan(jobId) {
       stopScanPolling()
       scanRunning.value = false
       loadStats()
-      // 缩略图扫描只动 thumbs/，不改索引；索引扫描结束才需要重拉当前列表与编码枚举
-      if (res && res.type !== 'thumb') {
+      // 只有重建索引（full）会改索引；thumb / sprite / preview / gc 只动 thumbs/，重拉列表没有意义
+      if (res && res.type === 'full') {
         loadVcodecOptions()
         if (activeTab.value === 'trash') { loadTrash() } else if (activeTab.value === 'album') { loadAlbums() } else { loadVideos() }
       }
+      notifyScanFinished(res)
     }
   }).catch(() => {
     stopScanPolling()
     scanRunning.value = false
   })
+}
+
+/** 任务结束的可见反馈：成功报进度计数，失败带最后一行日志（后端的可读错误就在这里） */
+function notifyScanFinished(job) {
+  if (!job || !job.id) {
+    return
+  }
+  const title = scanTypeText(job.type)
+  if (job.status === 'done') {
+    proxy.$modal.msgSuccess(title + '完成：' + (job.done || 0) + ' / ' + (job.total || 0))
+  } else if (job.status === 'failed') {
+    proxy.$modal.notifyError({ title: title + '失败', message: lastLogLine(job), duration: 8000 })
+  }
+}
+
+function lastLogLine(job) {
+  const lines = (job && job.logTail) || []
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (lines[i] && lines[i].trim()) {
+      return lines[i].trim()
+    }
+  }
+  return '任务失败，请查看任务日志'
 }
 
 function resumeLatestScan() {
@@ -1002,6 +1070,18 @@ onBeforeUnmount(() => { stopScanPolling() })
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+.scan-limit {
+  width: 130px;
+}
+.scan-tip {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 8px;
+}
+.scan-tip strong {
+  color: var(--el-color-warning);
 }
 .scan-panel {
   border: 1px solid var(--el-border-color-lighter);

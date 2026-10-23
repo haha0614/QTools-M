@@ -51,13 +51,13 @@ export default {
   notifyWarning(content) {
     ElNotification.warning(content)
   },
-  // 确认窗体
-  confirm(content) {
-    return ElMessageBox.confirm(content, "系统提示", {
+  // 确认窗体（title / options 可选：销毁性操作可把按钮文字改成「确认删除」）
+  confirm(content, title, options) {
+    return ElMessageBox.confirm(content, title || "系统提示", Object.assign({
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: "warning",
-    })
+    }, options || {}))
   },
   // 提交内容
   prompt(content) {

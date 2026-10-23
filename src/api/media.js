@@ -134,12 +134,23 @@ export function getMediaTargetStats(params) {
   })
 }
 
-// 触发重建索引（异步，同一时刻只允许 1 个）
-export function startScan(type) {
+// 触发扫描 / 生成类任务（异步，同一时刻只允许 1 个）
+// mode：scan（重建索引）| thumb（重建缩略图）| sprite | preview | sprite,preview（精灵图+预览）| gc
+// - gc 会真删孤儿派生文件，必须传 { confirm: true }，否则后端 400
+// - limit 只对 thumb / sprite / preview 生效（0 或省略 = 不限），用于先小批量试跑
+export function startScan(mode, options) {
+  const data = { mode: mode || 'scan' }
+  const extra = options || {}
+  if (extra.confirm) {
+    data.confirm = true
+  }
+  if (extra.limit) {
+    data.limit = extra.limit
+  }
   return request({
     url: BASE + '/scan',
     method: 'post',
-    data: { type: type }
+    data: data
   })
 }
 
