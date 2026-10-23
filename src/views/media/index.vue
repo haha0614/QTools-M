@@ -19,6 +19,7 @@
       </div>
       <div class="media-toolbar-right">
         <el-button icon="Refresh" :loading="statsLoading" @click="refreshAll">刷新</el-button>
+        <el-button icon="PriceTag" @click="openTagManager" v-hasPermi="['media:admin:list']">标签管理</el-button>
         <el-input-number v-model="scanLimit" :min="0" :max="10000" :step="1" :disabled="scanRunning"
           controls-position="right" class="scan-limit" title="试跑条数：只对重建缩略图 / 生成精灵图预览生效，0 = 不限" />
         <el-button type="primary" plain icon="RefreshRight" :loading="scanRunning" :disabled="scanRunning" @click="handleScan('scan')"
@@ -298,11 +299,59 @@
       </div>
       <p class="preview-meta">{{ previewMeta }}</p>
     </el-dialog>
+
+    <!-- 标签管理：字典维护（新建 / 搜索 / 删除），列表前端过滤 + 前端分页 -->
+    <el-dialog v-model="tagVisible" title="标签管理" width="min(760px, 94vw)" append-to-body>
+      <div class="tag-create">
+        <el-input v-model="tagForm.name" placeholder="标签名称（1-32 字符）" clearable maxlength="32" show-word-limit class="tag-create-name"
+          @keyup.enter="submitCreateTag" />
+        <el-color-picker v-model="tagForm.color" title="标签颜色（可留空）" />
+        <span class="tag-create-color">{{ tagForm.color || '不设颜色' }}</span>
+        <el-button type="primary" icon="Plus" :loading="tagCreating" @click="submitCreateTag" v-hasPermi="['media:admin:edit']">新建</el-button>
+      </div>
+
+      <div class="tag-filter">
+        <el-input v-model="tagQuery.keyword" placeholder="搜索名称 / 颜色" clearable prefix-icon="Search" class="tag-filter-input"
+          @input="handleTagFilter" @clear="handleTagFilter" />
+        <span class="tag-filter-count">共 {{ filteredTags.length }} 个标签 / 未过滤 {{ tagList.length }} 个</span>
+        <el-button icon="Refresh" :loading="tagLoading" @click="loadTags">刷新</el-button>
+      </div>
+
+      <el-alert v-if="tagError" :title="tagError" type="error" :closable="false" show-icon class="tag-error" />
+      <el-table v-if="tagLoading || tagPageList.length" v-loading="tagLoading" :data="tagPageList" class="media-table">
+        <el-table-column label="名称" prop="name" min-width="180" :show-overflow-tooltip="true" />
+        <el-table-column label="颜色" width="170" align="center">
+          <template #default="scope">
+            <span class="tag-swatch" :class="{ 'tag-swatch-empty': !scope.row.color }"
+              :style="{ background: scope.row.color || 'transparent' }"></span>
+            <span class="tag-color-text">{{ scope.row.color || '未设置' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="使用数" width="110" align="center">
+          <template #default="scope">
+            <el-tag :type="(scope.row.useCount || 0) > 0 ? 'primary' : 'info'" size="small">{{ scope.row.useCount || 0 }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="110" align="center" fixed="right">
+          <template #default="scope">
+            <el-button link type="danger" icon="Delete" :loading="tagDeletingId === scope.row.id" @click="handleDeleteTag(scope.row)"
+              v-hasPermi="['media:admin:edit']">删除</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty :description="tagList.length ? '没有匹配的标签，换个关键词试试' : '还没有标签，先在上方新建一个'"
+        v-if="!tagLoading && !tagError && !tagPageList.length" />
+      <pagination v-show="filteredTags.length > tagQuery.pageSize" :total="filteredTags.length" :page-sizes="[20, 50, 100]"
+        v-model:page="tagQuery.pageNum" v-model:limit="tagQuery.pageSize" />
+      <template #footer>
+        <el-button @click="tagVisible = false">关 闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup name="Media">
-import { listVideos, listAlbums, listPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash } from '@/api/media'
+import { listVideos, listAlbums, listPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag } from '@/api/media'
 
 const { proxy } = getCurrentInstance()
 
@@ -364,6 +413,36 @@ const personVisible = ref(false)
 const personSubmitting = ref(false)
 const personAlbumTitle = ref('')
 const personForm = reactive({ albumId: '', personId: '' })
+
+// 标签管理（字典维护）：列表一次取全，前端过滤 + 前端分页
+const TAG_NAME_MAX = 32
+const tagVisible = ref(false)
+const tagLoading = ref(false)
+const tagError = ref('')
+const tagList = ref([])
+const tagCreating = ref(false)
+const tagDeletingId = ref(null)
+const tagQuery = reactive({ keyword: '', pageNum: 1, pageSize: 20 })
+const tagForm = reactive({ name: '', color: null })
+
+// 前端过滤：名称或颜色包含关键词（颜色支持输 #abc 之类）
+const filteredTags = computed(() => {
+  const kw = (tagQuery.keyword || '').trim().toLowerCase()
+  if (!kw) {
+    return tagList.value
+  }
+  return tagList.value.filter(item => {
+    const name = (item.name || '').toLowerCase()
+    const color = (item.color || '').toLowerCase()
+    return name.indexOf(kw) > -1 || color.indexOf(kw) > -1
+  })
+})
+
+// 前端分页：只切当前页，总数用过滤后的长度
+const tagPageList = computed(() => {
+  const start = (tagQuery.pageNum - 1) * tagQuery.pageSize
+  return filteredTags.value.slice(start, start + tagQuery.pageSize)
+})
 
 const previewVisible = ref(false)
 const previewTitle = ref('')
@@ -957,6 +1036,87 @@ function stopScanPolling() {
   }
 }
 
+// ------------------------------------------------------------------ 标签管理
+
+function openTagManager() {
+  tagVisible.value = true
+  loadTags()
+}
+
+/** 拉全量标签字典（后端已按 useCount 降序），失败时把错误留在弹窗里而不是只弹一下 */
+function loadTags() {
+  tagLoading.value = true
+  tagError.value = ''
+  listTags().then(res => {
+    tagList.value = Array.isArray(res) ? res : []
+    // 列表缩短后（删除 / 过滤）把页码拉回有效范围
+    const maxPage = Math.max(1, Math.ceil(filteredTags.value.length / tagQuery.pageSize))
+    if (tagQuery.pageNum > maxPage) {
+      tagQuery.pageNum = maxPage
+    }
+  }).catch(err => {
+    tagList.value = []
+    tagError.value = '标签加载失败：' + (errorText(err) || '请求失败，请确认后端已启动')
+  }).finally(() => {
+    tagLoading.value = false
+  })
+}
+
+/** 搜索框变化：回第一页，避免停留在已越界的页码上 */
+function handleTagFilter() {
+  tagQuery.pageNum = 1
+}
+
+function submitCreateTag() {
+  const name = (tagForm.name || '').trim()
+  if (!name) {
+    proxy.$modal.msgWarning('请填写标签名称')
+    return
+  }
+  if (name.length > TAG_NAME_MAX) {
+    proxy.$modal.msgWarning('标签名最长 ' + TAG_NAME_MAX + ' 个字符')
+    return
+  }
+  const color = tagForm.color ? String(tagForm.color).trim() : ''
+  tagCreating.value = true
+  createTag({ name: name, color: color }).then(res => {
+    if (res && res.created === false) {
+      proxy.$modal.msgWarning('标签「' + (res.name || name) + '」已存在，已复用（颜色未改动）')
+    } else {
+      proxy.$modal.msgSuccess('标签「' + ((res && res.name) || name) + '」已创建')
+    }
+    tagForm.name = ''
+    tagForm.color = null
+    tagQuery.pageNum = 1
+    loadTags()
+  }).catch(err => {
+    proxy.$modal.notifyError({ title: '新建标签失败', message: errorText(err) || '请求失败，请查看后端日志', duration: 8000 })
+  }).finally(() => {
+    tagCreating.value = false
+  })
+}
+
+function handleDeleteTag(row) {
+  const used = row.useCount || 0
+  const tip = used > 0
+    ? '删除标签「' + row.name + '」会同时解除 ' + used + ' 个视频的关联，且不可撤销。确认删除？'
+    : '删除标签「' + row.name + '」？当前没有视频使用它。'
+  proxy.$modal.confirm(tip, '删除标签', { confirmButtonText: '确认删除', type: 'error' }).then(() => {
+    tagDeletingId.value = row.id
+    return deleteTag(row.id).then(res => {
+      const unlinked = res && typeof res.unlinked === 'number' ? res.unlinked : 0
+      proxy.$modal.msgSuccess(unlinked > 0 ? '已删除标签，同时解除 ' + unlinked + ' 个视频的关联' : '已删除标签')
+      loadTags()
+    }).catch(err => {
+      proxy.$modal.notifyError({ title: '删除标签失败', message: errorText(err) || '请求失败，请查看后端日志', duration: 8000 })
+    }).finally(() => {
+      tagDeletingId.value = null
+    })
+  }).catch(() => {
+    // 用户点了取消 / 关闭：不做任何事
+  })
+}
+
 // ------------------------------------------------------------------ 工具
 
 /** 空筛选值不传给后端（hidden=all 由后端归一化，这里直接省略） */
@@ -1177,6 +1337,56 @@ onBeforeUnmount(() => { stopScanPolling() })
 .trash-orphan {
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+.tag-create {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.tag-create-name {
+  width: 240px;
+}
+.tag-create-color {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  min-width: 60px;
+}
+.tag-filter {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.tag-filter-input {
+  width: 240px;
+}
+.tag-filter-count {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.tag-error {
+  margin-bottom: 10px;
+}
+.tag-swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid var(--el-border-color);
+  vertical-align: -3px;
+  margin-right: 6px;
+}
+.tag-swatch-empty {
+  background-image: linear-gradient(45deg, var(--el-border-color-lighter) 25%, transparent 25%, transparent 75%, var(--el-border-color-lighter) 75%);
+  background-size: 8px 8px;
+}
+.tag-color-text {
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  font-family: var(--el-font-family-monospace, monospace);
 }
 @media (max-width: 560px) {
   .media-page :deep(.el-pagination__sizes),

@@ -169,3 +169,30 @@ export function getScanLatest() {
     method: 'get'
   })
 }
+
+// 标签字典：[{id,name,color,useCount}]，按 useCount 降序
+export function listTags() {
+  return request({
+    url: BASE + '/tags',
+    method: 'get'
+  })
+}
+
+// 新建标签：body { name, color? }；name 唯一，重名直接复用既有行
+// 返回 { id, name, color, useCount, created }，created=false 表示重名复用
+export function createTag(data) {
+  return request({
+    url: BASE + '/tags',
+    method: 'post',
+    data: data
+  })
+}
+
+// 删除标签字典项：同时解除 media_video_tag 里该标签的全部关联
+// 返回 { deleted: 1, unlinked: N }
+export function deleteTag(id) {
+  return request({
+    url: BASE + '/tags/' + id,
+    method: 'delete'
+  })
+}
