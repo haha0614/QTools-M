@@ -387,3 +387,69 @@ export function getAlbumPhotos(albumId, silent) {
     silent: silent !== false
   })
 }
+
+/* ------------------------------------------------------------ 人物管理（P3-B） */
+/* 契约（P3-A）：GET /admin/persons?q=&page=&size= → { rows|list, total }；
+   POST/PUT/DELETE /admin/persons[/{id}]；PUT /admin/videos/{id}/persons {personIds,roles}；
+   PUT /admin/albums/{id}/persons {personIds}。
+   后端未部署 P3-A 时这些路由统一 404：全部 silent，由人物管理页 / 弹窗就地给出可读提示，
+   不弹全局提示、不抛异常（与 /watch、/export 等未就绪接口的处理方式一致）。 */
+
+// 人物分页列表：q 同时匹配名称 / 别名（后端决定），page 从 1 开始
+export function listPersons(query) {
+  return request({
+    url: BASE + '/persons',
+    method: 'get',
+    params: query,
+    silent: true
+  })
+}
+
+// 新建人物：body { name, alias?, remark?, gender? }，名称唯一
+export function createPerson(data) {
+  return request({
+    url: BASE + '/persons',
+    method: 'post',
+    data: data || {},
+    silent: true
+  })
+}
+
+// 修改人物：body { name?, alias?, remark?, gender? }
+export function updatePerson(id, data) {
+  return request({
+    url: BASE + '/persons/' + encodeURIComponent(id),
+    method: 'put',
+    data: data || {},
+    silent: true
+  })
+}
+
+// 删除人物：仍有引用时后端返回 4xx 并带视频 / 相册计数，前端原样展示并阻止
+export function deletePerson(id) {
+  return request({
+    url: BASE + '/persons/' + encodeURIComponent(id),
+    method: 'delete',
+    silent: true
+  })
+}
+
+// 整条视频的人物集合：body { personIds: [], roles: { <personId>: '角色名' } }
+export function setVideoPersons(id, data) {
+  return request({
+    url: BASE + '/videos/' + encodeURIComponent(id) + '/persons',
+    method: 'put',
+    data: data || {},
+    silent: true
+  })
+}
+
+// 整本相册的人物集合：body { personIds: [] }
+export function setAlbumPersons(id, personIds) {
+  return request({
+    url: BASE + '/albums/' + encodeURIComponent(id) + '/persons',
+    method: 'put',
+    data: { personIds: personIds || [] },
+    silent: true
+  })
+}

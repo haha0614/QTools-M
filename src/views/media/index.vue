@@ -113,10 +113,13 @@
               <el-tag :type="scope.row.hidden ? 'info' : 'success'" size="small">{{ scope.row.hidden ? '隐藏' : '正常' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="140" align="center" fixed="right" class-name="small-padding fixed-width">
+          <el-table-column label="操作" width="190" align="center" fixed="right" class-name="small-padding fixed-width">
             <template #default="scope">
               <el-tooltip content="预览" placement="top">
                 <el-button link type="primary" icon="View" @click="previewVideo(scope.row)" v-hasPermi="['media:admin:list']" />
+              </el-tooltip>
+              <el-tooltip content="人物（多选 + 角色）" placement="top">
+                <el-button link type="primary" icon="UserFilled" @click="openVideoPersons(scope.row)" v-hasPermi="['media:admin:edit']" />
               </el-tooltip>
               <el-tooltip :content="scope.row.hidden ? '取消隐藏' : '隐藏'" placement="top">
                 <el-button link type="primary" icon="Hide" @click="toggleHidden(scope.row, 'video')" v-hasPermi="['media:admin:edit']" />
@@ -180,10 +183,13 @@
               <el-tag :type="scope.row.hidden ? 'info' : 'success'" size="small">{{ scope.row.hidden ? '隐藏' : '正常' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="170" align="center" fixed="right" class-name="small-padding fixed-width">
+          <el-table-column label="操作" width="230" align="center" fixed="right" class-name="small-padding fixed-width">
             <template #default="scope">
               <el-tooltip content="查看图片" placement="top">
                 <el-button link type="primary" icon="Picture" @click="openPhotos(scope.row)" v-hasPermi="['media:admin:list']" />
+              </el-tooltip>
+              <el-tooltip content="人物（多选）" placement="top">
+                <el-button link type="primary" icon="Avatar" @click="openAlbumPersons(scope.row)" v-hasPermi="['media:admin:edit']" />
               </el-tooltip>
               <el-tooltip content="改人物" placement="top">
                 <el-button link type="primary" icon="User" @click="openPerson(scope.row)" v-hasPermi="['media:admin:edit']" />
@@ -298,6 +304,44 @@
       </template>
     </el-dialog>
 
+    <!-- 视频人物：多选人物 + 为每个选中人物填角色，PUT /api/media/admin/videos/{id}/persons -->
+    <el-dialog v-model="videoPersonVisible" title="视频人物" width="min(560px, 94vw)" append-to-body>
+      <p class="vp-target">{{ videoPersonTitle }}</p>
+      <el-alert v-if="personPickError" :title="personPickError" type="warning" :closable="false" show-icon class="vp-alert" />
+      <el-select v-model="videoPersonIds" multiple filterable clearable placeholder="选择人物（可多选）"
+        :loading="personPickLoading" :disabled="!!personPickError" style="width: 100%">
+        <el-option v-for="item in personPickOptions" :key="item.id" :label="item.name" :value="item.id" />
+      </el-select>
+      <div v-if="videoPersonIds.length" class="vp-role-list">
+        <div v-for="pid in videoPersonIds" :key="'role-' + pid" class="vp-role-row">
+          <span class="vp-role-name">{{ personNameOf(pid) }}</span>
+          <el-input v-model="videoPersonRoles[pid]" maxlength="40" clearable placeholder="角色（选填，如 主角 / 配角）" />
+        </div>
+      </div>
+      <p class="vp-tip">保存会整条覆盖该视频的人物集合与角色（不是增量追加）。</p>
+      <template #footer>
+        <el-button @click="videoPersonVisible = false">取 消</el-button>
+        <el-button type="primary" :loading="videoPersonSaving" :disabled="!!personPickError" @click="submitVideoPersons"
+          v-hasPermi="['media:admin:edit']">保 存</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 相册人物：多选人物，PUT /api/media/admin/albums/{id}/persons -->
+    <el-dialog v-model="albumPersonVisible" title="相册人物" width="min(520px, 94vw)" append-to-body>
+      <p class="vp-target">{{ albumPersonTitle }}</p>
+      <el-alert v-if="personPickError" :title="personPickError" type="warning" :closable="false" show-icon class="vp-alert" />
+      <el-select v-model="albumPersonIds" multiple filterable clearable placeholder="选择人物（可多选）"
+        :loading="personPickLoading" :disabled="!!personPickError" style="width: 100%">
+        <el-option v-for="item in personPickOptions" :key="item.id" :label="item.name" :value="item.id" />
+      </el-select>
+      <p class="vp-tip">保存会整本覆盖该相册的人物集合；「改人物」按钮仍保留单本单人的旧写法。</p>
+      <template #footer>
+        <el-button @click="albumPersonVisible = false">取 消</el-button>
+        <el-button type="primary" :loading="albumPersonSaving" :disabled="!!personPickError" @click="submitAlbumPersons"
+          v-hasPermi="['media:admin:edit']">保 存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 封面放大预览：视频用缩略图，相册优先大图预览、缺 preview 时降级缩略图 -->
     <el-dialog v-model="previewVisible" :title="previewTitle" width="min(920px, 94vw)" append-to-body @closed="onPreviewClosed">
       <div class="preview-stage">
@@ -328,6 +372,9 @@
       <el-alert v-if="tagError" :title="tagError" type="error" :closable="false" show-icon class="tag-error" />
       <el-table v-if="tagLoading || tagPageList.length" v-loading="tagLoading" :data="tagPageList" class="media-table">
         <el-table-column label="名称" prop="name" min-width="180" :show-overflow-tooltip="true" />
+        <el-table-column label="父标签" width="150" :show-overflow-tooltip="true">
+          <template #default="scope">{{ tagParentLabel(scope.row) }}</template>
+        </el-table-column>
         <el-table-column label="颜色" width="170" align="center">
           <template #default="scope">
             <span class="tag-swatch" :class="{ 'tag-swatch-empty': !scope.row.color }"
@@ -369,6 +416,12 @@
           <el-color-picker v-model="tagEditForm.color" />
           <span class="tag-create-color">{{ tagEditForm.color || '不设颜色' }}</span>
         </el-form-item>
+        <el-form-item label="父标签">
+          <el-select v-model="tagEditForm.parentId" clearable filterable placeholder="顶级标签（无父级）" style="width: 100%">
+            <el-option label="（顶级标签）" :value="null" />
+            <el-option v-for="opt in tagParentOptions" :key="'p-' + opt.id" :label="opt.label" :value="opt.id" />
+          </el-select>
+        </el-form-item>
       </el-form>
       <p class="tag-edit-tip">改名会同步到所有已关联该标签的视频；改成已存在的名称会被拒绝。</p>
       <template #footer>
@@ -406,6 +459,8 @@
 
 <script setup name="Media">
 import { listVideos, listAlbums, listPhotos, getAlbumPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag, getEditPolicy, setEditPolicy } from '@/api/media'
+// 人物管理（P3-B）：独立 import 行，不改动上面那行既有导入
+import { listPersons, setVideoPersons, setAlbumPersons } from '@/api/media'
 // 维护面板（扫描 / 元数据 / 派生资源 / 备份 / 库根）：放在同目录子组件，主页面只做挂载与执行
 import MaintPanel from './MaintPanel'
 
@@ -490,7 +545,7 @@ const tagForm = reactive({ name: '', color: null })
 /* 标签改名 / 改色 */
 const tagEditVisible = ref(false)
 const tagEditSaving = ref(false)
-const tagEditForm = reactive({ id: null, name: '', color: null })
+const tagEditForm = reactive({ id: null, name: '', color: null, parentId: null })
 
 /* 站端编辑策略（三档）：与后端 GET/PUT /api/media/admin/edit-policy 对齐 */
 const POLICY_OPTIONS = [
@@ -1338,6 +1393,8 @@ function openTagEdit(row) {
   tagEditForm.id = row.id
   tagEditForm.name = row.name || ''
   tagEditForm.color = row.color || null
+  // 父标签：索引里没这一列时按顶级处理（P3-A 之前 /tags 不返回 parentId）
+  tagEditForm.parentId = row.parentId === undefined ? null : row.parentId
   tagEditVisible.value = true
 }
 
@@ -1353,8 +1410,9 @@ function submitTagEdit() {
   }
   if (tagEditSaving.value) return
   const color = tagEditForm.color ? String(tagEditForm.color).trim() : ''
+  const parentId = tagEditForm.parentId === undefined ? null : tagEditForm.parentId
   tagEditSaving.value = true
-  updateTag(tagEditForm.id, { name: name, color: color }).then(() => {
+  updateTag(tagEditForm.id, { name: name, color: color, parentId: parentId }).then(() => {
     proxy.$modal.msgSuccess('标签已更新')
     tagEditVisible.value = false
     loadTags()
@@ -1439,6 +1497,216 @@ function refreshAll() {
   loadPeople()
   loadVcodecOptions()
   if (activeTab.value === 'trash') { loadTrash() } else if (activeTab.value === 'album') { loadAlbums() } else { loadVideos() }
+}
+
+/* ------------------------------------------------------------ 人物（P3-B） */
+/* 管理端多选弹窗用的人物下拉：独立于相册筛选的 /people（那是「一本相册一个人物」的老接口，
+   返回里带 albumCount），这里取 /admin/persons 的 id/name，用于视频与相册的多选写入。
+   接口未就绪时只在弹窗内给出可读提示（personPickError），不弹全局错误、不抛异常。 */
+
+const PERSON_PICK_NOT_READY = '人物列表暂不可用：/admin/persons 接口未就绪，稍后重试或联系管理员升级后端'
+
+const personPickOptions = ref([])
+const personPickLoading = ref(false)
+const personPickError = ref('')
+
+const videoPersonVisible = ref(false)
+const videoPersonSaving = ref(false)
+const videoPersonTitle = ref('')
+const videoPersonIds = ref([])
+const videoPersonRoles = reactive({})
+const videoPersonRow = ref(null)
+
+const albumPersonVisible = ref(false)
+const albumPersonSaving = ref(false)
+const albumPersonTitle = ref('')
+const albumPersonIds = ref([])
+const albumPersonRow = ref(null)
+
+function isNotFoundErr(err) {
+  const status = err && err.response && err.response.status ? err.response.status : 0
+  return status === 404 || status === 501 || status === 0
+}
+
+/** 人物下拉数据：{rows|list|items} / 裸数组 / AjaxResult 三种形态都收 */
+function unwrapPersonList(res) {
+  const body = res && typeof res === 'object' && res.data && typeof res.data === 'object' ? res.data : res
+  if (Array.isArray(body)) return body
+  return (body && (body.rows || body.list || body.items || body.records)) || []
+}
+
+function loadPersonPickOptions(force) {
+  if (personPickLoading.value) return
+  if (!force && personPickOptions.value.length) return
+  personPickLoading.value = true
+  personPickError.value = ''
+  listPersons({ page: 1, size: 200 }).then(res => {
+    personPickOptions.value = unwrapPersonList(res).filter(item => item && item.id != null)
+    if (!personPickOptions.value.length) {
+      personPickError.value = '还没有人物：先到「人物管理」新建，再回来关联'
+    }
+  }).catch(err => {
+    personPickOptions.value = []
+    personPickError.value = isNotFoundErr(err)
+      ? PERSON_PICK_NOT_READY
+      : ('人物列表加载失败：' + (errorText(err) || '请求失败，请确认后端已启动'))
+  }).finally(() => { personPickLoading.value = false })
+}
+
+function personNameOf(id) {
+  const hit = personPickOptions.value.find(item => String(item.id) === String(id))
+  return hit ? hit.name : String(id)
+}
+
+function openVideoPersons(row) {
+  if (!row || row.id == null) return
+  videoPersonRow.value = row
+  videoPersonTitle.value = row.title || row.relPath || String(row.id)
+  videoPersonIds.value = []
+  Object.keys(videoPersonRoles).forEach(key => { delete videoPersonRoles[key] })
+  // 行里已带 persons（P3-A 索引 / 详情）时回填人物与角色，避免每次从零重选
+  ;(row.persons || []).forEach(item => {
+    const pid = item && item.id !== undefined ? item.id : null
+    if (pid === null) return
+    videoPersonIds.value.push(pid)
+    if (item.role) videoPersonRoles[pid] = item.role
+  })
+  videoPersonVisible.value = true
+  loadPersonPickOptions(false)
+}
+
+function submitVideoPersons() {
+  if (videoPersonSaving.value) return
+  const row = videoPersonRow.value
+  if (!row || row.id == null) return
+  // roles 用 { 人物id: 角色名 } 形态：契约里 {personIds, roles} 未指明 roles 的类型，
+  // 这里按「以人物 id 为键的映射」发送，空角色不下发；后端若用数组形态需同步调整这一处。
+  const roles = {}
+  videoPersonIds.value.forEach(id => {
+    const role = (videoPersonRoles[id] || '').trim()
+    if (role) roles[id] = role
+  })
+  videoPersonSaving.value = true
+  setVideoPersons(row.id, { personIds: videoPersonIds.value.slice(), roles: roles }).then(() => {
+    proxy.$modal.msgSuccess('视频人物已更新')
+    videoPersonVisible.value = false
+    loadVideos()
+    loadStats()
+  }).catch(err => {
+    proxy.$modal.notifyError({
+      title: '更新视频人物失败',
+      message: errorText(err) || '请求失败：/admin/videos/{id}/persons 可能尚未就绪，请查看后端日志',
+      duration: 8000
+    })
+  }).finally(() => { videoPersonSaving.value = false })
+}
+
+function openAlbumPersons(row) {
+  if (!row || row.id == null) return
+  albumPersonRow.value = row
+  albumPersonTitle.value = row.title || row.dir || String(row.id)
+  albumPersonIds.value = []
+  // 索引里的 albums[].persons 只有名字没有 id，无法直接回填多选；
+  // 优先用后端可能给的 personIds，其次用老的单值 personId。
+  if (Array.isArray(row.personIds)) {
+    albumPersonIds.value = row.personIds.slice()
+  } else if (row.personId !== null && row.personId !== undefined && row.personId !== '') {
+    albumPersonIds.value = [row.personId]
+  }
+  albumPersonVisible.value = true
+  loadPersonPickOptions(false)
+}
+
+function submitAlbumPersons() {
+  if (albumPersonSaving.value) return
+  const row = albumPersonRow.value
+  if (!row || row.id == null) return
+  albumPersonSaving.value = true
+  setAlbumPersons(row.id, albumPersonIds.value.slice()).then(() => {
+    proxy.$modal.msgSuccess('相册人物已更新')
+    albumPersonVisible.value = false
+    loadAlbums()
+    loadPeople()
+    loadStats()
+  }).catch(err => {
+    proxy.$modal.notifyError({
+      title: '更新相册人物失败',
+      message: errorText(err) || '请求失败：/admin/albums/{id}/persons 可能尚未就绪，请查看后端日志',
+      duration: 8000
+    })
+  }).finally(() => { albumPersonSaving.value = false })
+}
+
+/* ------------------------------------------------------ 标签父级（P3-B） */
+/* 父标签下拉必须排除「自身」与「自身的全部后代」，否则会造出环（A 的父是 B、B 的父是 A）。
+   后端 /tags 增了 parentId（以及可选的 path），这里 name/depth 都在前端按 parentId 链推导，
+   有 path 时优先用 path 展示。 */
+
+function tagChildrenMap(list) {
+  const map = new Map()
+  ;(list || []).forEach(item => {
+    if (!item || item.id == null) return
+    const key = item.parentId === null || item.parentId === undefined ? '' : String(item.parentId)
+    if (!map.has(key)) map.set(key, [])
+    map.get(key).push(item)
+  })
+  return map
+}
+
+/** 某标签的全部后代 id（广度展开，防脏数据成环时用 visited 兜底） */
+function collectDescendantIds(list, rootId) {
+  const childrenOf = tagChildrenMap(list)
+  const out = new Set()
+  const stack = [String(rootId)]
+  while (stack.length) {
+    const current = stack.pop()
+    ;(childrenOf.get(current) || []).forEach(child => {
+      const cid = String(child.id)
+      if (out.has(cid)) return
+      out.add(cid)
+      stack.push(cid)
+    })
+  }
+  return out
+}
+
+/** 层级深度（顶级 = 0）：按 parentId 链向上走，超过 32 层视为脏数据直接停 */
+function tagDepthOf(id, list) {
+  let depth = 0
+  let current = (list || []).find(item => String(item.id) === String(id))
+  let guard = 0
+  while (current && current.parentId !== null && current.parentId !== undefined && guard < 32) {
+    current = (list || []).find(item => String(item.id) === String(current.parentId))
+    depth += 1
+    guard += 1
+  }
+  return depth
+}
+
+/** 父标签候选：排除自身 + 后代，带层级缩进标签 */
+const tagParentOptions = computed(() => {
+  const list = tagList.value.filter(item => item && item.id != null)
+  const banned = new Set()
+  if (tagEditForm.id !== null && tagEditForm.id !== undefined) {
+    banned.add(String(tagEditForm.id))
+    collectDescendantIds(list, tagEditForm.id).forEach(id => banned.add(id))
+  }
+  return list
+    .filter(item => !banned.has(String(item.id)))
+    .map(item => ({
+      id: item.id,
+      label: (item.path ? String(item.path) : '— '.repeat(tagDepthOf(item.id, list)) + (item.name || String(item.id)))
+    }))
+    .sort((a, b) => String(a.label).localeCompare(String(b.label), 'zh-Hans-CN'))
+})
+
+/** 列表里的「父标签」列：有 path 用 path，否则递归找父名，找不到就是顶级 */
+function tagParentLabel(row) {
+  if (!row) return '顶级'
+  if (row.path) return String(row.path)
+  if (row.parentId === null || row.parentId === undefined) return '顶级'
+  const parent = tagList.value.find(item => String(item.id) === String(row.parentId))
+  return parent ? (parent.name || String(parent.id)) : ('#' + row.parentId + '（已删除）')
 }
 
 onMounted(() => {
@@ -1751,6 +2019,47 @@ onBeforeUnmount(() => { stopScanPolling() })
   }
   .media-page :deep(.el-pagination) {
     flex-wrap: wrap;
+  }
+}
+/* 人物弹窗（P3-B）：目标名 / 每个选中人物的角色行 / 未就绪提示 */
+.vp-target {
+  margin: 0 0 10px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  word-break: break-all;
+}
+.vp-alert {
+  margin-bottom: 10px;
+}
+.vp-role-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+.vp-role-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vp-role-name {
+  flex: 0 0 96px;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.vp-tip {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
+}
+@media (max-width: 560px) {
+  .vp-role-name {
+    flex-basis: 72px;
   }
 }
 </style>
