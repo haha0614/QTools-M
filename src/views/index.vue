@@ -440,7 +440,7 @@ function goToolPage() {
 
 /** 跳到媒体库（菜单未授权或路由不存在时静默忽略） */
 function goMediaPage() {
-  router.push("/tool/media").catch(() => {})
+  router.push("/media").catch(() => {})
 }
 
 /** 拉媒体站数据：与工具看板各自独立，失败只影响本区块 */
