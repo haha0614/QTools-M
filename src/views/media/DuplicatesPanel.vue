@@ -18,10 +18,31 @@
       @size-change="onSizeChange"
       @merge="askMerge"
       @keep="askKeep"
+      @remove="askRemove"
       @trash-change="onTrashChange"
     />
 
-    <!-- 清理副本：二次确认，勾选状态决定「移回收站」还是「仅删记录」 -->
+    <!-- P4.3 清理单条副本：二次确认，确认框里的勾选决定「移回收站」还是「仅删记录」（默认继承组级勾选） -->
+    <el-dialog v-model="removeVisible" title="清理这一条副本（需确认）" width="min(560px, 94vw)" append-to-body>
+      <el-alert
+        type="warning"
+        :closable="false"
+        show-icon
+        :title="'影响：' + (removeDeleteFile ? '这条副本文件移入回收站' : '只删除这一条索引记录')"
+      >
+        <template #default>
+          <pre class="dup-confirm">{{ removeText }}</pre>
+        </template>
+      </el-alert>
+      <el-checkbox v-model="removeDeleteFile" class="dup-check">同时把副本文件移入回收站（可在回收站恢复）</el-checkbox>
+      <p class="dup-hint">默认值来自卡片底部的组级勾选；这里只影响当前这一条，组内其它副本不受影响。</p>
+      <template #footer>
+        <el-button @click="removeVisible = false">取 消</el-button>
+        <el-button type="danger" :loading="removing" v-hasPermi="['media:admin:edit']" @click="doRemove">确认清理这条</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 清理整组副本：二次确认，勾选状态决定「移回收站」还是「仅删记录」 -->
     <el-dialog v-model="mergeVisible" title="清理副本（需确认）" width="min(560px, 94vw)" append-to-body>
       <el-alert type="warning" :closable="false" show-icon :title="'影响：' + (mergeDeleteFiles ? '副本文件移入回收站' : '只删除索引记录')">
         <template #default>
@@ -53,13 +74,18 @@
 
 <script setup name="DuplicatesPanel">
 import { computed, getCurrentInstance, onMounted, ref } from 'vue'
-import { listDuplicates, mergeDuplicates, keepDuplicate } from '@/api/media'
+import { listDuplicates, mergeDuplicates, keepDuplicate, removeDuplicate } from '@/api/media'
 import {
   clampPage,
   duplicateTotals,
+  fallbackPage,
+  inheritedTrashFlag,
   isNotReadyError,
   keepConfirmText,
   mergeConfirmText,
+  removeAliasRow,
+  removeConfirmText,
+  removeRequestBody,
   resolveViewState,
   rowKey
 } from './duplicatesModel'
@@ -87,6 +113,12 @@ const keepVisible = ref(false)
 const keepAlias = ref(null)
 const keepRow = ref(null)
 const keeping = ref(false)
+/** P4.3 单条清理：确认框状态 + 打开时从组级勾选继承的「移入回收站」默认值 */
+const removeVisible = ref(false)
+const removeAlias = ref(null)
+const removeRow = ref(null)
+const removeDeleteFile = ref(false)
+const removing = ref(false)
 
 const totals = computed(() => duplicateTotals(rows.value, total.value))
 
@@ -116,6 +148,16 @@ const mergeText = computed(() =>
 )
 
 const keepText = computed(() => keepConfirmText({ row: keepRow.value, alias: keepAlias.value, kind: kind.value }))
+
+/** 单条清理的确认文案：随确认框里的勾选实时变化 */
+const removeText = computed(() =>
+  removeConfirmText({
+    row: removeRow.value,
+    alias: removeAlias.value,
+    kind: kind.value,
+    deleteFile: removeDeleteFile.value
+  })
+)
 
 function errText(err) {
   if (!err) return ''
@@ -214,6 +256,60 @@ async function doKeep() {
     proxy.$modal.msgError('设为主文件失败：' + hint)
   } finally {
     keeping.value = false
+  }
+}
+
+/** P4.3 点副本行的「清理」：只清这一条；「移入回收站」默认值继承卡片底部组级勾选 */
+function askRemove(row, alias) {
+  if (!row || !alias || alias.id == null || alias.id === '') {
+    proxy.$modal.msgError('这条副本缺少 id，无法单条清理（可改用「清理本组」）')
+    return
+  }
+  removeRow.value = row
+  removeAlias.value = alias
+  removeDeleteFile.value = inheritedTrashFlag(trashKeys.value, row.__key)
+  removeVisible.value = true
+}
+
+/**
+ * 单条清理：乐观更新 + 失败整份回滚。
+ *
+ * 顺序是刻意的：先在本地移除这条副本（副本数与可省空间立刻更新，组清空则卡片消失），
+ * 再发请求；失败就把快照原样写回并 toast 后端原错误——不让界面停在「看起来清了、其实没清」。
+ */
+async function doRemove() {
+  const row = removeRow.value
+  const alias = removeAlias.value
+  if (!row || !alias || removing.value) return
+  const deleteFile = !!removeDeleteFile.value
+  const snapshot = { rows: rows.value, total: total.value }
+  const applied = removeAliasRow(rows.value, row.__key, alias.id)
+  if (!applied.touched) {
+    removeVisible.value = false
+    return
+  }
+
+  rows.value = applied.rows
+  // 整组清空 → 卡片消失，组数也少一组（后端 total 是组数）
+  if (applied.groupRemoved) total.value = Math.max(0, total.value - 1)
+  removeVisible.value = false
+  removing.value = true
+  try {
+    await removeDuplicate(removeRequestBody({ kind: kind.value, alias, deleteFile }))
+    proxy.$modal.msgSuccess(deleteFile ? '这条副本已移入回收站' : '这条副本记录已清理（文件未动）')
+    if (applied.groupRemoved && !rows.value.length) {
+      // 本页被清空：退一页重拉（第 1 页则重拉本页，让后一页的组补位）
+      page.value = fallbackPage(rows.value, page.value)
+      load()
+    }
+  } catch (err) {
+    // 回滚到请求前的整份快照（行、组数），再原样报后端错误
+    rows.value = snapshot.rows
+    total.value = snapshot.total
+    const hint = isNotReadyError(err) ? '接口未就绪' : errText(err) || '请查看后端日志'
+    proxy.$modal.msgError('清理这一条失败：' + hint)
+  } finally {
+    removing.value = false
   }
 }
 

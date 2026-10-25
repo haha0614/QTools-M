@@ -245,3 +245,287 @@ export function markThumbBroken(brokenMap, url) {
   brokenMap[url] = true
   return true
 }
+
+/* ======================================================= P4.2 大图预览（遮罩层）
+ * 遮罩层要判定的东西和缩略图一样「纯」：URL 怎么拼、当前组的文件怎么排、第 i / N 怎么算、
+ * 左右切换到头怎么办、ESC / 背景点击关不关、图片 404 怎么回退原图。
+ * 全部放这里，模板只负责画（单测：p4b-evidence/test-duplicates-p42.mjs）。
+ */
+
+/** 原文件地址：/api/media/file?p=<urlencode(relPath)>；没有 relPath 给空串（不拼必然 404 的地址） */
+export function filePath(relPath) {
+  const rel = String(relPath == null ? '' : relPath).trim()
+  return rel ? '/api/media/file?p=' + encodeURIComponent(rel) : ''
+}
+
+/** 图片大图预览地址：/api/media/preview/p/<contentHash>（内容寻址；后端可能没产物，调用方必须能回退） */
+export function previewPath(contentHash) {
+  const hash = String(contentHash == null ? '' : contentHash).trim()
+  return hash ? '/api/media/preview/p/' + encodeURIComponent(hash) : ''
+}
+
+/** 文件名（去掉目录）：遮罩层标题用，免得长路径把标题顶飞 */
+export function fileBaseName(relPath) {
+  const raw = String(relPath == null ? '' : relPath).trim()
+  if (!raw) return ''
+  return raw.split(/[\\/]/).filter(Boolean).pop() || raw
+}
+
+/**
+ * 一组的全部文件（遮罩层左右切换的范围）：主文件固定第 0 位，其后按后端顺序的副本。
+ * 主文件缺失也占位——否则「第 i / N」少一个，切换顺序和卡片上的视觉顺序也会错开。
+ */
+export function groupFiles(row) {
+  const files = [{ role: 'primary', pos: 0, item: (row && row.primary) || {} }]
+  groupAliases(row).forEach((alias, i) => {
+    files.push({ role: 'alias', pos: i + 1, item: alias })
+  })
+  return files
+}
+
+/**
+ * 当前文件的大图加载方案：
+ *   图片：优先 preview/p/<hash>（更小更快），fallback = 原图 /file?p= —— 预览缺产物时自动换；
+ *   视频：直接播原文件 /file?p=（不转码，能播则播），封面地址一并给出，播不了由模板提示回退原画播放器。
+ * src 为空 = 连原文件地址都拼不出来：直接进错误态，不渲染必然破图的 <img>/<video>。
+ */
+export function previewStage(kind, item, groupHash) {
+  const it = item || {}
+  const file = filePath(it.relPath)
+  const thumb = thumbPath(kind, it, groupHash)
+  if (kind === 'photo') {
+    const pv = previewPath(it.contentHash || groupHash)
+    const src = pv || file
+    return { media: 'photo', src, fallback: pv && file ? file : '', thumb, status: src ? 'loading' : 'error', usedFallback: false }
+  }
+  return { media: 'video', src: file, fallback: '', thumb, status: file ? 'loading' : 'error', usedFallback: false }
+}
+
+/** 图片预览 404 / 解码失败：还有原图就换原图继续加载，没有才进「加载失败」（模板给重试按钮） */
+export function previewFallbackStage(stage) {
+  const st = stage || {}
+  if (st.fallback && st.fallback !== st.src) {
+    return { ...st, src: st.fallback, fallback: '', status: 'loading', usedFallback: true }
+  }
+  return { ...st, status: 'error' }
+}
+
+/** 加载完成：停转圈（失败路径不经这里，否则会把错误态盖掉） */
+export function previewLoadedStage(stage) {
+  return { ...(stage || {}), status: 'ready' }
+}
+
+/** 关闭态：open=false；其余字段留默认值，模板拿它判断时不必到处写可选链 */
+export function closedLightbox() {
+  return { open: false, kind: 'video', files: [], index: 0, hash: '', stage: null, token: 0 }
+}
+
+/** 点击缩略图要打开第几个文件：按对象身份找（其次 id / relPath），找不到退主文件（恒为第 0 位） */
+export function resolveTargetIndex(files, target) {
+  const list = Array.isArray(files) ? files : []
+  if (!list.length) return 0
+  const t = target || {}
+  if (t.role === 'alias' && t.alias) {
+    const alias = t.alias
+    const hit = list.findIndex((f) => {
+      if (!f || f.role !== 'alias' || !f.item) return false
+      if (f.item === alias) return true
+      if (alias.id != null && f.item.id != null && String(f.item.id) === String(alias.id)) return true
+      return !!(alias.relPath && f.item.relPath === alias.relPath)
+    })
+    if (hit >= 0) return hit
+  }
+  return 0
+}
+
+/** 打开遮罩层：当前组全部文件 + 起始位置 + 首个加载方案 */
+export function openLightbox(kind, row, target) {
+  const files = groupFiles(row)
+  const k = kind === 'photo' ? 'photo' : 'video'
+  const hash = String((row && row.contentHash) || '')
+  const index = resolveTargetIndex(files, target)
+  const file = files[index]
+  return {
+    open: files.length > 0,
+    kind: k,
+    files,
+    index,
+    hash,
+    stage: previewStage(k, file && file.item, hash),
+    token: 0
+  }
+}
+
+/** 跳到第 index 个文件（越界按首尾循环归一）：换文件就重建加载方案 + token++，让 <img>/<video> 重新挂载 */
+export function lightboxAt(state, index) {
+  const s = state || {}
+  const files = Array.isArray(s.files) ? s.files : []
+  if (!s.open || !files.length) return s
+  const n = files.length
+  const raw = Number(index)
+  const base = isFinite(raw) ? Math.round(raw) : 0
+  const i = ((base % n) + n) % n
+  const file = files[i]
+  return { ...s, index: i, stage: previewStage(s.kind, file && file.item, s.hash), token: (s.token || 0) + 1 }
+}
+
+/** 左右切换：delta=±1。到头**循环**（首尾相接）——键盘和按钮永远有反馈，不需要先想「到底了没」 */
+export function lightboxStep(state, delta) {
+  const s = state || {}
+  const files = Array.isArray(s.files) ? s.files : []
+  if (!s.open || !files.length) return s
+  const d = Number(delta)
+  return lightboxAt(s, (s.index || 0) + (isFinite(d) ? Math.round(d) : 0))
+}
+
+/** 重试：重建当前文件的加载方案（图片重走 preview → 原图；视频重新挂载 <video>） */
+export function lightboxRetry(state) {
+  const s = state || {}
+  if (!s.open) return s
+  return lightboxAt(s, s.index)
+}
+
+/**
+ * 键盘状态机：ESC 关闭、←/→ 切换；其余键**原样返回同一个对象**——
+ * 调用方用 `next === lightbox.value` 判断「这次按键归不归我管」，不用自己维护按键表。
+ */
+export function lightboxKey(state, key) {
+  const s = state || {}
+  if (!s.open) return s
+  const k = String(key == null ? '' : key)
+  if (k === 'Escape') return closedLightbox()
+  if (k === 'ArrowLeft') return lightboxStep(s, -1)
+  if (k === 'ArrowRight') return lightboxStep(s, 1)
+  return s
+}
+
+/** 背景点击才关闭：点在遮罩自身（target === currentTarget）才算背景，点内容/按钮不关闭 */
+export function isBackdropClick(event) {
+  const e = event || {}
+  return !!e.target && e.target === e.currentTarget
+}
+
+/** 当前文件（模板取大小 / 缩略图路径 / 主文件还是副本）；关闭态给空对象，模板不必写可选链 */
+export function lightboxCurrent(state) {
+  const s = state || {}
+  const files = Array.isArray(s.files) ? s.files : []
+  return files[s.index] || { role: 'primary', pos: 0, item: {} }
+}
+
+/** 底部「第 i / N」：关闭态给空串（不显示） */
+export function lightboxLabel(state) {
+  const s = state || {}
+  const files = Array.isArray(s.files) ? s.files : []
+  if (!s.open || !files.length) return ''
+  const i = Math.min(Math.max(0, s.index || 0), files.length - 1)
+  return '第 ' + (i + 1) + ' / ' + files.length
+}
+
+/** <img>/<video> 的 key：换文件或重试都要重新挂载，否则旧地址的破图/失败态会留下 */
+export function lightboxStageKey(state) {
+  const s = state || {}
+  return String(s.index || 0) + ':' + String(s.token || 0)
+}
+
+/* ==================================================== P4.3 单条副本清理
+ * 清理粒度从「整组」细化到「一条」：请求体 / 确认文案 / 乐观局部更新 / 空页回退
+ * 都是纯函数，直接单测（p43-evidence/test-duplicates-p43.mjs）。
+ */
+
+/** 同一条别名：id 唯一（后端可能是数字或字符串），缺 id 时退回 rel_path 比对 */
+export function sameAlias(alias, aliasId) {
+  const a = alias || {}
+  const id = aliasId == null ? '' : String(aliasId)
+  if (a.id != null && a.id !== '') return String(a.id) === id
+  return !!id && String(a.relPath || '') === id
+}
+
+/**
+ * 单条清理的请求体：字段名与后端 `POST /duplicates/remove` 一一对应。
+ * 传 aliasId（别名行 id）而不是 contentHash —— 这正是「只清这一条」与组级 merge 的区别。
+ */
+export function removeRequestBody(input) {
+  const s = input || {}
+  const alias = s.alias || {}
+  return {
+    kind: s.kind === 'photo' ? 'photo' : 'video',
+    aliasId: alias.id,
+    deleteFile: !!s.deleteFile
+  }
+}
+
+/**
+ * 确认框里「同时移入回收站」的默认值：继承卡片底部的组级勾选（不新增每行复选框）。
+ * 组未被勾选 → 默认 false（仅删记录），与整组清理的默认口径一致。
+ */
+export function inheritedTrashFlag(trashKeys, key) {
+  const list = Array.isArray(trashKeys) ? trashKeys : []
+  return list.indexOf(String(key == null ? '' : key)) >= 0
+}
+
+/** 单条清理的二次确认文案：必须写清「只清这一条」以及文件是否进回收站 */
+export function removeConfirmText(input) {
+  const s = input || {}
+  const alias = s.alias || {}
+  const kind = kindLabel(s.kind)
+  const target = itemPath(alias)
+  const size = formatBytes(alias.size)
+  const effect = s.deleteFile
+    ? '这份副本文件会被移入回收站（可在回收站恢复，不会直接删除），本条释放 ' + size
+    : '只删除这一条索引记录，磁盘上的副本文件保持不动（不释放磁盘，下一轮重建索引可能又扫回来）'
+  return [
+    '只清理这一条' + kind + '副本：「' + target + '」。',
+    '影响：' + effect + '。',
+    '本条体积：' + size + '。',
+    '本组其余副本与主文件不受影响（要整组清理请用卡片底部的「清理本组」）。'
+  ].join('\n')
+}
+
+/**
+ * 乐观移除一条副本：返回<b>新的 rows</b>（不改原数组），并告知「这组是否已清空」。
+ *
+ * <p>同时重算 count / bytesWasted —— 卡片底部「共 N 个副本 · 可省 X MB」与顶部统计
+ * 都直接读这两个字段，重算后界面立刻正确，不必等一次整页请求。</p>
+ *
+ * <p>组里最后一条副本被移除 → 该组整张卡片从 rows 里消失（`groupRemoved=true`）。</p>
+ */
+export function removeAliasRow(rows, key, aliasId) {
+  const list = Array.isArray(rows) ? rows : []
+  const target = String(key == null ? '' : key)
+  const out = []
+  let groupRemoved = false
+  let removedAlias = null
+  list.forEach((row, i) => {
+    if (!row || groupKey(row, i) !== target) {
+      out.push(row)
+      return
+    }
+    const aliases = groupAliases(row)
+    const hit = aliases.filter((a) => sameAlias(a, aliasId))
+    if (!hit.length) {
+      // 本地没有这条副本：原样保留（不做无根据的改写）
+      out.push(row)
+      return
+    }
+    const rest = aliases.filter((a) => !sameAlias(a, aliasId))
+    if (!removedAlias) removedAlias = hit[0]
+    if (!rest.length) {
+      groupRemoved = true
+      return
+    }
+    out.push({
+      ...row,
+      aliases: rest,
+      count: rest.length + 1,
+      bytesWasted: rest.reduce((sum, a) => sum + (num(a && a.size) || 0), 0)
+    })
+  })
+  return { rows: out, groupRemoved, removedAlias, touched: !!removedAlias }
+}
+
+/** 清空后的页码回退：本页已空且不是第 1 页 → 退一页（调用方据此重拉，避免停在空页） */
+export function fallbackPage(rows, page) {
+  const list = Array.isArray(rows) ? rows : []
+  const p = num(page) != null && page > 0 ? Math.round(num(page)) : 1
+  return list.length === 0 && p > 1 ? p - 1 : p
+}

@@ -2,7 +2,8 @@
   <div class="dup-view">
     <p class="dup-lead">
       按<strong>文件内容哈希</strong>分组的重复文件：一组里只有一条主文件，其余都是副本。
-      <strong>清理副本</strong>默认只删索引记录（磁盘文件不动），勾选后才会把副本文件移入回收站（可在回收站恢复）。
+      副本行上的<strong>清理</strong>只清这一条，卡片底部的<strong>清理本组</strong>才按内容哈希整组清理。
+      清理默认只删索引记录（磁盘文件不动），勾选／确认后再把副本文件移入回收站（可在回收站恢复）。
       <strong>设为主文件</strong>只改索引记录，不移动任何文件。
     </p>
 
@@ -47,7 +48,15 @@
         <div class="dup-card-body">
           <!-- 左栏：主文件大缩略图 + 路径 + 大小 -->
           <div class="dup-card-main">
-            <div class="dup-thumb dup-thumb--main">
+            <div
+              class="dup-thumb dup-thumb--main is-clickable"
+              role="button"
+              tabindex="0"
+              title="点击查看大图"
+              @click.stop="openPreview(row, 'primary')"
+              @keydown.enter.prevent="openPreview(row, 'primary')"
+              @keydown.space.prevent="openPreview(row, 'primary')"
+            >
               <img
                 v-if="imgSrc(primaryThumb(row))"
                 :src="imgSrc(primaryThumb(row))"
@@ -71,7 +80,15 @@
             <div v-if="!aliasCount(row)" class="dup-alias-empty">这组没有副本（只有一条主文件）</div>
             <ul v-else class="dup-alias-list" :class="{ 'is-expanded': isExpanded(row, index) }">
               <li v-for="(a, ai) in shownAliases(row, index)" :key="aliasKey(a, ai, keyOf(row, index))" class="dup-alias">
-                <div class="dup-thumb dup-thumb--alias">
+                <div
+                  class="dup-thumb dup-thumb--alias is-clickable"
+                  role="button"
+                  tabindex="0"
+                  title="点击查看大图"
+                  @click.stop="openPreview(row, 'alias', a)"
+                  @keydown.enter.prevent="openPreview(row, 'alias', a)"
+                  @keydown.space.prevent="openPreview(row, 'alias', a)"
+                >
                   <img
                     v-if="imgSrc(aliasThumb(row, a))"
                     :src="imgSrc(aliasThumb(row, a))"
@@ -87,17 +104,18 @@
                   <span class="dup-meta">{{ formatBytes(a.size) }}</span>
                 </div>
                 <div class="dup-alias-ops">
-                  <el-button link type="primary" size="small" v-hasPermi="['media:admin:edit']" @click="emit('keep', row, a)">
+                  <!-- .stop：点在行内操作上不能顺手弹出大图遮罩层 -->
+                  <el-button link type="primary" size="small" v-hasPermi="['media:admin:edit']" @click.stop="emit('keep', row, a)">
                     设为主文件
                   </el-button>
-                  <!-- 后端 merge 按 contentHash 整组清理，单副本行只是同一动作的入口 -->
+                  <!-- P4.3：只清这一条（后端 remove 按 aliasId 定位）；整组清理在卡片底部「清理本组」 -->
                   <el-button
                     link
                     type="danger"
                     size="small"
-                    title="清理本组副本（后端按内容哈希整组清理）"
+                    title="只清理这一条副本"
                     v-hasPermi="['media:admin:edit']"
-                    @click="emit('merge', row)"
+                    @click.stop="emit('remove', row, a)"
                   >
                     清理
                   </el-button>
@@ -139,7 +157,7 @@
             size="small"
             :disabled="!aliasCount(row)"
             v-hasPermi="['media:admin:edit']"
-            @click="emit('merge', row)"
+            @click.stop="emit('merge', row)"
           >
             清理本组
           </el-button>
@@ -160,25 +178,128 @@
         @size-change="(s) => emit('size-change', s)"
       />
     </div>
+
+    <!--
+      P4.2 大图预览遮罩层（点主文件大图 / 副本小图打开）：
+      ESC 关闭、点背景关闭、右上角关闭按钮、←/→ 在本组全部文件（主文件 + 副本）间循环切换。
+      判定全在 duplicatesModel（openLightbox / lightboxStep / lightboxKey / previewFallbackStage），这里只搬状态。
+    -->
+    <teleport to="body">
+      <div
+        v-if="lightbox.open"
+        class="dup-lb"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="'重复文件预览 ' + lightboxLabel(lightbox)"
+        @click="onBackdrop"
+      >
+        <div class="dup-lb-panel">
+          <div class="dup-lb-head">
+            <span class="dup-lb-role">{{ lbCurrent.role === 'primary' ? '主文件' : '副本' }}</span>
+            <span class="dup-lb-name" :title="lbPath">{{ lbName }}</span>
+            <button type="button" class="dup-lb-btn dup-lb-close" title="关闭（ESC）" aria-label="关闭" @click.stop="closePreview">
+              ×
+            </button>
+          </div>
+
+          <!-- 舞台：点内容不关闭（背景点击才关），加载中转圈，失败给「加载失败 + 重试」，不出现破图 -->
+          <div class="dup-lb-stage" @click.stop>
+            <div v-if="lightbox.stage && lightbox.stage.status === 'loading'" class="dup-lb-spin" aria-label="加载中"></div>
+
+            <!-- 图片：优先 preview/p/<contentHash>（更小更快），404 / 解码失败自动回退原图 -->
+            <template v-if="lightbox.stage && lightbox.stage.media === 'photo'">
+              <div v-if="lightbox.stage.status === 'error'" class="dup-lb-err">
+                <p class="dup-lb-err-text">加载失败</p>
+                <p class="dup-lb-err-hint">{{ lbPath }}</p>
+                <el-button size="small" icon="Refresh" @click="retryPreview">重试</el-button>
+              </div>
+              <img
+                v-else
+                :key="lbStageKey"
+                class="dup-lb-img"
+                :src="mediaSrc(lightbox.stage.src)"
+                :alt="lbName"
+                @load="onPreviewLoaded"
+                @error="onPreviewError"
+              />
+            </template>
+
+            <!-- 视频：直接播原文件（不转码，能播则播），播不了提示可回退原画播放器 -->
+            <template v-else-if="lightbox.stage">
+              <div v-if="lightbox.stage.status === 'error'" class="dup-lb-err">
+                <p class="dup-lb-err-text">该编码浏览器可能不支持，可回退原画播放器</p>
+                <p class="dup-lb-err-hint">{{ lbPath }}</p>
+                <div class="dup-lb-err-ops">
+                  <el-button size="small" icon="Refresh" @click="retryPreview">重试</el-button>
+                  <el-button v-if="lightbox.stage.src" size="small" type="primary" link @click="openOriginal">
+                    用原画播放器打开
+                  </el-button>
+                </div>
+              </div>
+              <video
+                v-else
+                :key="lbStageKey"
+                class="dup-lb-video"
+                controls
+                autoplay
+                playsinline
+                :poster="lbPoster"
+                :src="mediaSrc(lightbox.stage.src)"
+                @loadedmetadata="onPreviewLoaded"
+                @error="onPreviewError"
+              ></video>
+            </template>
+
+            <button type="button" class="dup-lb-btn dup-lb-nav is-prev" title="上一个（←）" aria-label="上一个" @click.stop="stepPreview(-1)">
+              ‹
+            </button>
+            <button type="button" class="dup-lb-btn dup-lb-nav is-next" title="下一个（→）" aria-label="下一个" @click.stop="stepPreview(1)">
+              ›
+            </button>
+          </div>
+
+          <div class="dup-lb-foot">
+            <span class="dup-lb-count">{{ lightboxLabel(lightbox) }}</span>
+            <span class="dup-lb-name dup-lb-foot-name" :title="lbPath">{{ lbName }}</span>
+            <span class="dup-lb-meta">{{ formatBytes(lbCurrent.item.size) }}</span>
+            <span class="dup-lb-thumb" :title="(lightbox.stage && lightbox.stage.thumb) || ''">
+              缩略图：{{ (lightbox.stage && lightbox.stage.thumb) || '—' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </teleport>
   </div>
 </template>
 
 <script setup name="DuplicatesView">
-import { onMounted, onUnmounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import {
   ALIAS_PREVIEW_LIMIT,
   KINDS,
   PAGE_SIZES,
   aliasKey,
   aliasWindow,
+  closedLightbox,
+  fileBaseName,
   fileInitial,
   formatBytes,
   groupAliases,
   groupCount,
   groupKey,
   groupWasted,
+  isBackdropClick,
   itemPath,
+  lightboxCurrent,
+  lightboxKey,
+  lightboxLabel,
+  lightboxRetry,
+  lightboxStageKey,
+  lightboxStep,
   markThumbBroken,
+  openLightbox,
+  previewFallbackStage,
+  previewLoadedStage,
   primaryPath,
   thumbPath,
   thumbSrc
@@ -197,10 +318,15 @@ const props = defineProps({
   total: { type: Number, default: 0 },
   loading: { type: Boolean, default: false },
   /** 已勾选「移入回收站」的组 key（勾选状态按组共享，面板持有唯一真值） */
-  trashKeys: { type: Array, default: () => [] }
+  trashKeys: { type: Array, default: () => [] },
+  /**
+   * 遮罩层初始状态（默认 null = 关闭）：{ row, role:'primary'|'alias', alias }。
+   * 只给 SSR / 证据脚本渲染「已打开」的 DOM 用；正常交互一律由点击缩略图产生，Panel 不传。
+   */
+  previewSeed: { type: Object, default: null }
 })
 
-const emit = defineEmits(['refresh', 'kind-change', 'page-change', 'size-change', 'merge', 'keep', 'trash-change'])
+const emit = defineEmits(['refresh', 'kind-change', 'page-change', 'size-change', 'merge', 'keep', 'remove', 'trash-change'])
 
 /** 非 axios 资源统一加后端前缀（dev 走 /dev-api 代理，prod 与 axios baseURL 一致） */
 const BASE_API = (import.meta.env && import.meta.env.VITE_APP_BASE_API) || ''
@@ -251,11 +377,15 @@ function aliasThumb(row, alias) {
   return thumbPath(props.kind, alias, row && row.contentHash)
 }
 
+/** 非 axios 资源加后端前缀（与 media/index.vue 的 mediaSrc 同口径） */
+function mediaSrc(path) {
+  if (!path) return ''
+  return path.startsWith('http') ? path : BASE_API + path
+}
+
 /** 可显示时才给 src；空串 = 渲染占位块 */
 function imgSrc(path) {
-  const url = thumbSrc(broken, path)
-  if (!url) return ''
-  return url.startsWith('http') ? url : BASE_API + url
+  return mediaSrc(thumbSrc(broken, path))
 }
 
 function onThumbError(path) {
@@ -287,6 +417,104 @@ function isTrash(row, index) {
   const list = Array.isArray(props.trashKeys) ? props.trashKeys : []
   return list.indexOf(keyOf(row, index)) >= 0
 }
+
+/* ====================================================== P4.2 大图预览（遮罩层）
+ * 判定全在 duplicatesModel；这里只负责：把 model 的纯函数结果写回 ref、锁/放页面滚动、挂键盘监听。
+ */
+
+/** 遮罩层状态（关闭态 = closedLightbox()，非 open 时整块不渲染） */
+const lightbox = ref(seedLightbox())
+/** 打开前的 body overflow：关闭时原样还回去，别把别的弹窗的锁顶掉 */
+let savedOverflow = ''
+
+/** previewSeed 只用于 SSR / 证据脚本；正常交互（点击缩略图）由 openPreview 产生 */
+function seedLightbox() {
+  const seed = props.previewSeed
+  if (!seed || !seed.row) return closedLightbox()
+  return openLightbox(props.kind, seed.row, { role: seed.role || 'primary', alias: seed.alias })
+}
+
+const lbCurrent = computed(() => lightboxCurrent(lightbox.value))
+const lbPath = computed(() => itemPath(lbCurrent.value.item))
+/** 标题用文件名（长路径放 title 里），缺 relPath 才退回 id */
+const lbName = computed(() => fileBaseName(lbCurrent.value.item && lbCurrent.value.item.relPath) || lbPath.value)
+/** 换文件 / 重试都要换 key，否则 <img>/<video> 会留着上一次的失败态 */
+const lbStageKey = computed(() => lightboxStageKey(lightbox.value))
+const lbPoster = computed(() => mediaSrc(lightbox.value.stage && lightbox.value.stage.thumb))
+
+/** 点主文件大图：打开本组第 1 个（主文件） */
+function openPreview(row, role, alias) {
+  lightbox.value = openLightbox(props.kind, row, { role, alias })
+}
+
+function closePreview() {
+  lightbox.value = closedLightbox()
+}
+
+function stepPreview(delta) {
+  lightbox.value = lightboxStep(lightbox.value, delta)
+}
+
+/** 重试：图片重新走 preview → 原图，视频重新挂载 <video> */
+function retryPreview() {
+  lightbox.value = lightboxRetry(lightbox.value)
+}
+
+function onPreviewLoaded() {
+  lightbox.value = { ...lightbox.value, stage: previewLoadedStage(lightbox.value.stage) }
+}
+
+/** 图片 404 / 解码失败：先自动回退原图，原图也失败才进「加载失败」 */
+function onPreviewError() {
+  lightbox.value = { ...lightbox.value, stage: previewFallbackStage(lightbox.value.stage) }
+}
+
+/** 背景点击才关闭：点舞台 / 按钮时事件被 .stop 拦住，这里再按 target 判一次 */
+function onBackdrop(event) {
+  if (isBackdropClick(event)) closePreview()
+}
+
+/** 视频编码浏览器不认时的出口：新窗口用原画播放器打开原文件 */
+function openOriginal() {
+  const url = mediaSrc(lightbox.value.stage && lightbox.value.stage.src)
+  if (url && typeof window !== 'undefined') window.open(url, '_blank', 'noopener')
+}
+
+/** 键盘：ESC 关闭、←/→ 切换；lightboxKey 不认的键原样返回同一对象，用 === 判断是否归自己管 */
+function onKeydown(event) {
+  const next = lightboxKey(lightbox.value, event && event.key)
+  if (next === lightbox.value) return
+  if (event && typeof event.preventDefault === 'function') event.preventDefault()
+  lightbox.value = next
+}
+
+/** 打开时锁页面滚动（与 TagsView 抽屉同一做法：直接改 body.style.overflow） */
+watch(
+  () => lightbox.value.open,
+  (open) => {
+    if (typeof document === 'undefined' || !document.body) return
+    if (open) {
+      savedOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+    } else {
+      document.body.style.overflow = savedOverflow || ''
+      savedOverflow = ''
+    }
+  }
+)
+
+onMounted(() => {
+  if (typeof window !== 'undefined') window.addEventListener('keydown', onKeydown)
+})
+
+onUnmounted(() => {
+  if (typeof window !== 'undefined') window.removeEventListener('keydown', onKeydown)
+  // 卸载时遮罩层还开着：滚动锁必须还回去，否则整页再也滚不动
+  if (typeof document !== 'undefined' && document.body && lightbox.value.open) {
+    document.body.style.overflow = savedOverflow || ''
+    savedOverflow = ''
+  }
+})
 </script>
 
 <style scoped>
@@ -618,4 +846,269 @@ function isTrash(row, index) {
     max-width: 100%;
   }
 }
+/* ==================================================== P4.2 大图预览（遮罩层） */
+
+/* 缩略图可点：光标 + 轻微放大，明确「这张图能点」，但没有行内其它副作用 */
+.dup-thumb.is-clickable {
+  cursor: zoom-in;
+}
+
+.dup-thumb.is-clickable .dup-img {
+  transition: transform 0.15s;
+}
+
+.dup-thumb.is-clickable:hover .dup-img {
+  transform: scale(1.04);
+}
+
+.dup-thumb.is-clickable:focus-visible {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: 1px;
+}
+
+/* 遮罩层：固定铺满，点击背景关闭（内容区块 .stop 拦住） */
+.dup-lb {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: var(--el-overlay-color-lighter, rgba(0, 0, 0, 0.5));
+}
+
+.dup-lb-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(1080px, 94vw);
+  max-height: 92vh;
+  overflow: hidden;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 10px;
+  background-color: var(--el-bg-color-overlay);
+  box-shadow: var(--el-box-shadow-dark, 0 8px 32px rgba(0, 0, 0, 0.35));
+}
+
+.dup-lb-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.dup-lb-role {
+  flex: 0 0 auto;
+  padding: 0 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  line-height: 18px;
+  background-color: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
+}
+
+.dup-lb-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dup-lb-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dup-lb-btn:hover {
+  background-color: var(--el-fill-color-light);
+  color: var(--el-color-primary);
+}
+
+.dup-lb-close {
+  font-size: 22px;
+}
+
+.dup-lb-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  background-color: var(--el-fill-color-darker);
+}
+
+.dup-lb-img {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  border-radius: 4px;
+  object-fit: contain;
+}
+
+.dup-lb-video {
+  display: block;
+  max-width: 100%;
+  max-height: 72vh;
+  border-radius: 4px;
+  background-color: #000;
+}
+
+/* 加载态：转圈压在舞台上，图片就绪后由 status=ready 移除 */
+.dup-lb-spin {
+  position: absolute;
+  width: 30px;
+  height: 30px;
+  border: 3px solid var(--el-border-color-lighter);
+  border-top-color: var(--el-color-primary);
+  border-radius: 50%;
+  animation: dup-lb-rotate 0.8s linear infinite;
+}
+
+@keyframes dup-lb-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 错误态：绝不渲染破图，只给文案 + 重试 */
+.dup-lb-err {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 40px 16px;
+  color: var(--el-text-color-primary);
+}
+
+.dup-lb-err-text {
+  margin: 0;
+  font-size: 14px;
+}
+
+.dup-lb-err-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  text-align: center;
+  word-break: break-all;
+}
+
+.dup-lb-err-ops {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.dup-lb-nav {
+  position: absolute;
+  top: 50%;
+  width: 40px;
+  height: 40px;
+  font-size: 26px;
+  transform: translateY(-50%);
+  border: 1px solid var(--el-border-color-light);
+  background-color: var(--el-bg-color-overlay);
+  box-shadow: var(--el-box-shadow-light);
+}
+
+.dup-lb-nav.is-prev {
+  left: 8px;
+}
+
+.dup-lb-nav.is-next {
+  right: 8px;
+}
+
+.dup-lb-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.dup-lb-count {
+  color: var(--el-color-primary);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.dup-lb-name.dup-lb-foot-name {
+  flex: 0 1 auto;
+  max-width: 46%;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+}
+
+.dup-lb-meta {
+  font-variant-numeric: tabular-nums;
+}
+
+.dup-lb-thumb {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* 移动端：遮罩全屏，切换按钮加大（手指点得到） */
+@media (max-width: 768px) {
+  .dup-lb {
+    padding: 0;
+  }
+
+  .dup-lb-panel {
+    width: 100vw;
+    height: 100vh;
+    max-height: 100vh;
+    border: none;
+    border-radius: 0;
+  }
+
+  .dup-lb-img,
+  .dup-lb-video {
+    max-height: 64vh;
+  }
+
+  .dup-lb-nav {
+    width: 52px;
+    height: 52px;
+    font-size: 32px;
+  }
+
+  .dup-lb-nav.is-prev {
+    left: 6px;
+  }
+
+  .dup-lb-nav.is-next {
+    right: 6px;
+  }
+
+  .dup-lb-foot {
+    gap: 8px;
+  }
+}
+
 </style>

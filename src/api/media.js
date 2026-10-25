@@ -460,8 +460,9 @@ export function setAlbumPersons(id, personIds) {
      GET  /api/media/admin/duplicates?kind=video|photo&page=&size=
           → { rows: [{ contentHash, primary:{id,relPath,size},
                        aliases:[{id,relPath,size}], count, bytesWasted }], total }
-     POST /api/media/admin/duplicates/merge { kind, contentHash, deleteFiles }
-     POST /api/media/admin/duplicates/keep  { kind, contentHash, id }
+     POST /api/media/admin/duplicates/merge  { kind, contentHash, deleteFiles }
+     POST /api/media/admin/duplicates/keep   { kind, contentHash, id }
+     POST /api/media/admin/duplicates/remove { kind, aliasId, deleteFile }   ← P4.3 单条清理
    全部 silent：接口未就绪（404/405/501）时由抽屉就地提示，不弹全局错误。
    ======================================================================== */
 
@@ -479,6 +480,17 @@ export function listDuplicates(query) {
 export function mergeDuplicates(data) {
   return request({
     url: BASE + '/duplicates/merge',
+    method: 'post',
+    data: data || {},
+    silent: true
+  })
+}
+
+// 清理【一条】副本（P4.3）：按别名行 id 定位，deleteFile=true 时把那份文件移入回收站。
+// 与 mergeDuplicates 的区别是定位方式：merge 按 contentHash 整组删，这里只动一条。
+export function removeDuplicate(data) {
+  return request({
+    url: BASE + '/duplicates/remove',
     method: 'post',
     data: data || {},
     silent: true
