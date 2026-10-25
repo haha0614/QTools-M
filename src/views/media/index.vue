@@ -261,17 +261,22 @@
       </el-tab-pane>
     </el-tabs>
 
-    <!-- 图片浏览 -->
-    <el-dialog v-model="photosVisible" :title="'图片 · ' + (currentAlbum.title || '')" width="min(680px, 92vw)" append-to-body>
+    <!-- 图片浏览：用库数据（GET /album/{id}/photos）渲染，每格 = 缩略图 + seq + 文件名（relPath 末段），
+         按 seq 升序；接口 404 时回退到旧的磁盘列举（photoSource='disk'），这时会在顶部提示一行 -->
+    <el-dialog v-model="photosVisible" :title="photosTitle" width="min(680px, 92vw)" append-to-body>
+      <p class="photo-notice" v-if="photoNotice">{{ photoNotice }}</p>
       <div class="photo-grid" v-loading="photosLoading">
-        <div class="photo-item" v-for="photo in photoList" :key="photo.id" @click="openPhotoPreview(photo)">
-          <img :src="mediaSrc(photo.thumbUrl)" loading="lazy" :alt="'第 ' + photo.seq + ' 张'" />
-          <span class="photo-seq">{{ photo.seq }}</span>
+        <div class="photo-item" v-for="photo in photoList" :key="photoKey(photo)" @click="openPhotoPreview(photo)">
+          <div class="photo-thumb">
+            <img :src="mediaSrc(photo.thumbUrl)" loading="lazy" :alt="'第 ' + photo.seq + ' 张'" />
+            <span class="photo-seq">{{ photo.seq }}</span>
+          </div>
+          <span class="photo-name" :title="photo.relPath || photoFileName(photo.relPath)">{{ photoFileName(photo.relPath) }}</span>
         </div>
       </div>
       <el-empty description="暂无图片" v-if="!photosLoading && !photoList.length" />
       <pagination v-show="photoTotal > 0" :page-sizes="[24, 48, 96]" :total="photoTotal" v-model:page="photoQuery.pageNum"
-        v-model:limit="photoQuery.pageSize" @pagination="loadPhotos" />
+        v-model:limit="photoQuery.pageSize" @pagination="handlePhotoPage" />
     </el-dialog>
 
     <!-- 改人物归属 -->
@@ -400,7 +405,7 @@
 </template>
 
 <script setup name="Media">
-import { listVideos, listAlbums, listPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag, getEditPolicy, setEditPolicy } from '@/api/media'
+import { listVideos, listAlbums, listPhotos, getAlbumPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag, getEditPolicy, setEditPolicy } from '@/api/media'
 // 维护面板（扫描 / 元数据 / 派生资源 / 备份 / 库根）：放在同目录子组件，主页面只做挂载与执行
 import MaintPanel from './MaintPanel'
 
@@ -459,6 +464,12 @@ const photoList = ref([])
 const photoTotal = ref(0)
 const photoQuery = reactive({ pageNum: 1, pageSize: 24, albumId: '' })
 const currentAlbum = ref({})
+/* 图片预览弹窗的数据源（P2-D）：
+   db   = GET /api/media/admin/album/{id}/photos（只读库，库里有几行就画几格）——一次取全册，前端分页；
+   disk = 旧的 GET /photos（后端按物理目录列举）——接口未就绪时的回退，会把 _说明.txt 之类也画成一格。 */
+const photoSource = ref('db')
+const photoRowsAll = ref([])
+const photoNotice = ref('')
 
 const personVisible = ref(false)
 const personSubmitting = ref(false)
@@ -804,12 +815,48 @@ function openPhotos(row) {
   photosVisible.value = true
   photoQuery.albumId = row.id
   photoQuery.pageNum = 1
+  photoRowsAll.value = []
   photoList.value = []
   photoTotal.value = 0
+  photoNotice.value = ''
+  photoSource.value = 'db'
   loadPhotos()
 }
 
+/** 弹窗标题：「共 N 条」取库里的记录数，与格子数一致（磁盘回退态不写条数，免得又数成目录文件） */
+const photosTitle = computed(() => {
+  const title = (currentAlbum.value && currentAlbum.value.title) || ''
+  if (photoSource.value !== 'db') return '图片 · ' + title
+  return '图片 · ' + title + '（共 ' + photoTotal.value + ' 条）'
+})
+
+/** 后端还没部署 P2-D-A 时的回退提示：说清「不是页面坏了，且当前列的东西可能不是图片」 */
+const PHOTO_NOT_READY = '相册照片接口未就绪，当前展示的是磁盘目录（可能包含非媒体文件）'
+
 function loadPhotos() {
+  if (photoSource.value === 'disk') {
+    loadPhotosFromDisk()
+    return
+  }
+  photosLoading.value = true
+  getAlbumPhotos(photoQuery.albumId).then(res => {
+    const rows = Array.isArray(res) ? res : ((res && res.rows) || [])
+    // 库里按 seq 升序渲染：磁盘顺序（mtime / 字母序）不代表相册里的真实顺序
+    photoRowsAll.value = rows.map(normalizePhotoRow).sort((a, b) => (Number(a.seq) || 0) - (Number(b.seq) || 0))
+    photoTotal.value = Array.isArray(res) ? photoRowsAll.value.length : Number((res && res.total) || photoRowsAll.value.length)
+    applyPhotoPage()
+  }).catch(() => {
+    // 接口未就绪（404）也不能让弹窗空着：退回旧的磁盘列举，并在弹窗顶部说明当前数据源
+    photoSource.value = 'disk'
+    photoRowsAll.value = []
+    photoNotice.value = PHOTO_NOT_READY
+    photoQuery.pageNum = 1
+    loadPhotosFromDisk()
+  }).finally(() => { if (photoSource.value === 'db') photosLoading.value = false })
+}
+
+/** 旧实现（仅回退用）：GET /photos，后端按物理目录列举，会把 _说明.txt 之类也画成一格 */
+function loadPhotosFromDisk() {
   photosLoading.value = true
   listPhotos({ albumId: photoQuery.albumId, pageNum: photoQuery.pageNum, pageSize: photoQuery.pageSize }).then(res => {
     photoList.value = (res && res.rows) || []
@@ -817,12 +864,55 @@ function loadPhotos() {
   }).finally(() => { photosLoading.value = false })
 }
 
+/** 库数据一次取全册，翻页在前端切（页码越界时夹回最后一页） */
+function applyPhotoPage() {
+  const size = Number(photoQuery.pageSize) || 24
+  const pages = Math.max(1, Math.ceil(photoRowsAll.value.length / size))
+  if (photoQuery.pageNum > pages) photoQuery.pageNum = pages
+  const start = (photoQuery.pageNum - 1) * size
+  photoList.value = photoRowsAll.value.slice(start, start + size)
+}
+
+/** 分页回调：库里是前端切片，磁盘态才需要重新请求 */
+function handlePhotoPage() {
+  if (photoSource.value === 'disk') { loadPhotos() } else { applyPhotoPage() }
+}
+
+/** 缩略图地址兜底：后端没给 thumbUrl 时按 albumId + 4 位 seq 拼（与后端 thumbUrl 规则一致） */
+function photoThumbUrl(albumId, seq) {
+  if (albumId === undefined || albumId === null || seq === undefined || seq === null) return ''
+  return '/api/media/thumb/p/' + albumId + '/' + String(seq).padStart(4, '0')
+}
+
+/** 归一化库返回的行：thumbUrl 优先用后端给的，缺省才本地拼 */
+function normalizePhotoRow(row) {
+  const seq = row && row.seq
+  return {
+    id: (row && row.id) || (photoQuery.albumId + '-' + seq),
+    seq: seq,
+    relPath: (row && row.relPath) || '',
+    bytes: (row && row.bytes) || 0,
+    isBig: !!(row && row.isBig),
+    thumbUrl: (row && row.thumbUrl) || photoThumbUrl(photoQuery.albumId, seq)
+  }
+}
+
+function photoKey(photo) {
+  return photo.id
+}
+
+/** 文件名 = relPath 的最后一段（库里的 relPath 可能用 / 也可能用 \） */
+function photoFileName(relPath) {
+  const parts = String(relPath || '').split(/[\\/]/)
+  return parts[parts.length - 1] || ''
+}
+
 function openPhotoPreview(photo) {
   // 与用户端 photo.js 同一规则：只有 is_big 的照片才生成了 pv 预览图（thumbs/pv 仅 555/9628），
-  // 其余直接用原图接口，否则点开必然 404
+  // 其余直接用原图接口，否则点开必然 404；库数据没有 relPath 时退到缩略图
   const url = photo.isBig
     ? '/api/media/preview/p/' + photoQuery.albumId + '/' + photo.seq
-    : '/api/media/file?p=' + encodeURIComponent(photo.relPath)
+    : (photo.relPath ? '/api/media/file?p=' + encodeURIComponent(photo.relPath) : photo.thumbUrl)
   window.open(mediaSrc(url), '_blank')
 }
 
@@ -1504,8 +1594,14 @@ onBeforeUnmount(() => { stopScanPolling() })
   min-height: 40px;
 }
 .photo-item {
-  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
   cursor: pointer;
+  line-height: 0;
+}
+.photo-thumb {
+  position: relative;
   line-height: 0;
 }
 .photo-item img {
@@ -1514,6 +1610,15 @@ onBeforeUnmount(() => { stopScanPolling() })
   object-fit: cover;
   border-radius: 4px;
   background: var(--el-fill-color-light);
+}
+.photo-name {
+  font-size: 11px;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .photo-seq {
   position: absolute;
@@ -1525,6 +1630,12 @@ onBeforeUnmount(() => { stopScanPolling() })
   background: rgba(0, 0, 0, 0.45);
   border-radius: 3px;
   padding: 2px 4px;
+}
+.photo-notice {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--el-color-warning);
+  word-break: break-all;
 }
 .person-album {
   word-break: break-all;

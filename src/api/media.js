@@ -372,3 +372,18 @@ export function updateWatchConfig(data) {
     silent: true
   })
 }
+
+/* ---------------------------------------------------------------- 相册图片（P2-D） */
+/* 契约（P2-D-A）：GET /api/media/admin/album/{id}/photos → [{id,seq,relPath,bytes,w,h,thumbUrl}]，
+   只读索引、不碰磁盘。和上面 /photos 的区别：/photos 按物理目录列举（会把 _说明.txt、无扩展名文件
+   也当成图片），管理端预览弹窗必须用这个库数据入口，两者不能混用。
+   后端未部署 P2-D-A 时该路由 404：silent，由弹窗自行回退并就地提示，不弹全局提示。 */
+
+// 某册图片（库数据）：albumId 为空时后端 400，调用方保证有值
+export function getAlbumPhotos(albumId, silent) {
+  return request({
+    url: BASE + '/album/' + encodeURIComponent(albumId) + '/photos',
+    method: 'get',
+    silent: silent !== false
+  })
+}
