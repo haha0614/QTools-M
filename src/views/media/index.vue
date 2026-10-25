@@ -94,18 +94,16 @@
           </el-form-item>
         </el-form>
 
-        <!-- P5.10-B：派生资源汇总（绿 / 橙 / 灰）+「只看旧算法」筛选：勾选后可直接批量重建 -->
-        <div v-if="deriveReady" class="derive-bar">
-          <span class="derive-bar-text" data-testid="derive-summary">{{ derivePreviewText }}</span>
-          <el-switch v-model="deriveOnlyOldAlgo" size="small" :disabled="!deriveOldAlgoCount"
-            active-text="只看旧算法" />
-          <span v-if="deriveMeta.algoSince" class="derive-bar-note" :title="deriveMeta.algoSinceSource || ''">
-            算法更新于 {{ deriveMeta.algoSince }}
-          </span>
-          <el-button link type="primary" icon="Refresh" :loading="deriveLoading" @click="loadDeriveStatus()">刷新派生资源</el-button>
-        </div>
+        <!-- P5.12：派生资源汇总（随资源类型变化）+「资源类型 × 状态」两个下拉（只过滤当前页显示，不动请求与分页） -->
+        <derive-filter-bar :ready="deriveReady" :rows="deriveRows" :legacy="deriveLegacy" v-model:filter="deriveFilter"
+          :algo-since="deriveMeta.algoSince" :algo-since-source="deriveMeta.algoSinceSource" :loading="deriveLoading"
+          @refresh="loadDeriveStatus()" />
         <el-table ref="videoTableRef" v-loading="videoLoading" :data="videoDisplayList" class="media-table" row-key="id"
           @selection-change="handleVideoSelection">
+          <!-- P5.12：筛选结果为空时的友好空态（不过滤时仍是原来的「暂无数据」） -->
+          <template #empty>
+            <derive-empty-state :filter="deriveFilter" :has-rows="videoList.length" />
+          </template>
           <el-table-column type="selection" width="44" align="center" />
           <el-table-column label="封面" width="66" align="center">
             <template #default="scope">
@@ -501,7 +499,10 @@ import DuplicatesPanel from './DuplicatesPanel'
 // 派生资源状态（P5.10-B）：徽标单元格 / 结果对话框 / 日志解析纯函数，三者都独立成文件，主页面只接线
 import DeriveBadges from './DeriveBadges.vue'
 import DeriveResultDialog from './DeriveResultDialog.vue'
-import { deriveMapOf, buildResultModel, summarizeDerive, previewSummaryText, isOldAlgoPreview } from './deriveModel'
+// P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
+import DeriveFilterBar from './DeriveFilterBar.vue'
+import DeriveEmptyState from './DeriveEmptyState.vue'
+import { deriveMapOf, buildResultModel, DERIVE_FILTER_DEFAULT, filterVideoRows } from './deriveModel'
 import { getDeriveStatus } from '@/api/media'
 
 const { proxy } = getCurrentInstance()
@@ -1549,18 +1550,30 @@ function errorText(err) {
 const DERIVE_TASK_TYPES = ['thumb', 'sprite', 'preview', 'sprite,preview']
 
 const videoTableRef = ref(null)
-const selectedVideos = ref([])
+/**
+ * P5.12：勾选状态由页面自己存（id → 行），表格只回传「当前可见行」的勾选结果。
+ * 这样切「资源类型 / 状态」把行筛掉时，已勾选不会被静默清空（要求：筛选后保留勾选）。
+ */
+const pickedVideoMap = ref({})
+const selectedVideos = computed(() => Object.keys(pickedVideoMap.value)
+  .map(id => pickedVideoMap.value[id])
+  .filter(Boolean))
 const selectedVideoTotal = computed(() => selectedVideos.value.length)
 const selectedVideoIds = computed(() => selectedVideos.value
   .map(row => (row && row.id != null ? row.id : ''))
   .filter(id => id !== ''))
+/** 恢复勾选（toggleRowSelection）期间屏蔽 selection-change，避免自己把自己清空 */
+let restoringVideoSelection = false
 
 const deriveMap = ref({})
 const deriveReady = ref(true)
 /** derive-status 顶层：算法分界时间（「旧算法」徽标的 tooltip 与顶部汇总都用它） */
 const deriveMeta = ref({ algoSince: '', algoSinceSource: '' })
-/** 「只看旧算法」：勾上后列表只保留预览片段是旧算法产物的行，方便直接圈选重建 */
-const deriveOnlyOldAlgo = ref(false)
+/**
+ * P5.12：「资源类型 × 状态」筛选（默认 预览片段 / 全部 = 不过滤）。
+ * 旧版只有一个「只看旧算法」开关，用户反馈「只想看新算法怎么办」→ 改成双向/多状态。
+ */
+const deriveFilter = ref({ kind: DERIVE_FILTER_DEFAULT.kind, state: DERIVE_FILTER_DEFAULT.state })
 const deriveLoading = ref(false)
 const deriveRefreshing = ref(false)
 const deriveResultVisible = ref(false)
@@ -1572,16 +1585,25 @@ let scanRequestIds = []
 let deriveNoticeShown = false
 
 function handleVideoSelection(rows) {
-  selectedVideos.value = Array.isArray(rows) ? rows : []
+  if (restoringVideoSelection) return
+  const map = {}
+  Object.keys(pickedVideoMap.value).forEach(id => { map[id] = pickedVideoMap.value[id] })
+  // 当前可见行的勾选状态以表格为准；被筛选掉（看不见）的行保留原有勾选
+  videoDisplayList.value.forEach(row => { if (row && row.id != null) delete map[String(row.id)] })
+  ;(Array.isArray(rows) ? rows : []).forEach(row => { if (row && row.id != null) map[String(row.id)] = row })
+  pickedVideoMap.value = map
 }
 
 function clearVideoSelection() {
-  selectedVideos.value = []
+  pickedVideoMap.value = {}
   const table = videoTableRef.value
   if (table && typeof table.clearSelection === 'function') {
     table.clearSelection()
   }
 }
+
+/** 换页 / 重新拉列表后清空勾选（与改动前一致；只有「筛选」不清空勾选） */
+watch(videoList, () => { pickedVideoMap.value = {} })
 
 /** 当前行的派生资源状态（derive-status 没返回这一行时给 null → 徽标显示「状态未知」的灰点） */
 function deriveRowOf(row) {
@@ -1650,26 +1672,39 @@ function refreshDeriveColumn() {
   loadDeriveStatus().then(() => { deriveRefreshing.value = false }).catch(() => { deriveRefreshing.value = false })
 }
 
-/** 当前页的预览片段分布：新 / 旧算法 / 缺失（顶部汇总那一行） */
-const derivePreviewCounts = computed(() => summarizeDerive(
-  Object.keys(deriveMap.value).map(id => deriveMap.value[id]),
-  'preview'
-))
-const deriveOldAlgoCount = computed(() => derivePreviewCounts.value.oldAlgo)
-const derivePreviewText = computed(() => {
-  if (!deriveReady.value) return ''
-  const counts = derivePreviewCounts.value
-  return previewSummaryText(counts) + '（当前页 ' + counts.total + ' 条）'
+/** 当前页的 derive-status 行（汇总条与过滤都用它） */
+const deriveRows = computed(() => Object.keys(deriveMap.value).map(id => deriveMap.value[id]))
+
+/**
+ * 旧后端（P5.10-A 之前的契约）：接口 200，但三类产物都没有 status 字段，只有 exists / stale。
+ * 此时只有「正常 / 缺失 / 过期」三态可筛，「旧算法」恒 0 —— 筛选条上直接说明，不假装能筛。
+ */
+const deriveLegacy = computed(() => {
+  const rows = deriveRows.value
+  if (!rows.length) return false
+  return rows.every(row => !row.thumb.status && !row.sprite.status && !row.preview.status)
 })
 
-/** 表格实际渲染的行：「只看旧算法」打开时按 previewStatus 过滤（只影响前端显示，不动请求） */
-const videoDisplayList = computed(() => {
-  if (!deriveOnlyOldAlgo.value) {
-    return videoList.value
+/** 表格实际渲染的行：筛选生效时只保留命中行（只影响前端显示，不动请求与分页总数） */
+const videoDisplayList = computed(() => filterVideoRows(videoList.value, deriveMap.value, deriveFilter.value))
+
+/**
+ * 过滤会把看不见的行从 el-table 的选择里剔除；数据一变就把已勾选状态重新打回去，
+ * 这样「清空筛选」后原来的勾选还在。
+ */
+watch(videoDisplayList, (list) => {
+  const table = videoTableRef.value
+  if (!table || typeof table.toggleRowSelection !== 'function') return
+  restoringVideoSelection = true
+  try {
+    ;(list || []).forEach(row => {
+      if (!row || row.id == null) return
+      table.toggleRowSelection(row, !!pickedVideoMap.value[String(row.id)])
+    })
+  } finally {
+    nextTick(() => { restoringVideoSelection = false })
   }
-  const since = deriveMeta.value.algoSince
-  return videoList.value.filter(row => isOldAlgoPreview(deriveRowOf(row), { algoSince: since }))
-})
+}, { flush: 'post' })
 
 /** 标题表：当前列表页 + derive-status 的 title（能覆盖不在当前页的 videoId） */
 function deriveTitleMap() {
@@ -2002,25 +2037,7 @@ onBeforeUnmount(() => { stopScanPolling() })
   flex-wrap: wrap;
   align-items: center;
 }
-/* P5.10-B：派生资源汇总条 */
-.derive-bar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin: 0 0 8px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  background: var(--el-fill-color-lighter);
-}
-.derive-bar-text {
-  color: var(--el-text-color-regular);
-}
-.derive-bar-note {
-  color: var(--el-text-color-secondary);
-}
+/* P5.12：派生资源汇总条 / 两个下拉 / 空态文案的样式都在子组件里（scoped），页面不再持有 */
 /* P5.10-B：工具栏「已选 N 项」 */
 .media-selected {
   display: inline-flex;

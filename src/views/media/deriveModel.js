@@ -379,3 +379,152 @@ export function summaryText(summary) {
   const fail = Number(data.fail) || 0
   return '本次处理 ' + (ok + skip + fail) + ' 条：成功 ' + ok + ' / 跳过 ' + skip + ' / 失败 ' + fail
 }
+
+/* ------------------------------------------------------------ P5.12 派生资源筛选（资源类型 × 状态） */
+
+/**
+ * 「资源类型」下拉：全部 + 三个产物（顺序与「派生资源」列的徽标一致）。
+ * 取值就是 derive-status 行里的字段名，避免再维护一套映射。
+ */
+export const DERIVE_FILTER_KINDS = [
+  { value: 'all', label: '全部' },
+  { value: 'thumb', label: '封面' },
+  { value: 'sprite', label: '精灵图' },
+  { value: 'preview', label: '预览片段' }
+]
+
+/** 「状态」下拉：全部 / 新算法(ok) / 旧算法(oldAlgo) / 过期(stale) / 缺失(missing) */
+export const DERIVE_FILTER_STATES = [
+  { value: 'all', label: '全部' },
+  { value: 'ok', label: '新算法' },
+  { value: 'oldAlgo', label: '旧算法' },
+  { value: 'stale', label: '过期' },
+  { value: 'missing', label: '缺失' }
+]
+
+/** 默认筛选：类型=预览片段、状态=全部（等价于不过滤，与 P5.10-B 的旧开关默认一致） */
+export const DERIVE_FILTER_DEFAULT = { kind: 'preview', state: 'all' }
+
+/** 资源类型 → 中文；认不出就回落到「全部」（不抛错） */
+export function kindLabelOf(kindKey, fallback) {
+  const key = kindKey == null ? '' : String(kindKey)
+  const hit = DERIVE_FILTER_KINDS.filter(item => item.value === key)[0]
+  if (hit) return hit.label
+  return fallback == null ? (key || '全部') : fallback
+}
+
+/** 状态 → 中文；与 DERIVE_FILTER_STATES 的标签一致 */
+export function stateLabelOf(stateKey, fallback) {
+  const key = stateKey == null ? '' : String(stateKey)
+  const hit = DERIVE_FILTER_STATES.filter(item => item.value === key)[0]
+  if (hit) return hit.label
+  return fallback == null ? (key || '全部') : fallback
+}
+
+/** thumb / sprite 没有 oldAlgo 态（P5.10-A 契约：恒 ok | missing）；「全部」包含预览片段，所以有 */
+export function kindHasOldAlgo(kindKey) {
+  const key = kindKey == null ? '' : String(kindKey)
+  return key === 'preview' || key === 'all'
+}
+
+/** 归一化筛选：非法取值回落到默认，页面 / 单测都不会因为坏值抛错 */
+export function normalizeFilter(filter) {
+  const src = filter && typeof filter === 'object' ? filter : {}
+  const kind = DERIVE_FILTER_KINDS.some(item => item.value === src.kind)
+    ? src.kind : DERIVE_FILTER_DEFAULT.kind
+  const state = DERIVE_FILTER_STATES.some(item => item.value === src.state)
+    ? src.state : DERIVE_FILTER_DEFAULT.state
+  return { kind: kind, state: state }
+}
+
+/** 是否在过滤：状态=全部 即不过滤（等价旧开关「关」）；此时「资源类型」只影响汇总文案 */
+export function isFilterActive(filter) {
+  return normalizeFilter(filter).state !== 'all'
+}
+
+/** 选了「旧算法」但该资源类型没有这个态 → 必然 0 行，页面要给出说明而不是静默空白 */
+export function isFilterUnsupported(filter) {
+  const f = normalizeFilter(filter)
+  return f.state === 'oldAlgo' && !kindHasOldAlgo(f.kind)
+}
+
+/**
+ * 一行在目标类型下的状态数组（类型=全部 时取三类产物各一个状态）。
+ * row 是 derive-status 的一行（normalizeDeriveRow 前后都收）；行缺失 → ['unknown']，
+ * 即「接口没返回这一行」，既不算缺失也不算正常（与徽标列的灰点一致）。
+ */
+export function rowStatesOf(row, kindKey) {
+  const f = normalizeFilter({ kind: kindKey, state: 'all' })
+  if (!row || typeof row !== 'object') return ['unknown']
+  if (f.kind === 'all') return DERIVE_KINDS.map(kind => stateOfSlot(row[kind.key], kind.key))
+  return [stateOfSlot(row[f.kind], f.kind)]
+}
+
+/** 单行是否命中筛选：状态=全部 → 恒命中（不过滤）；类型=全部 → 任一产物命中即算 */
+export function matchDeriveFilter(row, filter) {
+  const f = normalizeFilter(filter)
+  if (f.state === 'all') return true
+  return rowStatesOf(row, f.kind).indexOf(f.state) !== -1
+}
+
+/**
+ * 当前页的过滤：与 P5.10-B 的旧开关一致，只影响前端显示，不动请求参数与分页总数。
+ * deriveMap = { '<videoId>': 行 }（deriveMapOf 的产物）；取不到行 → 按 unknown 处理（不命中任何具体状态）。
+ */
+export function filterVideoRows(list, deriveMap, filter) {
+  const rows = Array.isArray(list) ? list : []
+  const f = normalizeFilter(filter)
+  if (f.state === 'all') return rows
+  const map = deriveMap && typeof deriveMap === 'object' ? deriveMap : {}
+  return rows.filter(row => {
+    const rowId = row && row.id != null ? String(row.id) : ''
+    return matchDeriveFilter(rowId ? map[rowId] || null : null, f)
+  })
+}
+
+/** 命中行数（单测矩阵用） */
+export function countDeriveMatches(list, deriveMap, filter) {
+  return filterVideoRows(list, deriveMap, filter).length
+}
+
+/** 单类产物的汇总片段：「预览片段：新 5 · 旧算法 171 · 缺失 0 · 过期 0」/「封面：正常 176 · 缺失 0」 */
+function countsPartText(counts, kindKey) {
+  const data = counts || {}
+  const label = kindLabelOf(kindKey)
+  const num = (value) => Number(value) || 0
+  if (kindKey === 'preview') {
+    return label + '：新 ' + num(data.ok) + ' · 旧算法 ' + num(data.oldAlgo)
+      + ' · 缺失 ' + num(data.missing) + ' · 过期 ' + num(data.stale)
+  }
+  const parts = ['正常 ' + num(data.ok), '缺失 ' + num(data.missing)]
+  if (num(data.stale) > 0) parts.push('过期 ' + num(data.stale))
+  return label + '：' + parts.join(' · ')
+}
+
+/**
+ * 顶部汇总文案：随「资源类型」变化 + 「（当前页 T 条）」。
+ *   类型=预览片段 → 预览片段：新 N · 旧算法 M · 缺失 K · 过期 S（当前页 T 条）
+ *   类型=封面     → 封面：正常 N · 缺失 K（当前页 T 条）（有过期才追加「· 过期 S」）
+ *   类型=全部     → 三类并排（封面 ｜ 精灵图 ｜ 预览片段）
+ */
+export function deriveSummaryText(rows, kindKey) {
+  const list = Array.isArray(rows) ? rows : []
+  const f = normalizeFilter({ kind: kindKey, state: 'all' })
+  const head = f.kind === 'all'
+    ? DERIVE_KINDS.map(kind => countsPartText(summarizeDerive(list, kind.key), kind.key)).join(' ｜ ')
+    : countsPartText(summarizeDerive(list, f.kind), f.kind)
+  return head + '（当前页 ' + list.length + ' 条）'
+}
+
+/**
+ * 过滤结果为空时的空态文案：
+ *  - 旧算法 + 封面/精灵图 → 「该资源类型没有『旧算法』态」（必然为空，先说清楚原因）
+ *  - 其它 → 「当前页没有符合『预览片段 · 旧算法』的行」
+ */
+export function deriveEmptyText(filter) {
+  const f = normalizeFilter(filter)
+  if (isFilterUnsupported(f)) return '该资源类型没有『旧算法』态'
+  const kind = f.kind === 'all' ? '全部资源' : kindLabelOf(f.kind)
+  return '当前页没有符合『' + kind + ' · ' + stateLabelOf(f.state) + '』的行'
+}
+
