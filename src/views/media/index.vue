@@ -152,7 +152,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <pagination v-show="videoTotal > 0" :total="videoTotal" v-model:page="videoQuery.pageNum" v-model:limit="videoQuery.pageSize" @pagination="loadVideos" />
+        <pagination v-show="videoTotal > 0" :page-sizes="DERIVE_PAGE_SIZES" :total="videoTotal" v-model:page="videoQuery.pageNum" v-model:limit="videoQuery.pageSize" @pagination="loadVideos" />
       </el-tab-pane>
 
       <!-- ============================== 相册 ============================== -->
@@ -225,7 +225,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <pagination v-show="albumTotal > 0" :total="albumTotal" v-model:page="albumQuery.pageNum" v-model:limit="albumQuery.pageSize" @pagination="loadAlbums" />
+        <pagination v-show="albumTotal > 0" :page-sizes="DERIVE_PAGE_SIZES" :total="albumTotal" v-model:page="albumQuery.pageNum" v-model:limit="albumQuery.pageSize" @pagination="loadAlbums" />
       </el-tab-pane>
 
       <!-- ============================== 回收站 ============================== -->
@@ -533,12 +533,12 @@ const activeTab = ref('video')
 // 筛选记忆：只持久化「用户选择」的字段，页码与总数不入库（刷新回到第 1 页更符合预期）
 const FILTER_STORAGE = { video: 'media.filter.video', album: 'media.filter.album' }
 const FILTER_KEYS = {
-  video: ['keyword', 'folder', 'vcodec', 'hidden', 'sort', 'pageSize'],
+  video: ['keyword', 'folder', 'vcodec', 'hidden', 'sort', 'pageSize', 'ids'],
   album: ['keyword', 'personId', 'hidden', 'sort', 'pageSize']
 }
 const TRASH_PAGE_MAX = 200 // 与后端 /trash 的 pageSize 上限一致
 
-const videoQuery = reactive({ pageNum: 1, pageSize: 10, keyword: '', folder: '', vcodec: '', hidden: 'all', sort: 'mtime-desc' })
+const videoQuery = reactive({ pageNum: 1, pageSize: 10, keyword: '', folder: '', vcodec: '', hidden: 'all', sort: 'mtime-desc', ids: '' })
 const videoList = ref([])
 const videoTotal = ref(0)
 const videoLoading = ref(false)
@@ -1640,7 +1640,51 @@ function noticeDeriveNotReady() {
 }
 
 /** 拉一次派生资源状态；rows 省略时用当前 videoList */
+/** 服务端全局筛选是否生效（state 非 all 时由后端过滤，跨页有效） */
+function isServerDeriveFilter() {
+  const f = deriveFilter.value || {}
+  return !!(f.state && f.state !== 'all')
+}
+let deriveFilterSeq = 0
+const DERIVE_PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000]
+/** 服务端全局筛选：先取全量过滤后的 ids，再让主列表按 ids 分页 */
+function applyDeriveFilter() {
+  const f = deriveFilter.value || {}
+  const seq = ++deriveFilterSeq
+  if (!isServerDeriveFilter()) {
+    if (videoQuery.ids) {
+      videoQuery.ids = ''
+      videoQuery.pageNum = 1
+      loadVideos()
+    }
+    return
+  }
+  deriveLoading.value = true
+  getDeriveStatus({ page: 1, size: 1000, kind: f.kind || 'all', state: f.state || 'all' }).then(res => {
+    if (seq !== deriveFilterSeq) return
+    deriveReady.value = true
+    const rows = (res && res.rows) || []
+    deriveMap.value = deriveMapOf(rows)
+    deriveMeta.value = {
+      algoSince: res && res.algoSince != null ? String(res.algoSince) : '',
+      algoSinceSource: res && res.algoSinceSource != null ? String(res.algoSinceSource) : '',
+      counts: (res && res.counts) || null
+    }
+    const ids = rows.map(r => (r && r.videoId != null ? String(r.videoId) : '')).filter(Boolean)
+    videoQuery.ids = ids.join(',')
+    videoQuery.pageNum = 1
+    loadVideos()
+  }).catch(err => {
+    if (seq !== deriveFilterSeq) return
+    if (isDeriveMissingErr(err)) { deriveReady.value = false; noticeDeriveNotReady() }
+    return null
+  }).finally(() => { deriveLoading.value = false })
+}
+watch(deriveFilter, () => { applyDeriveFilter() }, { deep: true })
 function loadDeriveStatus(rows) {
+  // 服务端全局筛选生效时，deriveMap 由 applyDeriveFilter 一次性拉全（含过滤后的 ids），
+  // 这里若再按当前页覆盖会丢掉被筛掉的行的状态，故直接跳过。
+  if (isServerDeriveFilter()) { return }
   const list = Array.isArray(rows) ? rows : videoList.value
   const ids = list.map(row => (row && row.id != null ? row.id : '')).filter(id => id !== '')
   deriveLoading.value = true
