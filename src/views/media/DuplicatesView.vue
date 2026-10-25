@@ -38,69 +38,114 @@
     <!-- 空态：后端正常但没有重复 -->
     <el-empty v-else-if="view.state === 'empty'" :description="emptyText" :image-size="72" class="dup-empty" />
 
-    <!-- 数据态：主文件 / 副本数 / 可省空间，展开看别名副本 -->
-    <el-table
-      v-else
-      v-loading="view.state === 'loading'"
-      :data="rows"
-      size="small"
-      row-key="__key"
-      class="dup-table"
-      empty-text="没有重复文件"
-    >
-      <el-table-column type="expand" width="40">
-        <template #default="scope">
-          <div class="dup-alias-wrap">
-            <div v-if="!groupAliases(scope.row).length" class="dup-alias-empty">这组没有副本（只有一条主文件）</div>
-            <ul v-else class="dup-alias-list">
-              <li v-for="(a, i) in groupAliases(scope.row)" :key="a.id || i" class="dup-alias">
-                <span class="dup-alias-path" :title="a.relPath || a.id">{{ a.relPath || a.id }}</span>
-                <span class="dup-alias-size">{{ formatBytes(a.size) }}</span>
-                <el-button link type="primary" size="small" v-hasPermi="['media:admin:edit']" @click="emit('keep', scope.row, a)">
-                  设为主文件
-                </el-button>
+    <!--
+      数据态（P4.1）：每组一张卡片，左主文件大图 / 右副本小图列表。
+      窄屏（<1200px）改上下：主文件在上，副本列表在下并横向滚动（.is-stacked）。
+    -->
+    <div v-else v-loading="view.state === 'loading'" class="dup-grid" :class="{ 'is-stacked': narrow }">
+      <article v-for="(row, index) in rows" :key="keyOf(row, index)" class="dup-card">
+        <div class="dup-card-body">
+          <!-- 左栏：主文件大缩略图 + 路径 + 大小 -->
+          <div class="dup-card-main">
+            <div class="dup-thumb dup-thumb--main">
+              <img
+                v-if="imgSrc(primaryThumb(row))"
+                :src="imgSrc(primaryThumb(row))"
+                class="dup-img"
+                :alt="primaryPath(row)"
+                loading="lazy"
+                @error="onThumbError(primaryThumb(row))"
+              />
+              <span v-else class="dup-img-ph dup-img-ph--main">{{ fileInitial(primaryPath(row)) }}</span>
+              <span class="dup-badge">主文件</span>
+            </div>
+            <div class="dup-main-meta">
+              <span class="dup-path" :title="primaryPath(row)">{{ primaryPath(row) }}</span>
+              <span class="dup-meta">{{ formatBytes(row.primary && row.primary.size) }}</span>
+            </div>
+          </div>
+
+          <!-- 右栏：副本列表（72×48 小图 + 路径 + 大小 + 两个操作），超过 6 行展开并内部滚动 -->
+          <div class="dup-card-alias">
+            <div class="dup-alias-head">重复文件 <b>{{ aliasCount(row) }}</b></div>
+            <div v-if="!aliasCount(row)" class="dup-alias-empty">这组没有副本（只有一条主文件）</div>
+            <ul v-else class="dup-alias-list" :class="{ 'is-expanded': isExpanded(row, index) }">
+              <li v-for="(a, ai) in shownAliases(row, index)" :key="aliasKey(a, ai, keyOf(row, index))" class="dup-alias">
+                <div class="dup-thumb dup-thumb--alias">
+                  <img
+                    v-if="imgSrc(aliasThumb(row, a))"
+                    :src="imgSrc(aliasThumb(row, a))"
+                    class="dup-img"
+                    :alt="itemPath(a)"
+                    loading="lazy"
+                    @error="onThumbError(aliasThumb(row, a))"
+                  />
+                  <span v-else class="dup-img-ph">{{ fileInitial(itemPath(a)) }}</span>
+                </div>
+                <div class="dup-alias-meta">
+                  <span class="dup-path" :title="itemPath(a)">{{ itemPath(a) }}</span>
+                  <span class="dup-meta">{{ formatBytes(a.size) }}</span>
+                </div>
+                <div class="dup-alias-ops">
+                  <el-button link type="primary" size="small" v-hasPermi="['media:admin:edit']" @click="emit('keep', row, a)">
+                    设为主文件
+                  </el-button>
+                  <!-- 后端 merge 按 contentHash 整组清理，单副本行只是同一动作的入口 -->
+                  <el-button
+                    link
+                    type="danger"
+                    size="small"
+                    title="清理本组副本（后端按内容哈希整组清理）"
+                    v-hasPermi="['media:admin:edit']"
+                    @click="emit('merge', row)"
+                  >
+                    清理
+                  </el-button>
+                </div>
               </li>
             </ul>
-            <p class="dup-alias-hash">内容哈希 {{ scope.row.contentHash || '（后端未返回）' }}</p>
+            <el-button
+              v-if="hasMore(row)"
+              link
+              type="primary"
+              size="small"
+              class="dup-more"
+              @click="toggleExpand(row, index)"
+            >
+              {{ isExpanded(row, index) ? '收起' : '展开全部' }}
+              <template v-if="!isExpanded(row, index)">（还有 {{ hiddenCount(row) }} 个）</template>
+            </el-button>
           </div>
-        </template>
-      </el-table-column>
-      <el-table-column label="主文件" min-width="240" :show-overflow-tooltip="true">
-        <template #default="scope">
-          <span class="dup-primary">{{ primaryPath(scope.row) }}</span>
-        </template>
-      </el-table-column>
-      <el-table-column label="副本数" width="90" align="center">
-        <template #default="scope">{{ Math.max(0, groupCount(scope.row) - 1) }}</template>
-      </el-table-column>
-      <el-table-column label="可省空间" width="120" align="center">
-        <template #default="scope">{{ formatBytes(groupWasted(scope.row)) }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="196" align="center" fixed="right">
-        <template #default="scope">
-          <el-button
-            link
-            type="primary"
+        </div>
+
+        <!-- 卡片底部：合计 + 组级勾选（决定移回收站还是仅删记录）+ 组级清理 -->
+        <div class="dup-card-foot">
+          <span class="dup-card-sum">
+            共 {{ aliasCount(row) }} 个副本 · 可省 {{ formatBytes(groupWasted(row)) }}
+          </span>
+          <span class="dup-card-hash" :title="row.contentHash || ''">哈希 {{ row.contentHash || '（后端未返回）' }}</span>
+          <span class="dup-foot-spacer"></span>
+          <el-checkbox
             size="small"
-            :disabled="!groupAliases(scope.row).length"
-            v-hasPermi="['media:admin:edit']"
-            @click="emit('keep', scope.row, groupAliases(scope.row)[0])"
+            :model-value="isTrash(row, index)"
+            :disabled="!aliasCount(row)"
+            @update:model-value="(v) => emit('trash-change', row, v)"
           >
-            设为主文件
-          </el-button>
+            移入回收站
+          </el-checkbox>
           <el-button
-            link
             type="danger"
+            plain
             size="small"
-            :disabled="!groupAliases(scope.row).length"
+            :disabled="!aliasCount(row)"
             v-hasPermi="['media:admin:edit']"
-            @click="emit('merge', scope.row)"
+            @click="emit('merge', row)"
           >
-            清理副本
+            清理本组
           </el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+        </div>
+      </article>
+    </div>
 
     <div v-if="view.state === 'data'" class="dup-foot">
       <el-pagination
@@ -119,17 +164,27 @@
 </template>
 
 <script setup name="DuplicatesView">
+import { onMounted, onUnmounted, reactive, ref } from 'vue'
 import {
+  ALIAS_PREVIEW_LIMIT,
   KINDS,
   PAGE_SIZES,
+  aliasKey,
+  aliasWindow,
+  fileInitial,
   formatBytes,
   groupAliases,
   groupCount,
+  groupKey,
   groupWasted,
-  primaryPath
+  itemPath,
+  markThumbBroken,
+  primaryPath,
+  thumbPath,
+  thumbSrc
 } from './duplicatesModel'
 
-defineProps({
+const props = defineProps({
   /** video | photo */
   kind: { type: String, default: 'video' },
   /** resolveViewState() 的结果：{ state: loading|error|empty|data, message, notReady } */
@@ -138,12 +193,100 @@ defineProps({
   totals: { type: Object, default: () => ({ groups: 0, bytesText: '—' }) },
   emptyText: { type: String, default: '没有重复文件' },
   page: { type: Number, default: 1 },
-  size: { type: Number, default: 20 },
+  size: { type: Number, default: 10 },
   total: { type: Number, default: 0 },
-  loading: { type: Boolean, default: false }
+  loading: { type: Boolean, default: false },
+  /** 已勾选「移入回收站」的组 key（勾选状态按组共享，面板持有唯一真值） */
+  trashKeys: { type: Array, default: () => [] }
 })
 
-const emit = defineEmits(['refresh', 'kind-change', 'page-change', 'size-change', 'merge', 'keep'])
+const emit = defineEmits(['refresh', 'kind-change', 'page-change', 'size-change', 'merge', 'keep', 'trash-change'])
+
+/** 非 axios 资源统一加后端前缀（dev 走 /dev-api 代理，prod 与 axios baseURL 一致） */
+const BASE_API = (import.meta.env && import.meta.env.VITE_APP_BASE_API) || ''
+
+/** 缩略图 404 记录：按 URL 记，命中后改渲染占位块，不显示破图也不再重试 */
+const broken = reactive({})
+/** 展开全部：按组 key 记，收起后回到前 6 行 */
+const expanded = reactive({})
+
+const NARROW_QUERY = '(max-width: 1200px)'
+const narrow = useNarrow()
+
+/** 断点判定：同步读 matchMedia（首屏即正确），挂载后再跟随变化 */
+function useNarrow() {
+  const state = ref(false)
+  if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return state
+  const mq = window.matchMedia(NARROW_QUERY)
+  state.value = !!(mq && mq.matches)
+  const onChange = (e) => {
+    state.value = !!(e && 'matches' in e ? e.matches : mq.matches)
+  }
+  onMounted(() => {
+    if (mq && typeof mq.addEventListener === 'function') mq.addEventListener('change', onChange)
+    else if (mq && typeof mq.addListener === 'function') mq.addListener(onChange)
+  })
+  onUnmounted(() => {
+    if (mq && typeof mq.removeEventListener === 'function') mq.removeEventListener('change', onChange)
+    else if (mq && typeof mq.removeListener === 'function') mq.removeListener(onChange)
+  })
+  return state
+}
+
+function keyOf(row, index) {
+  return groupKey(row, index)
+}
+
+/** 副本数（主文件之外的条数） */
+function aliasCount(row) {
+  const list = groupAliases(row)
+  return list.length || Math.max(0, groupCount(row) - 1)
+}
+
+function primaryThumb(row) {
+  return thumbPath(props.kind, row && row.primary, row && row.contentHash)
+}
+
+function aliasThumb(row, alias) {
+  return thumbPath(props.kind, alias, row && row.contentHash)
+}
+
+/** 可显示时才给 src；空串 = 渲染占位块 */
+function imgSrc(path) {
+  const url = thumbSrc(broken, path)
+  if (!url) return ''
+  return url.startsWith('http') ? url : BASE_API + url
+}
+
+function onThumbError(path) {
+  markThumbBroken(broken, path)
+}
+
+function shownAliases(row, index) {
+  return aliasWindow(groupAliases(row), ALIAS_PREVIEW_LIMIT, isExpanded(row, index)).visible
+}
+
+function hasMore(row) {
+  return aliasWindow(groupAliases(row), ALIAS_PREVIEW_LIMIT).more
+}
+
+function hiddenCount(row) {
+  return aliasWindow(groupAliases(row), ALIAS_PREVIEW_LIMIT).hidden
+}
+
+function isExpanded(row, index) {
+  return !!expanded[keyOf(row, index)]
+}
+
+function toggleExpand(row, index) {
+  const key = keyOf(row, index)
+  expanded[key] = !expanded[key]
+}
+
+function isTrash(row, index) {
+  const list = Array.isArray(props.trashKeys) ? props.trashKeys : []
+  return list.indexOf(keyOf(row, index)) >= 0
+}
 </script>
 
 <style scoped>
@@ -212,59 +355,252 @@ const emit = defineEmits(['refresh', 'kind-change', 'page-change', 'size-change'
   padding: 18px 0;
 }
 
-.dup-table {
-  width: 100%;
+/* ============================================================ 卡片列表 */
+
+.dup-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 120px;
 }
 
-.dup-primary {
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+.dup-card {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background-color: var(--el-bg-color);
+  padding: 12px;
+  transition: border-color 0.15s;
+}
+
+.dup-card:hover {
+  border-color: var(--el-color-primary-light-5);
+}
+
+/* 左主文件 / 右副本 */
+.dup-card-body {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+}
+
+.dup-card-main {
+  flex: 0 0 180px;
+  width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dup-main-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.dup-card-alias {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dup-alias-head {
   font-size: 12.5px;
+  color: var(--el-text-color-secondary);
 }
 
-.dup-alias-wrap {
-  padding: 4px 8px 8px 24px;
+.dup-alias-head b {
+  color: var(--el-color-primary);
+  font-variant-numeric: tabular-nums;
 }
 
+/* 缩略图：主图 180×112.5（16:10），副本小图 72×48（3:2） */
+.dup-thumb {
+  position: relative;
+  overflow: hidden;
+  border-radius: 6px;
+  background-color: var(--el-fill-color-dark);
+}
+
+.dup-thumb--main {
+  width: 180px;
+  aspect-ratio: 16 / 10;
+}
+
+.dup-thumb--alias {
+  flex: 0 0 72px;
+  width: 72px;
+  aspect-ratio: 3 / 2;
+}
+
+.dup-img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* 缩略图缺失 / 404：灰底 + 文件名首字，不出破图 */
+.dup-img-ph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background-color: var(--el-fill-color-dark);
+  color: var(--el-text-color-secondary);
+  font-size: 15px;
+  font-weight: 600;
+  user-select: none;
+}
+
+.dup-img-ph--main {
+  font-size: 26px;
+}
+
+.dup-badge {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  padding: 0 6px;
+  border-radius: 0 6px 0 0;
+  background-color: var(--el-color-primary);
+  color: var(--el-color-white);
+  font-size: 11px;
+  line-height: 18px;
+}
+
+/* 副本行：72×48 小图 + 路径 + 大小 + 操作 */
 .dup-alias-list {
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+.dup-alias-list.is-expanded {
+  max-height: 348px;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
 .dup-alias {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 4px 0;
+  gap: 10px;
+  padding: 5px 0;
   border-bottom: 1px dashed var(--el-border-color-lighter);
-  font-size: 12.5px;
 }
 
 .dup-alias:last-child {
   border-bottom: none;
 }
 
-.dup-alias-path {
-  flex: 1;
+.dup-alias-meta {
+  flex: 1 1 auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dup-alias-ops {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dup-path {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12.5px;
+  color: var(--el-text-color-primary);
 }
 
-.dup-alias-size {
-  flex: 0 0 90px;
-  text-align: right;
+.dup-meta {
+  font-size: 12px;
   color: var(--el-text-color-secondary);
   font-variant-numeric: tabular-nums;
 }
 
-.dup-alias-empty,
-.dup-alias-hash {
+.dup-alias-empty {
   margin: 4px 0 0;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.dup-more {
+  align-self: flex-start;
+}
+
+/* 卡片底部：合计 / 哈希 / 勾选 / 组级清理 */
+.dup-card-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--el-border-color-lighter);
+  font-size: 12.5px;
+  color: var(--el-text-color-regular);
+}
+
+.dup-card-sum {
+  font-variant-numeric: tabular-nums;
+}
+
+.dup-card-hash {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 240px;
+}
+
+.dup-foot-spacer {
+  flex: 1 1 auto;
+}
+
+/* ====================================================== 窄屏（<1200px） */
+
+/* 主文件在上，副本列表在下并横向滚动 */
+.dup-grid.is-stacked .dup-card-body {
+  flex-direction: column;
+}
+
+.dup-grid.is-stacked .dup-card-main {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+.dup-grid.is-stacked .dup-alias-list {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.dup-grid.is-stacked .dup-alias-list.is-expanded {
+  max-height: none;
+  overflow-y: visible;
+}
+
+.dup-grid.is-stacked .dup-alias {
+  flex: 0 0 320px;
+  border-bottom: none;
+}
+
+.dup-grid.is-stacked .dup-alias-ops {
+  flex-wrap: wrap;
 }
 
 .dup-foot {
@@ -274,21 +610,12 @@ const emit = defineEmits(['refresh', 'kind-change', 'page-change', 'size-change'
 }
 
 @media (max-width: 768px) {
-  .dup-alias-wrap {
-    padding-left: 8px;
-  }
-
-  .dup-alias {
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .dup-alias-path {
-    flex: 1 0 100%;
-  }
-
   .dup-foot {
     justify-content: center;
+  }
+
+  .dup-card-hash {
+    max-width: 100%;
   }
 }
 </style>

@@ -11,12 +11,14 @@
       :size="size"
       :total="total"
       :loading="loading"
+      :trash-keys="trashKeys"
       @refresh="load"
       @kind-change="onKindChange"
       @page-change="onPageChange"
       @size-change="onSizeChange"
       @merge="askMerge"
       @keep="askKeep"
+      @trash-change="onTrashChange"
     />
 
     <!-- 清理副本：二次确认，勾选状态决定「移回收站」还是「仅删记录」 -->
@@ -68,7 +70,7 @@ const { proxy } = getCurrentInstance()
 /** 当前 kind：video | photo（与后端 kind 参数一致） */
 const kind = ref('video')
 const page = ref(1)
-const size = ref(20)
+const size = ref(10)
 const total = ref(0)
 /** 表格数据：每行补一个 __key，避免后端缺 contentHash 时 key 重复 */
 const rows = ref([])
@@ -77,7 +79,8 @@ const error = ref('')
 const notReady = ref(false)
 
 const mergeVisible = ref(false)
-const mergeDeleteFiles = ref(false)
+/** 「移入回收站」勾选状态：按组 key 存，卡片勾选与弹窗勾选共用同一份真值（同组共享，换组/刷新回落到「仅删记录」） */
+const trashByKey = ref({})
 const mergeRow = ref(null)
 const merging = ref(false)
 const keepVisible = ref(false)
@@ -95,6 +98,18 @@ const view = computed(() =>
 const emptyText = computed(() =>
   kind.value === 'video' ? '没有重复的视频文件（内容哈希都不同）' : '没有重复的相册图片'
 )
+
+/** 已勾选移入回收站的组 key（传给 DuplicatesView 决定复选框勾选态） */
+const trashKeys = computed(() => Object.keys(trashByKey.value).filter((k) => !!trashByKey.value[k]))
+
+/** 当前确认中的这一组是否移入回收站：与卡片上的复选框同一份状态 */
+const mergeDeleteFiles = computed({
+  get: () => !!trashByKey.value[mergeRow.value && mergeRow.value.__key],
+  set: (v) => {
+    const key = mergeRow.value && mergeRow.value.__key
+    if (key) trashByKey.value[key] = !!v
+  }
+})
 
 const mergeText = computed(() =>
   mergeConfirmText({ row: mergeRow.value, kind: kind.value, deleteFiles: mergeDeleteFiles.value })
@@ -119,6 +134,8 @@ async function load() {
     const t = res && res.total != null ? Number(res.total) : rows.value.length
     total.value = isFinite(t) && t >= 0 ? t : rows.value.length
     page.value = clampPage(page.value, total.value, size.value)
+    // 换页 / 换 kind / 刷新后组 key 已变，勾选态一律回落到默认「仅删记录」
+    trashByKey.value = {}
   } catch (err) {
     rows.value = []
     total.value = 0
@@ -141,15 +158,21 @@ function onPageChange(next) {
 }
 
 function onSizeChange(next) {
-  size.value = Number(next) || 20
+  size.value = Number(next) || 10
   page.value = 1
   load()
 }
 
 function askMerge(row) {
   mergeRow.value = row
-  mergeDeleteFiles.value = false
   mergeVisible.value = true
+}
+
+/** 卡片上的「移入回收站」：写同一份组状态，本组所有入口（副本行「清理」/「清理本组」）都读它 */
+function onTrashChange(row, value) {
+  const key = row && row.__key
+  if (!key) return
+  trashByKey.value[key] = !!value
 }
 
 function askKeep(row, alias) {
@@ -163,6 +186,7 @@ async function doMerge() {
   if (!row || merging.value) return
   merging.value = true
   try {
+    // 请求体与 P4-B 完全一致：只有 deleteFiles 的取值来自「卡片/弹窗共用的组勾选态」
     await mergeDuplicates({ kind: kind.value, contentHash: row.contentHash, deleteFiles: !!mergeDeleteFiles.value })
     proxy.$modal.msgSuccess(mergeDeleteFiles.value ? '副本已移入回收站，记录已清理' : '记录已清理（文件未动）')
     mergeVisible.value = false

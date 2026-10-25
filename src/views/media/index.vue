@@ -458,7 +458,7 @@
     </el-drawer>
 
     <!-- P4-B 重复文件抽屉：kind 切换 / 列表 / 展开副本 / 分页 / 两处二次确认都在子组件里 -->
-    <el-drawer v-model="duplicatesVisible" title="重复文件" size="min(900px, 96vw)" append-to-body destroy-on-close>
+    <el-drawer v-model="duplicatesVisible" title="重复文件" size="min(1180px, 96vw)" append-to-body destroy-on-close>
       <duplicates-panel />
     </el-drawer>
   </div>

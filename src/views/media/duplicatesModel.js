@@ -163,3 +163,85 @@ export function rowKey(row, index) {
   if (row && row.contentHash) return String(row.contentHash)
   return 'dup-' + String(index == null ? 0 : index)
 }
+
+/* ======================================================= P4.1 缩略图布局辅助 */
+/* 下面这些都保持「纯函数 + 无 Vue」：缩略图 URL 规则 / 折叠行数 / 占位首字，都能直接单测。 */
+
+/** 右栏默认最多显示几行副本，超出才出「展开全部」 */
+export const ALIAS_PREVIEW_LIMIT = 6
+
+/** 一组的稳定 key（与 rowKey 同口径，但优先用面板注入的 __key） */
+export function groupKey(row, index) {
+  if (row && row.__key) return String(row.__key)
+  return rowKey(row, index)
+}
+
+/** 副本行 key：id 唯一，缺 id 用组 key + 下标兜底 */
+export function aliasKey(alias, index, group) {
+  if (alias && alias.id != null && alias.id !== '') return String(alias.id)
+  return 'alias-' + String(group == null ? '' : group) + '-' + String(index == null ? 0 : index)
+}
+
+/** 单条记录（主文件或副本）的展示路径：relPath 优先，缺了退 id */
+export function itemPath(item) {
+  const it = item || {}
+  if (it.relPath) return String(it.relPath)
+  if (it.id != null && it.id !== '') return String(it.id)
+  return '（未知路径）'
+}
+
+/**
+ * 缩略图 URL —— 必须内容寻址，否则同一条记录换了内容还命中旧缓存：
+ *   图片（kind=photo）：/api/media/thumb/p/<contentHash>（定位符就是内容哈希，后端单段路由）
+ *   视频（kind=video）：/api/media/thumb/v/<id>（视频封面按 id，服务端内部再换内容寻址文件）
+ * 拿不到定位符时返回空串，调用方据此渲染占位块，而不是拼一个必然 404 的地址。
+ */
+export function thumbPath(kind, item, groupHash) {
+  const it = item || {}
+  if (kind === 'photo') {
+    const hash = String(it.contentHash || groupHash || '').trim()
+    return hash ? '/api/media/thumb/p/' + encodeURIComponent(hash) : ''
+  }
+  const id = it.id == null || it.id === '' ? '' : String(it.id).trim()
+  return id ? '/api/media/thumb/v/' + encodeURIComponent(id) : ''
+}
+
+/** 缩略图 404 / 加载失败时的占位字符：文件名首字（跳过标点），空路径给 '?' */
+export function fileInitial(relPath) {
+  const raw = String(relPath == null ? '' : relPath).trim()
+  if (!raw) return '?'
+  const base = raw.split(/[\\/]/).filter(Boolean).pop() || raw
+  const hit = base.match(/[\p{L}\p{N}]/u)
+  return (hit ? hit[0] : base.slice(0, 1)).toUpperCase()
+}
+
+/**
+ * 右栏折叠窗口：折叠时只给前 limit 行，展开（expanded=true）时给全部。
+ * more 只看总数是否超过上限——展开后仍要保留「收起」入口，所以 more 不随 expanded 变。
+ */
+export function aliasWindow(list, limit, expanded) {
+  const all = Array.isArray(list) ? list : []
+  const cap = num(limit) != null && limit > 0 ? Math.round(Number(limit)) : all.length
+  const take = expanded ? all.length : cap
+  return {
+    visible: all.slice(0, take),
+    hidden: Math.max(0, all.length - take),
+    more: all.length > cap,
+    collapsed: !expanded
+  }
+}
+
+/** 缩略图坏掉后是否改写占位：url 为空或不处于 broken 集合里才算「还能显示」 */
+export function thumbSrc(brokenMap, url) {
+  if (!url) return ''
+  const map = brokenMap || {}
+  return map[url] ? '' : url
+}
+
+/** 标记某个缩略图地址已失败（404 / 解码失败），只记一次，避免反复重试打后端 */
+export function markThumbBroken(brokenMap, url) {
+  if (!brokenMap || !url) return false
+  if (brokenMap[url]) return false
+  brokenMap[url] = true
+  return true
+}
