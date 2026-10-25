@@ -93,23 +93,13 @@ export const constantRoutes = [
 ]
 
 // 动态路由，基于用户权限动态去加载
+// P5.4：工作室管理（/media-studios）不再用动态路由注入 —— 它的菜单已经落库
+// （doc/media_studio_menu.sql → sys_menu component='media/studio/index'），由 /getRouters 下发：
+//   顶层 C + is_frame=1 时若依下发「外层 path='/' + 子路由 path='media-studios'」，URL 就是 /media-studios，
+//   同时侧栏出现一条「工作室管理」。若这里再保留一条 path='/media-studios' 的动态路由，同一个 URL 会
+//   注册两条路由（本文件这条先注册、优先生效，且它带 activeMenu=/media-person），菜单与高亮会和菜单表打架，
+//   所以按「只留 sys_menu 下发」处理。人物管理页工具栏的「工作室管理」按钮照旧 push('/media-studios')。
 export const dynamicRoutes = [
-  {
-    // 工作室管理（P5-A / P5-C）：后台菜单表里还没有这一项，前端用动态路由直接挂上，
-    // hidden 保证不进侧栏；入口在人物管理页工具栏的「工作室管理」按钮，权限沿用 media:admin:edit。
-    path: '/media-studios',
-    component: Layout,
-    hidden: true,
-    permissions: ['media:admin:edit'],
-    children: [
-      {
-        path: '',
-        component: () => import('@/views/media/studio/index'),
-        name: 'MediaStudios',
-        meta: { title: '工作室管理', activeMenu: '/media-person' }
-      }
-    ]
-  },
   {
     path: '/system/user-auth',
     component: Layout,
