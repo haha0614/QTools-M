@@ -454,6 +454,63 @@ export function setAlbumPersons(id, personIds) {
   })
 }
 
+/* ------------------------------------------------------------ 工作室管理（P5-A） */
+/* 契约（P5-A）：GET /api/media/admin/studios?q=&page=&size= → { rows|list, total }，
+    行内至少带 { id, name, videoCount }；
+   POST/PUT/DELETE /api/media/admin/studios[/{id}]；
+   PUT /api/media/admin/videos/{id}/studios { studioIds }（整条视频的工作室集合）。
+   后端未部署 P5-A 时这些路由统一 404：全部 silent，由工作室管理页就地给出可读提示，
+   不弹全局提示、不抛异常（与 /persons、/duplicates 等未就绪接口同一套处理）。 */
+
+// 工作室分页列表：q 匹配名称（后端决定），page 从 1 开始
+export function listStudios(query) {
+  return request({
+    url: BASE + '/studios',
+    method: 'get',
+    params: query,
+    silent: true
+  })
+}
+
+// 新建工作室：body { name, remark? }，名称唯一
+export function createStudio(data) {
+  return request({
+    url: BASE + '/studios',
+    method: 'post',
+    data: data || {},
+    silent: true
+  })
+}
+
+// 修改工作室：body { name?, remark? }
+export function updateStudio(id, data) {
+  return request({
+    url: BASE + '/studios/' + encodeURIComponent(id),
+    method: 'put',
+    data: data || {},
+    silent: true
+  })
+}
+
+// 删除工作室：仍有引用时后端返回 4xx 并带视频计数，前端原样展示并阻止
+export function deleteStudio(id) {
+  return request({
+    url: BASE + '/studios/' + encodeURIComponent(id),
+    method: 'delete',
+    silent: true
+  })
+}
+
+// 整条视频的工作室集合：body { studioIds: [] }（媒体库行内操作可直接复用）
+export function setVideoStudios(id, studioIds) {
+  return request({
+    url: BASE + '/videos/' + encodeURIComponent(id) + '/studios',
+    method: 'put',
+    data: { studioIds: studioIds || [] },
+    silent: true
+  })
+}
+
 /* ========================================================================
    P4-B：重复文件管理（纯新增，不改上面任何既有导出）
    契约（P4-A）：

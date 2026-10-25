@@ -11,6 +11,15 @@
           @keyup.enter="handleQuery" @clear="handleQuery" />
         <el-button type="primary" icon="Search" @click="handleQuery">搜索</el-button>
         <el-button icon="Refresh" :loading="loading" @click="loadPersons">刷新</el-button>
+        <!-- 列可切换（P5-C）：把「身体 / 事业 / 社交」这些新字段按需显示，默认只留常用列 -->
+        <el-popover placement="bottom-end" :width="260" trigger="click">
+          <template #reference>
+            <el-button icon="Operation">列</el-button>
+          </template>
+          <p class="person-cols-tip">显示的列（记住在本浏览器）</p>
+          <el-checkbox v-for="c in COLS" :key="c.key" v-model="colsOn[c.key]" :label="c.label" class="person-cols-item" />
+        </el-popover>
+        <el-button icon="Folder" @click="goStudios">工作室管理</el-button>
         <el-button type="primary" icon="Plus" @click="openCreate" v-hasPermi="['media:admin:edit']">新建人物</el-button>
       </div>
     </div>
@@ -26,21 +35,39 @@
           <el-tag v-if="isHidden(scope.row)" type="info" size="small" class="person-tag">隐藏</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="别名" min-width="130" :show-overflow-tooltip="true">
+      <el-table-column v-if="colsOn.alias" label="别名" min-width="130" :show-overflow-tooltip="true">
         <template #default="scope">{{ textOr(scope.row.alias) }}</template>
       </el-table-column>
-      <el-table-column label="备注" min-width="180" :show-overflow-tooltip="true">
-        <template #default="scope">{{ textOr(scope.row.remark) }}</template>
-      </el-table-column>
-      <el-table-column label="性别" width="90" align="center">
+      <el-table-column v-if="colsOn.gender" label="性别" width="90" align="center">
         <template #default="scope">{{ textOr(scope.row.gender) }}</template>
       </el-table-column>
-      <el-table-column label="视频数" width="96" align="right">
+      <el-table-column v-if="colsOn.height_cm" label="身高" width="90" align="right">
+        <template #default="scope">{{ withUnit(scope.row.height_cm, 'cm') }}</template>
+      </el-table-column>
+      <el-table-column v-if="colsOn.weight_kg" label="体重" width="90" align="right">
+        <template #default="scope">{{ withUnit(scope.row.weight_kg, 'kg') }}</template>
+      </el-table-column>
+      <el-table-column v-if="colsOn.nationality" label="国籍" width="100" :show-overflow-tooltip="true">
+        <template #default="scope">{{ textOr(scope.row.nationality) }}</template>
+      </el-table-column>
+      <el-table-column v-if="colsOn.hair_color" label="发色 / 瞳色" width="130" :show-overflow-tooltip="true">
+        <template #default="scope">{{ pairText(scope.row.hair_color, scope.row.eye_color) }}</template>
+      </el-table-column>
+      <el-table-column v-if="colsOn.career" label="事业" width="120" align="center">
+        <template #default="scope">{{ careerText(scope.row) }}</template>
+      </el-table-column>
+      <el-table-column v-if="colsOn.social" label="社交" min-width="140" :show-overflow-tooltip="true">
+        <template #default="scope">{{ socialText(scope.row) }}</template>
+      </el-table-column>
+      <el-table-column v-if="colsOn.remark" label="备注" min-width="180" :show-overflow-tooltip="true">
+        <template #default="scope">{{ textOr(scope.row.remark) }}</template>
+      </el-table-column>
+      <el-table-column v-if="colsOn.videoCount" label="视频数" width="96" align="right">
         <template #default="scope">
           <el-tag :type="toNum(scope.row.videoCount) > 0 ? 'primary' : 'info'" size="small">{{ toNum(scope.row.videoCount) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="相册数" width="96" align="right">
+      <el-table-column v-if="colsOn.albumCount" label="相册数" width="96" align="right">
         <template #default="scope">
           <el-tag :type="toNum(scope.row.albumCount) > 0 ? 'primary' : 'info'" size="small">{{ toNum(scope.row.albumCount) }}</el-tag>
         </template>
@@ -65,28 +92,11 @@
     <pagination v-show="total > 0" :total="total" :page-sizes="[10, 20, 50, 100]"
       v-model:page="query.pageNum" v-model:limit="query.pageSize" @pagination="loadPersons" />
 
-    <!-- 新建 / 编辑：同一个表单，靠 form.id 区分 POST 与 PUT -->
-    <el-dialog v-model="formVisible" :title="form.id ? '编辑人物' : '新建人物'" width="min(480px, 94vw)" append-to-body>
-      <el-form :model="form" label-width="72px">
-        <el-form-item label="名称" required>
-          <el-input v-model="form.name" maxlength="120" show-word-limit placeholder="人物名（与目录 / 站内分组一致）"
-            @keyup.enter="submitForm" />
-        </el-form-item>
-        <el-form-item label="别名">
-          <el-input v-model="form.alias" maxlength="120" placeholder="选填，多个别名用 / 分隔" />
-        </el-form-item>
-        <el-form-item label="性别">
-          <el-select v-model="form.gender" placeholder="未设置" clearable filterable allow-create style="width: 100%">
-            <el-option label="女" value="女" />
-            <el-option label="男" value="男" />
-            <el-option label="其他" value="其他" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="选填" />
-        </el-form-item>
-      </el-form>
-      <p class="person-form-tip">名称需唯一；改成已存在的名称会被后端拒绝。</p>
+    <!-- 新建 / 编辑：同一个表单，靠 form.id 区分 POST 与 PUT。
+         P5-C：字段分区（基本 / 身体 / 事业 / 社交）抽到 PersonForm.vue，便于单独渲染与扩展 -->
+    <el-dialog v-model="formVisible" :title="form.id ? '编辑人物' : '新建人物'" width="min(720px, 94vw)" append-to-body>
+      <PersonForm :model="form" @enter="submitForm" />
+      <p class="person-form-tip">名称需唯一；改成已存在的名称会被后端拒绝。身体 / 事业 / 社交字段留空表示该字段为空值。</p>
       <template #footer>
         <el-button @click="formVisible = false">取 消</el-button>
         <el-button type="primary" :loading="saving" @click="submitForm" v-hasPermi="['media:admin:edit']">保 存</el-button>
@@ -97,14 +107,20 @@
 
 <script setup name="MediaPerson">
 /**
- * 人物管理（P3-B 管理端）
- * 用途：媒体库旁的独立页，维护 media_person（名称 / 别名 / 备注 / 性别）并展示引用数。
+ * 人物管理（P3-B 管理端；P5-C 补全身体 / 事业 / 社交字段与列开关）
+ * 用途：媒体库旁的独立页，维护 media_person 并展示引用数。
  * 契约：GET /api/media/admin/persons?q=&page=&size=；POST/PUT/DELETE /api/media/admin/persons[/{id}]。
+ *       P5-C：同一组接口接受 measurements / career_start / career_end / tattoos / piercings /
+ *             ethnicity / hair_color / eye_color / height_cm / weight_kg / fake_boobs /
+ *             nationality / twitter / instagram（后端 P5-A 起支持；旧后端忽略未知字段，保存不报错）。
  *       后端未部署 P3-A 时统一 404 —— 页面给出「人物数据暂不可用」的可读提示，不抛异常、不弹全局错误。
  * 删除：有引用（视频数 / 相册数 > 0）时前端直接拦住并展示后端返回的计数；后端 4xx 时原样展示其 message。
  */
-import { getCurrentInstance, onMounted, reactive, ref } from 'vue'
+import { getCurrentInstance, onMounted, reactive, ref, watch } from 'vue'
 import { listPersons, createPerson, updatePerson, deletePerson } from '@/api/media'
+import PersonForm from './PersonForm.vue'
+// 字段模型与「行 ↔ 表单 ↔ body」映射收在纯函数里（单测见 p5c-evidence/person-fields.test.mjs）
+import { EMPTY_FORM, formToPayload, rowToForm } from './personFields'
 
 const { proxy } = getCurrentInstance()
 
@@ -119,7 +135,47 @@ const query = reactive({ q: '', pageNum: 1, pageSize: 10 })
 
 const formVisible = ref(false)
 const saving = ref(false)
-const form = reactive({ id: null, name: '', alias: '', gender: '', remark: '' })
+/** 表单：结构见 personFields.EMPTY_FORM（基本 + 身体 + 事业 + 社交，键名与后端 persons 接口一致） */
+const form = reactive(Object.assign({}, EMPTY_FORM))
+
+/* ------------------------------------------------------------- 列显示（P5-C） */
+/* 默认只留常用列；身体 / 事业 / 社交列按需打开，选择记在本浏览器（localStorage）。
+   键名 media.person.cols，值是 { <列key>: boolean }，损坏时回落到默认。 */
+const COLS = [
+  { key: 'alias', label: '别名', def: true },
+  { key: 'gender', label: '性别', def: true },
+  { key: 'height_cm', label: '身高', def: false },
+  { key: 'weight_kg', label: '体重', def: false },
+  { key: 'nationality', label: '国籍', def: false },
+  { key: 'hair_color', label: '发色 / 瞳色', def: false },
+  { key: 'career', label: '事业（出道/引退）', def: false },
+  { key: 'social', label: '社交（Twitter/IG）', def: false },
+  { key: 'remark', label: '备注', def: true },
+  { key: 'videoCount', label: '视频数', def: true },
+  { key: 'albumCount', label: '相册数', def: true }
+]
+const COLS_KEY = 'media.person.cols'
+const colsOn = reactive(Object.fromEntries(COLS.map((c) => [c.key, c.def])))
+
+function loadCols() {
+  try {
+    const raw = localStorage.getItem(COLS_KEY)
+    if (!raw) return
+    const o = JSON.parse(raw)
+    if (!o || typeof o !== 'object') return
+    for (const c of COLS) if (typeof o[c.key] === 'boolean') colsOn[c.key] = o[c.key]
+  } catch {
+    /* 隐私模式 / 损坏值：用默认列 */
+  }
+}
+
+watch(colsOn, () => {
+  try {
+    localStorage.setItem(COLS_KEY, JSON.stringify(Object.assign({}, colsOn)))
+  } catch {
+    /* 忽略：存不下不影响本次会话 */
+  }
+})
 
 /** 后端可能返回 {rows,total} / {list,total} / 裸数组，三种形态都收 */
 const normalizePage = (res) => {
@@ -138,6 +194,37 @@ function toNum(v) {
 function textOr(v) {
   const s = v === null || v === undefined ? '' : String(v).trim()
   return s || '—'
+}
+
+/** 数值列带单位（0 / null 一律显示 —，避免把「没填」误读成 0cm） */
+function withUnit(v, unit) {
+  const n = Number(v)
+  if (v === null || v === undefined || v === '' || !Number.isFinite(n) || n <= 0) return '—'
+  return n + ' ' + unit
+}
+
+function pairText(a, b) {
+  const x = (a === null || a === undefined ? '' : String(a).trim()) || '—'
+  const y = (b === null || b === undefined ? '' : String(b).trim()) || '—'
+  return x + ' / ' + y
+}
+
+/** 事业：2015 → 2019，缺一端时显示 2015 → 至今 / → 2019 */
+function careerText(row) {
+  const s = toNum(row && row.career_start)
+  const e = toNum(row && row.career_end)
+  if (!s && !e) return '—'
+  return (s || '?') + ' → ' + (e || '至今')
+}
+
+function socialText(row) {
+  const t = row && row.twitter ? String(row.twitter).trim() : ''
+  const i = row && row.instagram ? String(row.instagram).trim() : ''
+  if (!t && !i) return '—'
+  const out = []
+  if (t) out.push('X: ' + t)
+  if (i) out.push('IG: ' + i)
+  return out.join(' · ')
 }
 
 function isHidden(row) {
@@ -192,21 +279,22 @@ function handleQuery() {
   loadPersons()
 }
 
+function goStudios() {
+  proxy.$router.push('/media-studios')
+}
+
+function resetForm() {
+  Object.assign(form, EMPTY_FORM)
+}
+
 function openCreate() {
-  form.id = null
-  form.name = ''
-  form.alias = ''
-  form.gender = ''
-  form.remark = ''
+  resetForm()
   formVisible.value = true
 }
 
+/** 行 → 表单：字段映射（含 snake_case / camelCase 兼容与数值归一）全在 personFields.rowToForm */
 function openEdit(row) {
-  form.id = row.id
-  form.name = row.name || ''
-  form.alias = row.alias || ''
-  form.gender = row.gender || ''
-  form.remark = row.remark || ''
+  Object.assign(form, rowToForm(row))
   formVisible.value = true
 }
 
@@ -217,7 +305,8 @@ function submitForm() {
     return
   }
   if (saving.value) return
-  const payload = { name: name, alias: (form.alias || '').trim(), gender: (form.gender || '').trim(), remark: (form.remark || '').trim() }
+  // 提交 body：13 个 P5-A 字段一并提交（空值语义由后端决定，前端只做 trim / 数值归一）
+  const payload = formToPayload(form)
   saving.value = true
   const task = form.id ? updatePerson(form.id, payload) : createPerson(payload)
   task.then(() => {
@@ -264,7 +353,10 @@ function handleDelete(row) {
   })
 }
 
-onMounted(loadPersons)
+onMounted(() => {
+  loadCols()
+  loadPersons()
+})
 </script>
 
 <style scoped>
@@ -325,6 +417,18 @@ onMounted(loadPersons)
   margin: 0 0 4px;
   font-size: 12px;
   color: var(--el-text-color-secondary);
+}
+
+.person-cols-tip {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.person-cols-item {
+  display: flex;
+  width: 100%;
+  margin: 0 0 2px;
 }
 
 @media (max-width: 768px) {

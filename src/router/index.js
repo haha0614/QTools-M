@@ -95,6 +95,22 @@ export const constantRoutes = [
 // 动态路由，基于用户权限动态去加载
 export const dynamicRoutes = [
   {
+    // 工作室管理（P5-A / P5-C）：后台菜单表里还没有这一项，前端用动态路由直接挂上，
+    // hidden 保证不进侧栏；入口在人物管理页工具栏的「工作室管理」按钮，权限沿用 media:admin:edit。
+    path: '/media-studios',
+    component: Layout,
+    hidden: true,
+    permissions: ['media:admin:edit'],
+    children: [
+      {
+        path: '',
+        component: () => import('@/views/media/studio/index'),
+        name: 'MediaStudios',
+        meta: { title: '工作室管理', activeMenu: '/media-person' }
+      }
+    ]
+  },
+  {
     path: '/system/user-auth',
     component: Layout,
     hidden: true,
