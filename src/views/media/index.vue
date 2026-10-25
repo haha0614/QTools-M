@@ -33,6 +33,8 @@
           v-hasPermi="['media:admin:scan']">清理派生文件(GC)</el-button>
         <!-- 维护面板：把命令行维护操作收进抽屉，与上面 4 个扫描按钮并列（不替换它们） -->
         <el-button icon="Tools" @click="maintVisible = true" v-hasPermi="['media:admin:list']">维护</el-button>
+        <!-- P4-B 重复文件：工具栏入口 → 抽屉（与维护面板并列，不替换任何既有按钮） -->
+        <el-button icon="CopyDocument" @click="openDuplicates" v-hasPermi="['media:admin:list']">重复文件</el-button>
       </div>
     </div>
 
@@ -454,6 +456,11 @@
       <maint-panel v-model:scanLimit="scanLimit" :scan-running="scanRunning" :refresh-key="maintRefreshKey"
         @run="handleMaintRun" @gc="handleGc" />
     </el-drawer>
+
+    <!-- P4-B 重复文件抽屉：kind 切换 / 列表 / 展开副本 / 分页 / 两处二次确认都在子组件里 -->
+    <el-drawer v-model="duplicatesVisible" title="重复文件" size="min(900px, 96vw)" append-to-body destroy-on-close>
+      <duplicates-panel />
+    </el-drawer>
   </div>
 </template>
 
@@ -463,6 +470,8 @@ import { listVideos, listAlbums, listPhotos, getAlbumPhotos, setHidden, removeMe
 import { listPersons, setVideoPersons, setAlbumPersons } from '@/api/media'
 // 维护面板（扫描 / 元数据 / 派生资源 / 备份 / 库根）：放在同目录子组件，主页面只做挂载与执行
 import MaintPanel from './MaintPanel'
+// 重复文件抽屉（P4-B）：独立子组件 + 独立 api 导出，不改动上面两行既有导入
+import DuplicatesPanel from './DuplicatesPanel'
 
 const { proxy } = getCurrentInstance()
 
@@ -593,6 +602,13 @@ let scanTimer = null
 /** 维护面板：抽屉开关；maintRefreshKey 在任务结束后自增，让面板重读导出列表 / 库根 */
 const maintVisible = ref(false)
 const maintRefreshKey = ref(0)
+
+/** P4-B 重复文件抽屉：内容全在 DuplicatesPanel 里（自己拉数据、自己分页），页面只存开关 */
+const duplicatesVisible = ref(false)
+
+function openDuplicates() {
+  duplicatesVisible.value = true
+}
 
 /** 统计卡片：6 张（视频/相册/图片/人物/总占用/回收站） */
 const statCards = computed(() => {

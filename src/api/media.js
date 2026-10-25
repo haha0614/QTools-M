@@ -453,3 +453,44 @@ export function setAlbumPersons(id, personIds) {
     silent: true
   })
 }
+
+/* ========================================================================
+   P4-B：重复文件管理（纯新增，不改上面任何既有导出）
+   契约（P4-A）：
+     GET  /api/media/admin/duplicates?kind=video|photo&page=&size=
+          → { rows: [{ contentHash, primary:{id,relPath,size},
+                       aliases:[{id,relPath,size}], count, bytesWasted }], total }
+     POST /api/media/admin/duplicates/merge { kind, contentHash, deleteFiles }
+     POST /api/media/admin/duplicates/keep  { kind, contentHash, id }
+   全部 silent：接口未就绪（404/405/501）时由抽屉就地提示，不弹全局错误。
+   ======================================================================== */
+
+// 重复文件分组分页列表
+export function listDuplicates(query) {
+  return request({
+    url: BASE + '/duplicates',
+    method: 'get',
+    params: query,
+    silent: true
+  })
+}
+
+// 清理副本：deleteFiles=false 只删索引记录；true 同时把副本文件移入回收站（后端负责，不真删）
+export function mergeDuplicates(data) {
+  return request({
+    url: BASE + '/duplicates/merge',
+    method: 'post',
+    data: data || {},
+    silent: true
+  })
+}
+
+// 设为主文件：只改索引记录，不动磁盘文件
+export function keepDuplicate(data) {
+  return request({
+    url: BASE + '/duplicates/keep',
+    method: 'post',
+    data: data || {},
+    silent: true
+  })
+}

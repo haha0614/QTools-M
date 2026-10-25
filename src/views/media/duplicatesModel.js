@@ -1,0 +1,165 @@
+/**
+ * duplicatesModel.js —— 重复文件管理页（P4-B）的纯逻辑层（无 Vue / 无网络）
+ *
+ * 为什么单独成文件：抽屉里真正要判定的东西只有三件事——
+ *   1. 三种界面态（加载中 / 接口未就绪 / 空 / 有数据）怎么判；
+ *   2. 体积与计数怎么格式化（后端给的是字节，界面要「1.20 GB」这种）；
+ *   3. 二次确认要写清「会移到回收站 / 仅删记录」两种影响的哪一条。
+ * 这三件事都不该缠在模板里，放这里可以直接跑单测（p4b-evidence/test-duplicates.mjs）。
+ */
+
+/** 与后端 kind 参数一一对应；顺序即抽屉里的切换顺序 */
+export const KINDS = [
+  { value: 'video', label: '视频', unit: '个视频' },
+  { value: 'photo', label: '相册图片', unit: '张图片' }
+]
+
+export const PAGE_SIZES = [10, 20, 50]
+
+export const NOT_READY_TEXT = '重复文件接口未就绪：后端部署 P4-A 后刷新页面即可（当前页面其余功能不受影响）'
+
+function num(v) {
+  if (v === null || v === undefined || v === '' || typeof v === 'boolean') return null
+  const n = Number(v)
+  return isFinite(n) ? n : null
+}
+
+/** kind → 中文名（未知 kind 原样返回，不抛错） */
+export function kindLabel(kind) {
+  const hit = KINDS.find((k) => k.value === kind)
+  return hit ? hit.label : String(kind == null ? '' : kind)
+}
+
+/** 字节 → 人类可读：与 MaintPanel / 媒体库其它地方的 GB/MB/KB 口径一致 */
+export function formatBytes(bytes) {
+  const n = num(bytes)
+  if (n == null || n < 0) return '—'
+  const KB = 1024
+  const MB = 1024 * 1024
+  const GB = 1024 * 1024 * 1024
+  if (n >= GB) return (n / GB).toFixed(2) + ' GB'
+  if (n >= MB) return (n / MB).toFixed(1) + ' MB'
+  if (n >= KB) return Math.round(n / KB) + ' KB'
+  return Math.round(n) + ' B'
+}
+
+/** 一组的副本数：后端给了 count 就用它，否则 = 别名数 + 主文件 */
+export function groupCount(row) {
+  const c = num(row && row.count)
+  if (c != null && c > 0) return Math.round(c)
+  const aliases = Array.isArray(row && row.aliases) ? row.aliases : []
+  return aliases.length + 1
+}
+
+/** 一组可省空间：后端给了 bytesWasted 就用它，否则用副本体积之和兜底 */
+export function groupWasted(row) {
+  const w = num(row && row.bytesWasted)
+  if (w != null && w >= 0) return w
+  const aliases = Array.isArray(row && row.aliases) ? row.aliases : []
+  return aliases.reduce((sum, a) => sum + (num(a && a.size) || 0), 0)
+}
+
+/** 主文件展示路径：relPath 优先，缺了就退 id（后端两种都可能给） */
+export function primaryPath(row) {
+  const p = row && row.primary
+  return (p && (p.relPath || p.id)) || '（未知主文件）'
+}
+
+/** 别名列表（主文件不在其中）：展开行只列副本，避免和「主文件」列重复 */
+export function groupAliases(row) {
+  const aliases = Array.isArray(row && row.aliases) ? row.aliases : []
+  return aliases.filter((a) => a && (a.relPath || a.id != null))
+}
+
+/**
+ * 顶部统计：组数取后端 total（全库），可省空间按「本页」求和——
+ * 接口一次只给一页，把本页合计冒充全库合计是错的，所以文案上明确写「本页」。
+ */
+export function duplicateTotals(rows, total) {
+  const list = Array.isArray(rows) ? rows : []
+  const bytes = list.reduce((sum, r) => sum + groupWasted(r), 0)
+  const t = num(total)
+  return {
+    groups: t != null && t >= 0 ? Math.round(t) : list.length,
+    pageGroups: list.length,
+    bytes,
+    bytesText: formatBytes(bytes)
+  }
+}
+
+/** 是否是「后端还没部署这个接口」类错误：404 / 405 / 501 —— 只有这类才提示未就绪 */
+export function isNotReadyError(err) {
+  const status = err && err.response && err.response.status
+  return status === 404 || status === 405 || status === 501
+}
+
+/**
+ * 界面四态：loading / error（接口未就绪或网络异常）/ empty（0 组）/ data。
+ * error 里再分「未就绪」与「真错误」，前者给引导文案，后者把后端消息带上。
+ */
+export function resolveViewState(input) {
+  const s = input || {}
+  const rows = Array.isArray(s.rows) ? s.rows : []
+  if (s.loading) return { state: 'loading', message: '', notReady: false }
+  // notReady 也算错误态：调用方在 404/405/501 时 deliberately 清空 error 文案（不当成网络错误提示）
+  if (s.error || s.notReady) {
+    const notReady = !!s.notReady
+    return {
+      state: 'error',
+      notReady,
+      message: notReady ? NOT_READY_TEXT : String(s.error)
+    }
+  }
+  if (!rows.length) return { state: 'empty', message: '', notReady: false }
+  return { state: 'data', message: '', notReady: false }
+}
+
+/** 页码合法性：total 变化后把超界页夹回最后一页 */
+export function clampPage(page, total, size) {
+  const p = num(page)
+  const s = num(size) && size > 0 ? Math.round(size) : 20
+  const t = num(total) && total > 0 ? Math.round(total) : 0
+  const last = Math.max(1, Math.ceil(t / s))
+  const cur = p == null || p < 1 ? 1 : Math.round(p)
+  return Math.min(cur, last)
+}
+
+/**
+ * 「清理副本」二次确认文案：必须把两种影响写清（deleteFiles 决定是移回收站还是只删记录）。
+ * requireFiles=true 是当前勾选状态，文案随勾选实时变化。
+ */
+export function mergeConfirmText(input) {
+  const s = input || {}
+  const row = s.row || {}
+  const kind = kindLabel(s.kind)
+  const aliases = groupAliases(row)
+  const primary = (row.primary && (row.primary.relPath || row.primary.id)) || '（未知主文件）'
+  const effect = s.deleteFiles
+    ? '副本文件会被移入回收站（可在回收站恢复，不会直接删除）'
+    : '只删除索引记录，磁盘上的副本文件保持不动'
+  return [
+    '将把「' + primary + '」设为唯一主文件，清理同内容的 ' + aliases.length + ' 个' + kind + '副本。',
+    '影响：' + effect + '。',
+    '可省空间：' + formatBytes(groupWasted(row)) + '（仅统计被清理的副本体积）。'
+  ].join('\n')
+}
+
+/** 「设为主文件」二次确认文案：只改记录，不动文件，但要说明旧主文件会变副本 */
+export function keepConfirmText(input) {
+  const s = input || {}
+  const row = s.row || {}
+  const alias = s.alias || {}
+  const kind = kindLabel(s.kind)
+  const target = alias.relPath || alias.id || '（未知路径）'
+  return [
+    '将把「' + target + '」设为这组' + kind + '的主文件。',
+    '影响：只改索引记录，不移动、不删除任何文件；其余同内容文件（含原来的主文件）变成副本。',
+    '副本数：' + Math.max(0, groupCount(row) - 1) + ' 个。'
+  ].join('\n')
+}
+
+/** 行 key：contentHash 唯一；后端异常给空值时用下标兜底，避免 v-for 重复 key */
+export function rowKey(row, index) {
+  if (row && row.contentHash) return String(row.contentHash)
+  return 'dup-' + String(index == null ? 0 : index)
+}
