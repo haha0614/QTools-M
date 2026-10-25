@@ -146,18 +146,30 @@
         <span class="maint-group-title">派生资源</span>
         <span class="maint-group-desc">缩略图 / 精灵图 / 预览视频都在 thumbs 下，属于可随时重建的产物</span>
       </div>
+      <!-- P5.10-B：只处理「视频」列表里勾选的行；没勾选时下面两个「生成选中项」按钮禁用 -->
       <div class="maint-row">
-        <span class="maint-label">缩略图选项</span>
-        <el-checkbox v-model="thumbForce" :disabled="scanRunning">强制重建（覆盖已有缩略图）</el-checkbox>
-        <el-checkbox v-model="thumbNoFresh" :disabled="scanRunning">关闭新鲜度（不比较源文件时间）</el-checkbox>
+        <span class="maint-label">勾选视频</span>
+        <span class="maint-inline-note" data-testid="maint-selected" :data-count="selectedIdCount">
+          <template v-if="selectedIdCount">已选 {{ selectedIdCount }} 项：下面两个「生成选中项」只对这些 id 生效</template>
+          <template v-else>未勾选任何视频：先到「视频」列表勾选，再用「生成选中项」（否则只能整库跑）</template>
+        </span>
       </div>
+      <div class="maint-row">
+        <span class="maint-label">派生资源选项</span>
+        <el-checkbox v-model="deriveForce" :disabled="scanRunning">强制重建（忽略新鲜度、全部重生成）</el-checkbox>
+        <el-checkbox v-model="deriveNoFresh" :disabled="scanRunning">关闭新鲜度（不比较源文件时间）</el-checkbox>
+        <span class="maint-inline-note">影响：重建缩略图 / 生成精灵图·预览</span>
+      </div>
+      <el-alert v-if="deriveForce" type="warning" :closable="false" show-icon class="maint-alert"
+        title="强制重建会覆盖已有产物：全库精灵图 / 预览是【全片解码】，176 个视频约需 9–11 小时（缩略图快得多）。"
+        description="先用上面的「试跑条数」小规模验证再全量跑：条数按「封面 / 精灵图 / 预览」三件产物计数，限 3 条 ≈ 1 个视频的精灵图 + 预览片段。" />
       <div class="maint-actions">
         <el-button type="primary" plain icon="Picture" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="emitRun({ mode: 'thumb', options: { force: thumbForce, noFresh: thumbNoFresh } })">
+          @click="emitRun({ mode: 'thumb', options: deriveOptions() })">
           重建缩略图
         </el-button>
         <el-button type="primary" plain icon="Film" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="emitRun({ mode: 'sprite,preview' })">
+          @click="emitRun({ mode: 'sprite,preview', options: deriveOptions(), confirm: deriveForce ? SPRITE_PREVIEW_FORCE_CONFIRM : '' })">
           生成精灵图/预览
         </el-button>
         <el-button type="danger" plain icon="Delete" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
@@ -165,9 +177,33 @@
           清理孤儿(GC)
         </el-button>
       </div>
+      <!-- P5.10-B：只生成勾选的视频（请求体带 videoIds，后端只对 thumb / sprite / preview 生效） -->
+      <div class="maint-actions">
+        <el-tooltip :disabled="selectedIdCount > 0" content="先在「视频」列表勾选要处理的视频" placement="top">
+          <span class="maint-tip-wrap">
+            <el-button type="success" plain icon="PictureFilled" :loading="scanRunning"
+              :disabled="scanRunning || !selectedIdCount" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
+              @click="emitSelected('thumb', '重建缩略图')">
+              生成选中项（缩略图）
+            </el-button>
+          </span>
+        </el-tooltip>
+        <el-tooltip :disabled="selectedIdCount > 0" content="先在「视频」列表勾选要处理的视频" placement="top">
+          <span class="maint-tip-wrap">
+            <el-button type="success" plain icon="Film" :loading="scanRunning"
+              :disabled="scanRunning || !selectedIdCount" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
+              @click="emitSelected('sprite,preview', '生成精灵图/预览')">
+              生成选中项（精灵图/预览）
+            </el-button>
+          </span>
+        </el-tooltip>
+        <span class="maint-inline-note">勾选 {{ selectedIdCount }} 项；与上面两个整库按钮共用同一把任务锁</span>
+      </div>
       <p class="maint-hint">
         <strong>清理孤儿(GC)</strong> 会真删 thumbs/v、thumbs/s、thumbs/pv2 下「既不在索引中、也没有同名源文件」的派生文件：媒体源与索引不受影响，但删除不可撤销。
         精灵图 / 预览是<strong>全片解码</strong>，先用上面的试跑条数跑一小批更稳。
+        上面的「强制重建 / 关闭新鲜度」<strong>对两个按钮同时生效</strong>：换上新的取帧算法后要重生成旧片段，
+        必须勾「强制重建」（否则产物 mtime 比源文件新，脚本判定「已是最新」直接跳过）。
       </p>
     </section>
 
@@ -298,7 +334,9 @@ const props = defineProps({
   /** 与工具栏共用的运行锁：为 true 时所有按钮禁用 */
   scanRunning: { type: Boolean, default: false },
   /** 任务结束后父级自增，用它触发「最近导出 / 库根」重新读一次 */
-  refreshKey: { type: Number, default: 0 }
+  refreshKey: { type: Number, default: 0 },
+  /** 视频列表当前勾选的 videoId（P5.10-B：「生成选中项」据此带 videoIds；空数组时按钮禁用） */
+  selectedVideoIds: { type: Array, default: () => [] }
 })
 
 const emit = defineEmits(['update:scanLimit', 'run', 'gc'])
@@ -555,8 +593,45 @@ function saveWatchConfig() {
 /* ---------------------------------------------------------------- 扫描 / 元数据 / 派生 选项 */
 const albumMode = ref('dir')
 const exclude = ref('')
-const thumbForce = ref(false)
-const thumbNoFresh = ref(false)
+/** 派生资源的两个共用开关：缩略图与精灵图/预览同源同义，按钮各自按勾选值发 force / noFresh */
+const deriveForce = ref(false)
+const deriveNoFresh = ref(false)
+
+/** 勾了强制重建时精灵图/预览的确认文案：全库重跑是小时级，先小批量验证 */
+const SPRITE_PREVIEW_FORCE_CONFIRM = '强制重建会把全库精灵图 / 预览重新解码一遍：176 个视频约需 9–11 小时，'
+  + '期间同一时刻只能跑这一个任务。建议先把「试跑条数」设成 3 之类的数字，确认取帧效果符合预期后再去掉条数限制全量重建。'
+  + '确认现在就开始强制重建？'
+
+/** 派生资源按钮的公共请求参数：force / noFresh 只在勾选时才发（后端两种 mode 都认） */
+function deriveOptions() {
+  const options = {}
+  if (deriveForce.value) {
+    options.force = true
+  }
+  if (deriveNoFresh.value) {
+    options.noFresh = true
+  }
+  return options
+}
+
+/** 勾选的 videoId（全部归一成字符串，避免 id 类型不一致漏传） */
+const selectedIds = computed(() => (Array.isArray(props.selectedVideoIds) ? props.selectedVideoIds : [])
+  .map(id => (id == null ? '' : String(id)))
+  .filter(id => id !== ''))
+const selectedIdCount = computed(() => selectedIds.value.length)
+
+/** 只处理勾选项：沿用同一套派生资源选项，再补 videoIds；确认文案写清「只动这几个 id」 */
+function emitSelected(mode, title) {
+  if (!selectedIdCount.value) {
+    proxy.$modal.msgWarning('先在「视频」列表勾选要处理的视频')
+    return
+  }
+  const options = deriveOptions()
+  options.videoIds = selectedIds.value.slice()
+  const base = '只处理列表里勾选的 ' + selectedIdCount.value + ' 个视频（请求体带 videoIds，后端只对这些 id 生效）。'
+  const confirm = deriveForce.value ? base + SPRITE_PREVIEW_FORCE_CONFIRM : base + '确认执行「' + title + '」？'
+  emitRun({ mode: mode, options: options, confirm: confirm, title: title + '（选中项）' })
+}
 
 const limitProxy = computed({
   get: () => props.scanLimit,
@@ -859,7 +934,8 @@ watch(() => props.refreshKey, () => {
   width: 220px;
 }
 /* 禁用的 el-button 不派发事件，包一层 span 才能让 tooltip 有东西可挂 */
-.watch-tip-wrap {
+.watch-tip-wrap,
+.maint-tip-wrap {
   display: inline-flex;
 }
 .maint-table {

@@ -161,6 +161,10 @@ export function startScan(mode, options) {
   if (extra.exclude) {
     data.exclude = extra.exclude
   }
+  // P5.10-B：只处理勾选的视频。videoIds 只对 thumb / sprite / preview 生效，其它 mode 后端忽略
+  if (Array.isArray(extra.videoIds) && extra.videoIds.length) {
+    data.videoIds = extra.videoIds
+  }
   return request({
     url: BASE + '/scan',
     method: 'post',
@@ -560,6 +564,28 @@ export function keepDuplicate(data) {
     url: BASE + '/duplicates/keep',
     method: 'post',
     data: data || {},
+    silent: true
+  })
+}
+
+/* ========================================================================
+   P5.10-B：派生资源状态（纯新增，不改上面任何既有导出）
+   契约（P5.10-A）：
+     GET /api/media/admin/derive-status?page=&size=&ids=&q=&kind=
+       → { rows: [{ videoId, title, dur,
+                    thumb:   { exists, stale },
+                    sprite:  { exists, stale },
+                    preview: { exists, stale, frames }, bytes }], total }
+   ids 是逗号分隔的 videoId 列表：把主列表当前页的 id 传过去，两次查询条件因此完全一致。
+   接口未就绪（404/501）时 silent：由列表就地降级成「—」并在首次提示一次，不弹全局错误、不抛异常。
+   ======================================================================== */
+
+// 派生资源状态（封面 / 精灵图 / 预览是否存在、是否过期）
+export function getDeriveStatus(query) {
+  return request({
+    url: BASE + '/derive-status',
+    method: 'get',
+    params: query,
     silent: true
   })
 }

@@ -18,6 +18,10 @@
         <span class="media-page-sub" v-if="statsUpdatedAt">统计更新于 {{ statsUpdatedAt }}</span>
       </div>
       <div class="media-toolbar-right">
+        <span v-if="selectedVideoTotal" class="media-selected" data-testid="selected-count">
+          已选 {{ selectedVideoTotal }} 项
+          <el-button link type="primary" @click="clearVideoSelection">清空</el-button>
+        </span>
         <el-button icon="Refresh" :loading="statsLoading" @click="refreshAll">刷新</el-button>
         <el-button icon="PriceTag" @click="openTagManager" v-hasPermi="['media:admin:list']">标签管理</el-button>
         <el-button icon="Setting" @click="openEditPolicy" v-hasPermi="['media:admin:edit']">编辑策略</el-button>
@@ -90,7 +94,19 @@
           </el-form-item>
         </el-form>
 
-        <el-table v-loading="videoLoading" :data="videoList" class="media-table">
+        <!-- P5.10-B：派生资源汇总（绿 / 橙 / 灰）+「只看旧算法」筛选：勾选后可直接批量重建 -->
+        <div v-if="deriveReady" class="derive-bar">
+          <span class="derive-bar-text" data-testid="derive-summary">{{ derivePreviewText }}</span>
+          <el-switch v-model="deriveOnlyOldAlgo" size="small" :disabled="!deriveOldAlgoCount"
+            active-text="只看旧算法" />
+          <span v-if="deriveMeta.algoSince" class="derive-bar-note" :title="deriveMeta.algoSinceSource || ''">
+            算法更新于 {{ deriveMeta.algoSince }}
+          </span>
+          <el-button link type="primary" icon="Refresh" :loading="deriveLoading" @click="loadDeriveStatus()">刷新派生资源</el-button>
+        </div>
+        <el-table ref="videoTableRef" v-loading="videoLoading" :data="videoDisplayList" class="media-table" row-key="id"
+          @selection-change="handleVideoSelection">
+          <el-table-column type="selection" width="44" align="center" />
           <el-table-column label="封面" width="66" align="center">
             <template #default="scope">
               <img class="media-cover media-cover-click" :src="mediaSrc('/api/media/thumb/v/' + scope.row.id)" loading="lazy"
@@ -113,6 +129,12 @@
           <el-table-column label="状态" width="86" align="center">
             <template #default="scope">
               <el-tag :type="scope.row.hidden ? 'info' : 'success'" size="small">{{ scope.row.hidden ? '隐藏' : '正常' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="派生资源" width="126" align="center" class-name="derive-col">
+            <template #default="scope">
+              <derive-badges :row="deriveRowOf(scope.row)" :ready="deriveReady" :loading="deriveLoading"
+                :algo-since="deriveMeta.algoSince" />
             </template>
           </el-table-column>
           <el-table-column label="操作" width="190" align="center" fixed="right" class-name="small-padding fixed-width">
@@ -454,8 +476,12 @@
     <!-- 维护面板：扫描 / 元数据 / 派生资源 / 备份 / 库根；执行仍复用页面上既有的任务锁与轮询 -->
     <el-drawer v-model="maintVisible" title="维护" size="min(860px, 96vw)" append-to-body destroy-on-close>
       <maint-panel v-model:scanLimit="scanLimit" :scan-running="scanRunning" :refresh-key="maintRefreshKey"
-        @run="handleMaintRun" @gc="handleGc" />
+        :selected-video-ids="selectedVideoIds" @run="handleMaintRun" @gc="handleGc" />
     </el-drawer>
+
+    <!-- P5.10-B 生成结果清单：任务完成后按 job 日志的 ITEM / RESULT 行弹出「本次生成了哪些」 -->
+    <derive-result-dialog v-model="deriveResultVisible" :model="deriveResultModel" :refreshing="deriveRefreshing"
+      @refresh="refreshDeriveColumn" />
 
     <!-- P4-B 重复文件抽屉：kind 切换 / 列表 / 展开副本 / 分页 / 两处二次确认都在子组件里 -->
     <el-drawer v-model="duplicatesVisible" title="重复文件" size="min(1180px, 96vw)" append-to-body destroy-on-close>
@@ -472,6 +498,11 @@ import { listPersons, setVideoPersons, setAlbumPersons } from '@/api/media'
 import MaintPanel from './MaintPanel'
 // 重复文件抽屉（P4-B）：独立子组件 + 独立 api 导出，不改动上面两行既有导入
 import DuplicatesPanel from './DuplicatesPanel'
+// 派生资源状态（P5.10-B）：徽标单元格 / 结果对话框 / 日志解析纯函数，三者都独立成文件，主页面只接线
+import DeriveBadges from './DeriveBadges.vue'
+import DeriveResultDialog from './DeriveResultDialog.vue'
+import { deriveMapOf, buildResultModel, summarizeDerive, previewSummaryText, isOldAlgoPreview } from './deriveModel'
+import { getDeriveStatus } from '@/api/media'
 
 const { proxy } = getCurrentInstance()
 
@@ -810,6 +841,8 @@ function loadVideos() {
   listVideos(params).then(res => {
     videoList.value = (res && res.rows) || []
     videoTotal.value = (res && res.total) || 0
+    // P5.10-B：派生资源列与主列表同步刷新（ids 用当前页的 videoId，两次查询条件因此完全一致）
+    loadDeriveStatus(videoList.value)
   }).finally(() => { videoLoading.value = false })
 }
 
@@ -1185,6 +1218,9 @@ function handleGc() {
 
 function runScanTask(mode, options) {
   const title = scanTypeText(mode)
+  // P5.10-B：记下本次请求的 videoIds —— 后端日志只给 RESULT 汇总时，用它把结果清单退化成「已处理列表」
+  const requestIds = options && Array.isArray(options.videoIds) ? options.videoIds : []
+  scanRequestIds = requestIds.map(id => String(id))
   scanRunning.value = true
   startScan(mode, options).then(res => {
     proxy.$modal.msgSuccess('已开始' + title)
@@ -1226,6 +1262,7 @@ function pollScan(jobId) {
         if (activeTab.value === 'trash') { loadTrash() } else if (activeTab.value === 'album') { loadAlbums() } else { loadVideos() }
       }
       notifyScanFinished(res)
+      maybeOpenDeriveResult(res)
     }
   }).catch(() => {
     stopScanPolling()
@@ -1500,6 +1537,170 @@ function errorText(err) {
     return data.error || data.msg || ''
   }
   return ''
+}
+
+/* ------------------------------------------------------------ 派生资源（P5.10-B） */
+/* 契约（P5.10-A，后端并行实现中）：
+     GET  /api/media/admin/derive-status?page=&size=&ids=&q=&kind= → { rows:[…], total }
+     POST /api/media/admin/scan  body 增加 videoIds（只对 thumb / sprite / preview 生效）
+     job 日志：ITEM video=<id> task=<video|sprite|pvclip> result=<ok|skip|fail> / RESULT ok= skip= fail= ids=…
+   接口未就绪（404/405/501）时：列显示「—」+ 首次提示一次，列表与其它功能全部照常，不抛异常。 */
+
+const DERIVE_TASK_TYPES = ['thumb', 'sprite', 'preview', 'sprite,preview']
+
+const videoTableRef = ref(null)
+const selectedVideos = ref([])
+const selectedVideoTotal = computed(() => selectedVideos.value.length)
+const selectedVideoIds = computed(() => selectedVideos.value
+  .map(row => (row && row.id != null ? row.id : ''))
+  .filter(id => id !== ''))
+
+const deriveMap = ref({})
+const deriveReady = ref(true)
+/** derive-status 顶层：算法分界时间（「旧算法」徽标的 tooltip 与顶部汇总都用它） */
+const deriveMeta = ref({ algoSince: '', algoSinceSource: '' })
+/** 「只看旧算法」：勾上后列表只保留预览片段是旧算法产物的行，方便直接圈选重建 */
+const deriveOnlyOldAlgo = ref(false)
+const deriveLoading = ref(false)
+const deriveRefreshing = ref(false)
+const deriveResultVisible = ref(false)
+const deriveResultModel = ref({ rows: [], summary: { ok: 0, skip: 0, fail: 0 }, total: 0, degraded: false })
+
+/** 本次任务请求的 videoIds：后端日志只给 RESULT 汇总时，用它把清单退化成「已处理列表」 */
+let scanRequestIds = []
+/** 「接口未就绪」只提示一次（翻页/刷新不再重复打扰） */
+let deriveNoticeShown = false
+
+function handleVideoSelection(rows) {
+  selectedVideos.value = Array.isArray(rows) ? rows : []
+}
+
+function clearVideoSelection() {
+  selectedVideos.value = []
+  const table = videoTableRef.value
+  if (table && typeof table.clearSelection === 'function') {
+    table.clearSelection()
+  }
+}
+
+/** 当前行的派生资源状态（derive-status 没返回这一行时给 null → 徽标显示「状态未知」的灰点） */
+function deriveRowOf(row) {
+  if (!row || row.id == null) return null
+  return deriveMap.value[String(row.id)] || null
+}
+
+/**
+ * derive-status 的分页参数：
+ * - 传了 ids（当前页的 videoId）时窗口固定为第 1 页、长度 = max(ids, pageSize)：
+ *   ids 本身就是主列表当前页，再叠 (page-1)*size 的 offset 会把窗口挪空；
+ * - 没有 ids（空页）时完全跟随主列表的 page/size。
+ */
+function buildDeriveParams(ids) {
+  const list = (Array.isArray(ids) ? ids : []).map(id => String(id)).filter(Boolean)
+  const pageSize = Number(videoQuery.pageSize) || 10
+  if (list.length) {
+    return { page: 1, size: Math.min(200, Math.max(list.length, pageSize)), ids: list.join(','), kind: 'video' }
+  }
+  return { page: videoQuery.pageNum, size: pageSize, kind: 'video' }
+}
+
+function isDeriveMissingErr(err) {
+  const status = err && err.response && err.response.status ? err.response.status : 0
+  return status === 404 || status === 405 || status === 501
+}
+
+function noticeDeriveNotReady() {
+  if (deriveNoticeShown) {
+    return
+  }
+  deriveNoticeShown = true
+  proxy.$modal.msgWarning('派生资源接口未就绪：该列暂时显示「—」，列表与其它功能不受影响')
+}
+
+/** 拉一次派生资源状态；rows 省略时用当前 videoList */
+function loadDeriveStatus(rows) {
+  const list = Array.isArray(rows) ? rows : videoList.value
+  const ids = list.map(row => (row && row.id != null ? row.id : '')).filter(id => id !== '')
+  deriveLoading.value = true
+  const pending = getDeriveStatus(buildDeriveParams(ids)).then(res => {
+    deriveReady.value = true
+    deriveMap.value = deriveMapOf((res && res.rows) || [])
+    deriveMeta.value = {
+      algoSince: res && res.algoSince != null ? String(res.algoSince) : '',
+      algoSinceSource: res && res.algoSinceSource != null ? String(res.algoSinceSource) : ''
+    }
+  }).catch(err => {
+    deriveMap.value = {}
+    // 只有「接口未就绪」才整列降级；其它错误保留列，只是这一轮没有徽标
+    if (isDeriveMissingErr(err)) {
+      deriveReady.value = false
+      noticeDeriveNotReady()
+    }
+    return null
+  }).finally(() => { deriveLoading.value = false })
+  return pending
+}
+
+/** 结果对话框里的「刷新列表派生资源列」 */
+function refreshDeriveColumn() {
+  if (deriveRefreshing.value) {
+    return
+  }
+  deriveRefreshing.value = true
+  loadDeriveStatus().then(() => { deriveRefreshing.value = false }).catch(() => { deriveRefreshing.value = false })
+}
+
+/** 当前页的预览片段分布：新 / 旧算法 / 缺失（顶部汇总那一行） */
+const derivePreviewCounts = computed(() => summarizeDerive(
+  Object.keys(deriveMap.value).map(id => deriveMap.value[id]),
+  'preview'
+))
+const deriveOldAlgoCount = computed(() => derivePreviewCounts.value.oldAlgo)
+const derivePreviewText = computed(() => {
+  if (!deriveReady.value) return ''
+  const counts = derivePreviewCounts.value
+  return previewSummaryText(counts) + '（当前页 ' + counts.total + ' 条）'
+})
+
+/** 表格实际渲染的行：「只看旧算法」打开时按 previewStatus 过滤（只影响前端显示，不动请求） */
+const videoDisplayList = computed(() => {
+  if (!deriveOnlyOldAlgo.value) {
+    return videoList.value
+  }
+  const since = deriveMeta.value.algoSince
+  return videoList.value.filter(row => isOldAlgoPreview(deriveRowOf(row), { algoSince: since }))
+})
+
+/** 标题表：当前列表页 + derive-status 的 title（能覆盖不在当前页的 videoId） */
+function deriveTitleMap() {
+  const map = {}
+  Object.keys(deriveMap.value).forEach(id => {
+    const row = deriveMap.value[id]
+    if (row && row.title) map[id] = row.title
+  })
+  videoList.value.forEach(row => {
+    if (row && row.id != null && row.title) map[String(row.id)] = row.title
+  })
+  return map
+}
+
+/** 生成类任务结束 → 解析日志 → 弹「本次生成了哪些」；同时刷新派生资源列（产物刚变） */
+function maybeOpenDeriveResult(job) {
+  if (!job || !job.id) return
+  const type = String(job.type || '')
+  if (DERIVE_TASK_TYPES.indexOf(type) === -1) return
+  const model = buildResultModel({
+    logTail: job.logTail,
+    requestedIds: scanRequestIds,
+    titles: deriveTitleMap(),
+    mode: type
+  })
+  loadDeriveStatus()
+  if (model.empty) {
+    return
+  }
+  deriveResultModel.value = model
+  deriveResultVisible.value = true
 }
 
 // ------------------------------------------------------------------ 生命周期
@@ -1799,6 +2000,38 @@ onBeforeUnmount(() => { stopScanPolling() })
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
+}
+/* P5.10-B：派生资源汇总条 */
+.derive-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin: 0 0 8px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--el-fill-color-lighter);
+}
+.derive-bar-text {
+  color: var(--el-text-color-regular);
+}
+.derive-bar-note {
+  color: var(--el-text-color-secondary);
+}
+/* P5.10-B：工具栏「已选 N 项」 */
+.media-selected {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  line-height: 22px;
+  padding: 0 6px;
+  border-radius: 4px;
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
 }
 .scan-limit {
   width: 130px;
