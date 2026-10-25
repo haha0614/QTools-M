@@ -136,8 +136,10 @@ export function getMediaTargetStats(params) {
 
 // 触发扫描 / 生成类任务（异步，同一时刻只允许 1 个）
 // mode：scan（重建索引）| thumb（重建缩略图）| sprite | preview | sprite,preview（精灵图+预览）| gc
+//       | enrich（补元数据 ffprobe）| backfill-hash（补内容哈希）| fix-poster（修复封面路径）| export（导出便携包）
 // - gc 会真删孤儿派生文件，必须传 { confirm: true }，否则后端 400
 // - limit 只对 thumb / sprite / preview 生效（0 或省略 = 不限），用于先小批量试跑
+// - 其余可选参数（P1-A 新增，旧后端会忽略）：albumMode(dir|prefix)、exclude(排除规则)、noFresh(关闭新鲜度)、force(强制重建)
 export function startScan(mode, options) {
   const data = { mode: mode || 'scan' }
   const extra = options || {}
@@ -147,10 +149,104 @@ export function startScan(mode, options) {
   if (extra.limit) {
     data.limit = extra.limit
   }
+  if (extra.noFresh) {
+    data.noFresh = true
+  }
+  if (extra.force) {
+    data.force = true
+  }
+  if (extra.albumMode) {
+    data.albumMode = extra.albumMode
+  }
+  if (extra.exclude) {
+    data.exclude = extra.exclude
+  }
   return request({
     url: BASE + '/scan',
     method: 'post',
     data: data
+  })
+}
+
+// 维护任务：语义化包装，统一走上面的 startScan（因此共用同一把「同时只跑一个」的锁）
+export function enrichMeta(options) {
+  return startScan('enrich', options)
+}
+
+export function backfillHash(options) {
+  return startScan('backfill-hash', options)
+}
+
+export function fixPoster(options) {
+  return startScan('fix-poster', options)
+}
+
+export function exportBundle(options) {
+  return startScan('export', options)
+}
+
+// 最近的导出包（最多 10 次）：[{ dir, files: [{ name, size }] }]
+// silent=true 时请求失败不弹全局提示，由调用方在面板里就地提示（接口未就绪时的降级）
+export function listExports(silent) {
+  return request({
+    url: BASE + '/export/list',
+    method: 'get',
+    silent: !!silent
+  })
+}
+
+// 导出文件的下载地址（相对后端前缀，便于直接展示 / 复制）
+export function downloadUrl(dir, file) {
+  return BASE + '/export/download?dir=' + encodeURIComponent(dir || '') + '&file=' + encodeURIComponent(file || '')
+}
+
+// 带鉴权的下载（token 走请求头，所以不能直接把 downloadUrl 丢给 <a>）：返回 blob，由调用方 saveAs
+export function downloadExport(dir, file) {
+  return request({
+    url: downloadUrl(dir, file),
+    method: 'get',
+    responseType: 'blob',
+    timeout: 120000,
+    silent: true
+  })
+}
+
+// 库根列表：[{ id, name, path, kind, note, exists, readable, videoCount, photoCount }]
+export function listRoots(silent) {
+  return request({
+    url: BASE + '/roots',
+    method: 'get',
+    silent: !!silent
+  })
+}
+
+// 新增库根：body { name, path, kind, note }
+// silent：错误体是媒体模块的 {error:"..."}（真实 HTTP 400/403/404），由维护面板就地展示，不再叠一层全局提示
+export function createRoot(data) {
+  return request({
+    url: BASE + '/roots',
+    method: 'post',
+    data: data || {},
+    silent: true
+  })
+}
+
+// 修改库根：body { name?, path?, note? }（返回体可能带 pathChanged / hint，提示还要跑一次重建索引）
+export function updateRoot(id, data) {
+  return request({
+    url: BASE + '/roots/' + encodeURIComponent(id),
+    method: 'put',
+    data: data || {},
+    silent: true
+  })
+}
+
+// 删除库根：后端有引用时会 400（message 里带 videos/photos 引用数），前端原样展示
+export function deleteRoot(id) {
+  return request({
+    url: BASE + '/roots/' + encodeURIComponent(id),
+    method: 'delete',
+    silent: true
   })
 }
 

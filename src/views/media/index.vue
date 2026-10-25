@@ -31,6 +31,8 @@
           v-hasPermi="['media:admin:scan']">生成精灵图/预览</el-button>
         <el-button type="danger" plain icon="Delete" :loading="scanRunning" :disabled="scanRunning" @click="handleGc"
           v-hasPermi="['media:admin:scan']">清理派生文件(GC)</el-button>
+        <!-- 维护面板：把命令行维护操作收进抽屉，与上面 4 个扫描按钮并列（不替换它们） -->
+        <el-button icon="Tools" @click="maintVisible = true" v-hasPermi="['media:admin:list']">维护</el-button>
       </div>
     </div>
 
@@ -388,11 +390,19 @@
         <el-button type="primary" :loading="policySaving" @click="submitEditPolicy" v-hasPermi="['media:admin:edit']">保 存</el-button>
       </template>
     </el-dialog>
+
+    <!-- 维护面板：扫描 / 元数据 / 派生资源 / 备份 / 库根；执行仍复用页面上既有的任务锁与轮询 -->
+    <el-drawer v-model="maintVisible" title="维护" size="min(860px, 96vw)" append-to-body destroy-on-close>
+      <maint-panel v-model:scanLimit="scanLimit" :scan-running="scanRunning" :refresh-key="maintRefreshKey"
+        @run="handleMaintRun" @gc="handleGc" />
+    </el-drawer>
   </div>
 </template>
 
 <script setup name="Media">
 import { listVideos, listAlbums, listPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag, getEditPolicy, setEditPolicy } from '@/api/media'
+// 维护面板（扫描 / 元数据 / 派生资源 / 备份 / 库根）：放在同目录子组件，主页面只做挂载与执行
+import MaintPanel from './MaintPanel'
 
 const { proxy } = getCurrentInstance()
 
@@ -513,6 +523,10 @@ const scanRunning = ref(false)
 /** 试跑条数：0 = 不限；只对 thumb / sprite,preview 生效（后端对 scan / gc 会 400） */
 const scanLimit = ref(0)
 let scanTimer = null
+
+/** 维护面板：抽屉开关；maintRefreshKey 在任务结束后自增，让面板重读导出列表 / 库根 */
+const maintVisible = ref(false)
+const maintRefreshKey = ref(0)
 
 /** 统计卡片：6 张（视频/相册/图片/人物/总占用/回收站） */
 const statCards = computed(() => {
@@ -979,7 +993,12 @@ const SCAN_TITLE = {
   sprite: '生成精灵图',
   preview: '生成预览视频',
   'sprite,preview': '生成精灵图/预览',
-  gc: '清理派生文件(GC)'
+  gc: '清理派生文件(GC)',
+  // 维护面板新增的 mode（后端 P1-A）
+  enrich: '补元数据(ffprobe)',
+  'backfill-hash': '补内容哈希',
+  'fix-poster': '修复封面路径',
+  export: '导出便携包'
 }
 
 function scanTypeText(type) {
@@ -1092,6 +1111,54 @@ function stopScanPolling() {
     scanTimer = null
   }
 }
+
+// ------------------------------------------------------------------ 维护面板
+
+/** 新增 mode 的二次确认文案；原来 4 个 mode（scan / thumb / sprite,preview / gc）继续用上面的 SCAN_CONFIRM */
+const MAINT_CONFIRM = {
+  enrich: '补元数据会用 ffprobe 逐个读视频，补齐时长 / 分辨率 / 编码等字段：只补空值，不覆盖已有值，不改媒体源。'
+    + '想先试跑就把「试跑条数」设成 3 之类的小数字。确认执行？',
+  'backfill-hash': '补内容哈希会按文件内容计算哈希写回索引：幂等（已算过的不重算，只补空值），但视频多时耗时较久。确认执行？',
+  export: '导出便携包会在服务器上生成一个可搬迁的导出目录（含清单与索引快照），耗时取决于库大小。'
+    + '完成后在「最近导出」里按文件下载。确认执行？'
+}
+
+/** limit 只对这些逐条处理的 mode 生效（scan / gc 传了后端会 400，与 handleScan 的既有规则一致） */
+const MAINT_LIMIT_MODES = ['thumb', 'sprite', 'preview', 'sprite,preview', 'enrich']
+
+/**
+ * 维护面板的统一执行入口：确认文案由面板给出（它知道勾选项与前置条件），
+ * 执行仍复用既有 runScanTask —— 所以任务锁、409 冲突处理、轮询与完成提示都和工具栏那 4 个按钮完全一致。
+ */
+function handleMaintRun(payload) {
+  const item = payload || {}
+  if (!item.mode) {
+    return
+  }
+  if (scanRunning.value) {
+    proxy.$modal.msgWarning('已有任务在运行，请等待结束后再触发')
+    return
+  }
+  const title = item.title || scanTypeText(item.mode)
+  const options = { ...(item.options || {}) }
+  delete options.confirm
+  const limit = Number(scanLimit.value) || 0
+  if (limit > 0 && MAINT_LIMIT_MODES.indexOf(item.mode) > -1) {
+    options.limit = limit
+  }
+  const confirmText = item.confirm || MAINT_CONFIRM[item.mode] || SCAN_CONFIRM[item.mode] || ('确认执行「' + title + '」？')
+  const confirmOptions = item.mode === 'fix-poster' ? { confirmButtonText: '确认修复', type: 'warning' } : {}
+  proxy.$modal.confirm(confirmText, title, confirmOptions).then(() => {
+    runScanTask(item.mode, options)
+  }).catch(() => {})
+}
+
+// 任务结束后（scanRunning 由 true 变 false）让面板重读导出列表与库根：导出包只有在任务结束后才落盘
+watch(scanRunning, (val, old) => {
+  if (old && !val) {
+    maintRefreshKey.value += 1
+  }
+})
 
 // ------------------------------------------------------------------ 标签管理
 
