@@ -13,19 +13,49 @@
     <section class="maint-group">
       <div class="maint-group-head">
         <span class="maint-group-title">自动扫描</span>
-        <span class="maint-group-desc">后端文件监听：库根里出现新文件（防抖 {{ watchDebounceText }}）后自动重建索引</span>
+        <span class="maint-group-desc">后端文件监听：库根里出现新文件（防抖 {{ watchDebounceText }}，夜间静默 {{ watchQuietText }}）后自动重建索引</span>
         <el-tag :type="watchBadge.type" size="small" class="watch-badge">{{ watchBadge.text }}</el-tag>
       </div>
       <el-alert v-if="watchError" :title="watchError" type="warning" :closable="false" show-icon class="maint-alert" />
+
+      <!-- 运行期开关：切一下就是 PUT /watch/config，失败回滚到后端真值 -->
+      <div class="maint-actions watch-toggle-row">
+        <span class="maint-inline-label">监听开关</span>
+        <el-switch v-model="watchEnabled" :disabled="!watchAllowed || watchEnabledBusy" :loading="watchEnabledBusy"
+          active-text="开启" inactive-text="关闭" v-hasPermi="['media:admin:edit']" @change="onEnabledChange" />
+        <span class="maint-inline-note">切换即保存（PUT /api/media/admin/watch/config），不必重启后端</span>
+      </div>
+      <el-alert v-if="!watchAllowed" type="info" :closable="false" show-icon class="maint-alert"
+        title="部署层已禁止运行期开关（qtools.media.watch.allowRuntimeToggle=false）" />
+
+      <!-- 去抖 / 夜间静默：点「保存」才提交（数字框连续点击时不会每一下都发一次 PUT） -->
+      <div class="maint-actions watch-cfg-row">
+        <span class="maint-inline-label">去抖</span>
+        <el-input-number v-model="watchDebounce" :min="1" :max="60" :step="1" step-strictly controls-position="right"
+          :disabled="!watchAllowed || watchCfgSaving" class="watch-cfg-number" />
+        <span class="maint-inline-note">秒</span>
+        <span class="maint-inline-label">夜间静默</span>
+        <el-input v-model="watchQuiet" clearable placeholder="HH:mm-HH:mm，留空=全天监听" class="watch-cfg-quiet"
+          :disabled="!watchAllowed || watchCfgSaving" />
+        <el-button type="primary" plain icon="Check" :loading="watchCfgSaving"
+          :disabled="!watchAllowed || !watchCfgDirty || watchCfgSaving"
+          v-hasPermi="['media:admin:edit']" @click="saveWatchConfig">保存</el-button>
+        <span class="maint-inline-note">{{ watchCfgDirty ? '有未保存的改动' : '与后端一致' }}</span>
+      </div>
+
       <div class="maint-actions">
         <el-button icon="Refresh" :loading="watchLoading" v-hasPermi="['media:admin:list']" @click="loadWatch">刷新状态</el-button>
-        <el-button v-if="watchInfo.running" icon="VideoPause" :loading="watchBusy" :disabled="watchBusy"
-          v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(false)">暂停</el-button>
-        <el-button v-else type="primary" plain icon="VideoPlay" :loading="watchBusy" :disabled="watchBusy"
-          v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(true)">继续</el-button>
+        <el-tooltip :disabled="!watchActionTip" :content="watchActionTip" placement="top">
+          <span class="watch-tip-wrap">
+            <el-button v-if="watchInfo.running" icon="VideoPause" :loading="watchBusy" :disabled="watchPauseResumeDisabled"
+              v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(false)">暂停</el-button>
+            <el-button v-else type="primary" plain icon="VideoPlay" :loading="watchBusy" :disabled="watchPauseResumeDisabled"
+              v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(true)">继续</el-button>
+          </span>
+        </el-tooltip>
         <el-button type="primary" plain icon="RefreshRight" :loading="scanNowLoading" :disabled="scanNowLoading || scanRunning"
           v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="doScanNow">立即扫描</el-button>
-        <span class="maint-inline-note">暂停只停监听，不打断已在跑的任务</span>
+        <span class="maint-inline-note">暂停只停监听，不打断已在跑的任务；监听未开时「立即扫描」仍可用（后端回落到直接扫描）</span>
       </div>
       <el-table v-if="watchRoots.length" :data="watchRoots" size="small" class="maint-table">
         <el-table-column label="路径" prop="path" min-width="240" :show-overflow-tooltip="true" />
@@ -47,7 +77,8 @@
       <el-empty v-else :description="watchEmptyText" :image-size="60" />
       <p class="maint-hint">
         <strong>「已注册」为否</strong>：该根当前没有监听句柄（路径不存在 / 不可读 / 触达监听上限），先跑一次「重建索引」把它重新纳入。
-        监听开关来自后端配置 <code>qtools.media.watch.enabled</code>，改完需重启后端。
+        上方的开关与两个参数走 <code>PUT /api/media/admin/watch/config</code> 在运行期生效（不重启后端）；
+        部署层可设 <code>qtools.media.watch.allowRuntimeToggle=false</code> 关掉这个能力，此时开关与参数输入全部置灰，改动仍只能改配置文件后重启。
       </p>
     </section>
 
@@ -257,9 +288,9 @@ import fileSaver from 'file-saver'
 import { blobValidate } from '@/utils/ruoyi'
 import {
   listExports, downloadExport, listRoots, createRoot, updateRoot, deleteRoot,
-  getWatchStatus, pauseWatch, resumeWatch, scanNow
+  getWatchStatus, pauseWatch, resumeWatch, scanNow, updateWatchConfig
 } from '@/api/media'
-import { errText, notReadyText } from './maint-error'
+import { errText, errStatus, notReadyText } from './maint-error'
 
 const props = defineProps({
   /** 与工具栏共用的试跑条数 */
@@ -280,16 +311,28 @@ const FIX_POSTER_CONFIRM = '修复封面路径会把索引里失效的封面指�
 
 /* ---------------------------------------------------------------- 自动扫描（监听） */
 /* 契约（P2-A）：GET /watch → { enabled, running, roots:[{id,path,registered,lastEventAt,lastScanAt,pending}], debounceSeconds }
-   未部署 / 未开启时统一给 NOT_READY_TEXT：面板其余分组照常可用，不弹全局错误。 */
+   未部署时给 NOT_READY_TEXT、只是没开启时给 DISABLED_TEXT：面板其余分组照常可用，不弹全局错误。
+   契约（P2-C）：GET 多出 { allowed, paused, quietMinutes, hint }；PUT /watch/config
+   body { enabled?, debounceSeconds?, quietMinutes? } 回同一结构，allowRuntimeToggle=false 时 403。 */
 
-const NOT_READY_TEXT = '自动扫描未启用或接口未就绪（可在配置中开启 qtools.media.watch.enabled）'
+const NOT_READY_TEXT = '自动扫描接口未就绪：后端部署后刷新页面即可'
+const DISABLED_TEXT = '自动扫描未开启：用上方开关在运行期打开即可（无需改配置或重启）'
+/** 夜间静默时段：HH:mm-HH:mm，空串 = 全天监听（与后端一致，后端只认这个形状） */
+const QUIET_RE = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/
 
-const watchInfo = ref({ enabled: false, running: false, debounceSeconds: 0 })
+const watchInfo = ref({ enabled: false, running: false, paused: false, allowed: true, debounceSeconds: 0, quietMinutes: '' })
 const watchRoots = ref([])
 const watchLoading = ref(false)
 const watchError = ref('')
 const watchBusy = ref(false)
 const scanNowLoading = ref(false)
+/* P2-C 运行期开关：watchEnabled 是开关显示的本地态（PUT 期间先跟随点击，失败回滚），
+   watchDebounce / watchQuiet 是输入框编辑态（点「保存」才提交，不等同于已存值）。 */
+const watchEnabled = ref(false)
+const watchEnabledBusy = ref(false)
+const watchDebounce = ref(0)
+const watchQuiet = ref('')
+const watchCfgSaving = ref(false)
 
 /** 兼容两种返回形态：裸对象，或 AjaxResult{ code, msg, data } */
 function unwrapWatch(res) {
@@ -299,12 +342,27 @@ function unwrapWatch(res) {
   return res && typeof res === 'object' && !Array.isArray(res) ? res : {}
 }
 
+/** 返回体里带 roots 才算「可整体刷新」；没带就用一次 GET 补齐（旧后端 / 精简返回） */
+function hasWatchRoots(res) {
+  return Array.isArray(unwrapWatch(res).roots)
+}
+
 function applyWatch(res) {
   const body = unwrapWatch(res)
+  // 先按旧基线判一次「输入框有未保存改动」：刷新状态不该把正在编辑的值冲掉
+  const dirty = watchCfgDirty.value
   watchInfo.value = {
     enabled: !!body.enabled,
     running: !!body.running,
-    debounceSeconds: Number(body.debounceSeconds) || 0
+    paused: body.paused == null ? (!!body.enabled && !body.running) : !!body.paused,
+    allowed: body.allowed == null ? true : !!body.allowed,
+    debounceSeconds: Number(body.debounceSeconds) || 0,
+    quietMinutes: body.quietMinutes == null ? '' : String(body.quietMinutes)
+  }
+  watchEnabled.value = watchInfo.value.enabled
+  if (!dirty) {
+    watchDebounce.value = watchInfo.value.debounceSeconds
+    watchQuiet.value = watchInfo.value.quietMinutes
   }
   const roots = Array.isArray(body.roots) ? body.roots : []
   watchRoots.value = roots.filter(r => r && typeof r === 'object').map(r => ({
@@ -322,12 +380,36 @@ const watchDebounceText = computed(() => {
   return seconds > 0 ? seconds + ' 秒' : '若干秒'
 })
 
+const watchQuietText = computed(() => {
+  const text = String(watchInfo.value.quietMinutes == null ? '' : watchInfo.value.quietMinutes).trim()
+  return text || '不静默'
+})
+
+/** allowed=false 只跟部署层开关走（403 之后也当成部署层禁止） */
+const watchAllowed = computed(() => watchInfo.value.allowed !== false)
+
+/** 输入框与已存值的差异，决定「保存」能不能点 */
+const watchCfgDirty = computed(() => {
+  const savedDebounce = Number(watchInfo.value.debounceSeconds) || 0
+  const savedQuiet = String(watchInfo.value.quietMinutes == null ? '' : watchInfo.value.quietMinutes).trim()
+  return Number(watchDebounce.value) !== savedDebounce || String(watchQuiet.value || '').trim() !== savedQuiet
+})
+
+/** 监听没开时后端 pause/resume 直接 409，按钮就先置灰 */
+const watchPauseResumeDisabled = computed(() => watchBusy.value || !watchInfo.value.enabled)
+const watchActionTip = computed(() => {
+  if (!watchInfo.value.enabled) {
+    return '监听未开启：暂停/继续会被后端拒绝（409），先用上方开关打开监听'
+  }
+  return watchBusy.value ? '正在与后端同步监听状态…' : ''
+})
+
 /** 状态徽标：未启用 / 有任务排队 / 已暂停 / 监听中（顺序即优先级） */
 const watchBadge = computed(() => {
   if (!watchInfo.value.enabled) return { text: '未启用', type: 'info' }
   const pending = watchRoots.value.reduce((sum, r) => sum + (Number(r.pending) || 0), 0)
   if (pending > 0) return { text: '有任务排队 ' + pending, type: 'warning' }
-  if (!watchInfo.value.running) return { text: '已暂停', type: 'warning' }
+  if (watchInfo.value.paused || !watchInfo.value.running) return { text: '已暂停', type: 'warning' }
   return { text: '监听中', type: 'success' }
 })
 
@@ -366,7 +448,7 @@ function loadWatch() {
     applyWatch(res)
     // 「未启用」不是错误，但要给一次配置指引（否则看不懂为什么一行都没有）
     if (!watchInfo.value.enabled) {
-      watchError.value = NOT_READY_TEXT
+      watchError.value = DISABLED_TEXT
     }
   }).catch(err => {
     watchInfo.value = { enabled: false, running: false, debounceSeconds: 0 }
@@ -405,6 +487,68 @@ function doScanNow() {
     watchError.value = '立即扫描失败：' + (errText(err) || '请求失败，请查看后端日志')
   }).finally(() => {
     scanNowLoading.value = false
+  })
+}
+
+/** 开关：点下去先跟随手指，PUT 成功后按返回体刷新，失败回滚到点击前的值并把后端原文 toast 出来 */
+function onEnabledChange(next) {
+  if (!watchAllowed.value || watchEnabledBusy.value) {
+    watchEnabled.value = !next
+    return
+  }
+  const previous = !next
+  watchEnabledBusy.value = true
+  watchError.value = ''
+  updateWatchConfig({ enabled: next }).then(res => {
+    applyWatch(res)
+    proxy.$modal.msgSuccess(next ? '已开启自动扫描' : '已关闭自动扫描')
+    if (!hasWatchRoots(res)) {
+      loadWatch()
+    }
+  }).catch(err => {
+    watchEnabled.value = previous
+    const text = errText(err) || '请求失败，请查看后端日志'
+    proxy.$modal.msgError(text)
+    watchError.value = (next ? '开启监听失败：' : '关闭监听失败：') + text
+    // 403 可能是部署层禁止运行期开关、也可能只是缺 media:admin:edit：重读一次，allowed 由后端说了算
+    if (errStatus(err) === 403) {
+      loadWatch()
+    }
+  }).finally(() => {
+    watchEnabledBusy.value = false
+  })
+}
+
+/** 去抖 / 夜间静默：只在点「保存」时提交；校验不过就地提示，不发请求 */
+function saveWatchConfig() {
+  if (watchCfgSaving.value || !watchAllowed.value) return
+  const debounce = Number(watchDebounce.value)
+  if (!(debounce >= 1 && debounce <= 60)) {
+    proxy.$modal.msgError('去抖秒数需在 1-60 之间')
+    return
+  }
+  const quiet = String(watchQuiet.value == null ? '' : watchQuiet.value).trim()
+  if (quiet && !QUIET_RE.test(quiet)) {
+    proxy.$modal.msgError('夜间静默格式应为 HH:mm-HH:mm（留空=全天监听）')
+    return
+  }
+  watchCfgSaving.value = true
+  watchError.value = ''
+  updateWatchConfig({ debounceSeconds: debounce, quietMinutes: quiet }).then(res => {
+    applyWatch(res)
+    proxy.$modal.msgSuccess('已保存扫描参数')
+    if (!hasWatchRoots(res)) {
+      loadWatch()
+    }
+  }).catch(err => {
+    const text = errText(err) || '请求失败，请查看后端日志'
+    proxy.$modal.msgError(text)
+    watchError.value = '保存扫描参数失败：' + text
+    if (errStatus(err) === 403) {
+      loadWatch()
+    }
+  }).finally(() => {
+    watchCfgSaving.value = false
   })
 }
 
@@ -703,6 +847,20 @@ watch(() => props.refreshKey, () => {
 }
 .watch-badge {
   margin-left: auto;
+}
+.watch-toggle-row,
+.watch-cfg-row {
+  margin-top: 8px;
+}
+.watch-cfg-number {
+  width: 120px;
+}
+.watch-cfg-quiet {
+  width: 220px;
+}
+/* 禁用的 el-button 不派发事件，包一层 span 才能让 tooltip 有东西可挂 */
+.watch-tip-wrap {
+  display: inline-flex;
 }
 .maint-table {
   margin-top: 8px;

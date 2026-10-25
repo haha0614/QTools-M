@@ -360,3 +360,15 @@ export function scanNow() {
     silent: true
   })
 }
+
+/* 运行期改监听配置（P2-C）：body { enabled?, debounceSeconds?, quietMinutes? }，成功回同 GET 结构。
+   部署层 qtools.media.watch.allowRuntimeToggle=false 时后端 403；失败文案由调用方 toast 后端原文，
+   所以这里是 silent（拦截器不再弹第二条）。 */
+export function updateWatchConfig(data) {
+  return request({
+    url: BASE + '/watch/config',
+    method: 'put',
+    data: data || {},
+    silent: true
+  })
+}
