@@ -9,6 +9,48 @@
       <code>media:admin:edit</code>），库根的增删改需要 <code>media:admin:edit</code>。缺权限时后端返回 403，面板会就地给出错误。
     </p>
 
+    <!-- ============================== 自动扫描 ============================== -->
+    <section class="maint-group">
+      <div class="maint-group-head">
+        <span class="maint-group-title">自动扫描</span>
+        <span class="maint-group-desc">后端文件监听：库根里出现新文件（防抖 {{ watchDebounceText }}）后自动重建索引</span>
+        <el-tag :type="watchBadge.type" size="small" class="watch-badge">{{ watchBadge.text }}</el-tag>
+      </div>
+      <el-alert v-if="watchError" :title="watchError" type="warning" :closable="false" show-icon class="maint-alert" />
+      <div class="maint-actions">
+        <el-button icon="Refresh" :loading="watchLoading" v-hasPermi="['media:admin:list']" @click="loadWatch">刷新状态</el-button>
+        <el-button v-if="watchInfo.running" icon="VideoPause" :loading="watchBusy" :disabled="watchBusy"
+          v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(false)">暂停</el-button>
+        <el-button v-else type="primary" plain icon="VideoPlay" :loading="watchBusy" :disabled="watchBusy"
+          v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(true)">继续</el-button>
+        <el-button type="primary" plain icon="RefreshRight" :loading="scanNowLoading" :disabled="scanNowLoading || scanRunning"
+          v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="doScanNow">立即扫描</el-button>
+        <span class="maint-inline-note">暂停只停监听，不打断已在跑的任务</span>
+      </div>
+      <el-table v-if="watchRoots.length" :data="watchRoots" size="small" class="maint-table">
+        <el-table-column label="路径" prop="path" min-width="240" :show-overflow-tooltip="true" />
+        <el-table-column label="已注册" width="80" align="center">
+          <template #default="scope">
+            <el-tag :type="scope.row.registered ? 'success' : 'info'" size="small">{{ scope.row.registered ? '是' : '否' }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="最后事件" width="150" align="center">
+          <template #default="scope">{{ formatWatchTime(scope.row.lastEventAt) }}</template>
+        </el-table-column>
+        <el-table-column label="最后扫描" width="150" align="center">
+          <template #default="scope">{{ formatWatchTime(scope.row.lastScanAt) }}</template>
+        </el-table-column>
+        <el-table-column label="排队" width="70" align="center">
+          <template #default="scope">{{ scope.row.pending != null ? scope.row.pending : '-' }}</template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-else :description="watchEmptyText" :image-size="60" />
+      <p class="maint-hint">
+        <strong>「已注册」为否</strong>：该根当前没有监听句柄（路径不存在 / 不可读 / 触达监听上限），先跑一次「重建索引」把它重新纳入。
+        监听开关来自后端配置 <code>qtools.media.watch.enabled</code>，改完需重启后端。
+      </p>
+    </section>
+
     <!-- ============================== 扫描 ============================== -->
     <section class="maint-group">
       <div class="maint-group-head">
@@ -213,7 +255,10 @@
 import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
 import fileSaver from 'file-saver'
 import { blobValidate } from '@/utils/ruoyi'
-import { listExports, downloadExport, listRoots, createRoot, updateRoot, deleteRoot } from '@/api/media'
+import {
+  listExports, downloadExport, listRoots, createRoot, updateRoot, deleteRoot,
+  getWatchStatus, pauseWatch, resumeWatch, scanNow
+} from '@/api/media'
 import { errText, notReadyText } from './maint-error'
 
 const props = defineProps({
@@ -232,6 +277,136 @@ const { proxy } = getCurrentInstance()
 // 只在「先跑缩略图」之后才有意义，所以把前置条件也写进确认文案
 const FIX_POSTER_CONFIRM = '修复封面路径会把索引里失效的封面指向按磁盘实况纠正：不改媒体源、不重新解码。'
   + '前提是缩略图已经生成——若还没跑过「重建缩略图」，先跑缩略图再修，否则修不到东西。确认执行？'
+
+/* ---------------------------------------------------------------- 自动扫描（监听） */
+/* 契约（P2-A）：GET /watch → { enabled, running, roots:[{id,path,registered,lastEventAt,lastScanAt,pending}], debounceSeconds }
+   未部署 / 未开启时统一给 NOT_READY_TEXT：面板其余分组照常可用，不弹全局错误。 */
+
+const NOT_READY_TEXT = '自动扫描未启用或接口未就绪（可在配置中开启 qtools.media.watch.enabled）'
+
+const watchInfo = ref({ enabled: false, running: false, debounceSeconds: 0 })
+const watchRoots = ref([])
+const watchLoading = ref(false)
+const watchError = ref('')
+const watchBusy = ref(false)
+const scanNowLoading = ref(false)
+
+/** 兼容两种返回形态：裸对象，或 AjaxResult{ code, msg, data } */
+function unwrapWatch(res) {
+  if (res && typeof res === 'object' && !Array.isArray(res) && typeof res.code === 'number') {
+    return res.data && typeof res.data === 'object' && !Array.isArray(res.data) ? res.data : {}
+  }
+  return res && typeof res === 'object' && !Array.isArray(res) ? res : {}
+}
+
+function applyWatch(res) {
+  const body = unwrapWatch(res)
+  watchInfo.value = {
+    enabled: !!body.enabled,
+    running: !!body.running,
+    debounceSeconds: Number(body.debounceSeconds) || 0
+  }
+  const roots = Array.isArray(body.roots) ? body.roots : []
+  watchRoots.value = roots.filter(r => r && typeof r === 'object').map(r => ({
+    id: r.id != null ? r.id : (r.path || ''),
+    path: r.path || '',
+    registered: !!r.registered,
+    lastEventAt: r.lastEventAt == null ? null : r.lastEventAt,
+    lastScanAt: r.lastScanAt == null ? null : r.lastScanAt,
+    pending: r.pending == null ? 0 : (Number(r.pending) || 0)
+  }))
+}
+
+const watchDebounceText = computed(() => {
+  const seconds = Number(watchInfo.value.debounceSeconds) || 0
+  return seconds > 0 ? seconds + ' 秒' : '若干秒'
+})
+
+/** 状态徽标：未启用 / 有任务排队 / 已暂停 / 监听中（顺序即优先级） */
+const watchBadge = computed(() => {
+  if (!watchInfo.value.enabled) return { text: '未启用', type: 'info' }
+  const pending = watchRoots.value.reduce((sum, r) => sum + (Number(r.pending) || 0), 0)
+  if (pending > 0) return { text: '有任务排队 ' + pending, type: 'warning' }
+  if (!watchInfo.value.running) return { text: '已暂停', type: 'warning' }
+  return { text: '监听中', type: 'success' }
+})
+
+const watchEmptyText = computed(() => {
+  if (watchLoading.value) return '正在读取监听状态…'
+  return watchError.value ? NOT_READY_TEXT : '没有登记中的库根（先在下方「库根」里新增，再跑一次重建索引）'
+})
+
+/** 时间戳兼容秒 / 毫秒 / ISO 字符串；缺失显示破折号，绝不抛错 */
+function formatWatchTime(value) {
+  if (value == null || value === '' || value === 0) return '—'
+  let ms = NaN
+  if (typeof value === 'number') {
+    ms = value > 100000000000 ? value : value * 1000
+  } else if (typeof value === 'string') {
+    const text = value.trim()
+    const num = Number(text)
+    if (text !== '' && isFinite(num)) {
+      ms = num > 100000000000 ? num : num * 1000
+    } else {
+      ms = Date.parse(text)
+    }
+  }
+  if (!isFinite(ms)) return String(value)
+  const date = new Date(ms)
+  if (isNaN(date.getTime())) return String(value)
+  const pad = (n) => (n < 10 ? '0' + n : '' + n)
+  return pad(date.getMonth() + 1) + '-' + pad(date.getDate()) + ' '
+    + pad(date.getHours()) + ':' + pad(date.getMinutes()) + ':' + pad(date.getSeconds())
+}
+
+function loadWatch() {
+  watchLoading.value = true
+  watchError.value = ''
+  getWatchStatus(true).then(res => {
+    applyWatch(res)
+    // 「未启用」不是错误，但要给一次配置指引（否则看不懂为什么一行都没有）
+    if (!watchInfo.value.enabled) {
+      watchError.value = NOT_READY_TEXT
+    }
+  }).catch(err => {
+    watchInfo.value = { enabled: false, running: false, debounceSeconds: 0 }
+    watchRoots.value = []
+    const status = err && err.response && err.response.status
+    const extra = (status === 404 || status === 501) ? '' : ('（' + (errText(err) || '读取失败') + '）')
+    watchError.value = NOT_READY_TEXT + extra
+  }).finally(() => {
+    watchLoading.value = false
+  })
+}
+
+function toggleWatch(nextEnabled) {
+  if (watchBusy.value) return
+  watchBusy.value = true
+  watchError.value = ''
+  const pending = nextEnabled ? resumeWatch() : pauseWatch()
+  pending.then(() => {
+    proxy.$modal.msgSuccess(nextEnabled ? '已继续自动扫描' : '已暂停自动扫描')
+    loadWatch()
+  }).catch(err => {
+    watchError.value = (nextEnabled ? '继续监听失败：' : '暂停监听失败：') + (errText(err) || '请求失败，请查看后端日志')
+  }).finally(() => {
+    watchBusy.value = false
+  })
+}
+
+function doScanNow() {
+  if (scanNowLoading.value) return
+  scanNowLoading.value = true
+  watchError.value = ''
+  scanNow().then(() => {
+    proxy.$modal.msgSuccess('已触发一次扫描')
+    loadWatch()
+  }).catch(err => {
+    watchError.value = '立即扫描失败：' + (errText(err) || '请求失败，请查看后端日志')
+  }).finally(() => {
+    scanNowLoading.value = false
+  })
+}
 
 /* ---------------------------------------------------------------- 扫描 / 元数据 / 派生 选项 */
 const albumMode = ref('dir')
@@ -422,12 +597,14 @@ function confirmDeleteRoot(row) {
 }
 
 onMounted(() => {
+  loadWatch()
   loadExports()
   loadRoots()
 })
 
 // 父级的任务刚结束（scanRunning 由 true 变 false 会让 refreshKey 自增）：把导出列表重读一遍
 watch(() => props.refreshKey, () => {
+  loadWatch()
   loadExports()
   loadRoots()
 })
@@ -523,6 +700,9 @@ watch(() => props.refreshKey, () => {
 }
 .maint-alert {
   margin-top: 8px;
+}
+.watch-badge {
+  margin-left: auto;
 }
 .maint-table {
   margin-top: 8px;

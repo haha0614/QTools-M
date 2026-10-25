@@ -319,3 +319,44 @@ export function setEditPolicy(level) {
     data: { level: level }
   })
 }
+
+/* ---------------------------------------------------------------- 自动扫描（监听） */
+/* 契约（P2-A）：GET /api/media/admin/watch → { enabled, running, roots:[{ id, path, registered,
+   lastEventAt, lastScanAt, pending }], debounceSeconds }；POST /watch/pause | /watch/resume | /watch/scan-now。
+   后端未部署时统一 404：全部 silent，由维护面板就地给出「未启用或接口未就绪」，不弹全局提示。 */
+
+// 监听状态
+export function getWatchStatus(silent) {
+  return request({
+    url: BASE + '/watch',
+    method: 'get',
+    silent: silent !== false
+  })
+}
+
+// 暂停监听
+export function pauseWatch() {
+  return request({
+    url: BASE + '/watch/pause',
+    method: 'post',
+    silent: true
+  })
+}
+
+// 继续监听
+export function resumeWatch() {
+  return request({
+    url: BASE + '/watch/resume',
+    method: 'post',
+    silent: true
+  })
+}
+
+// 立即扫描一次（不等防抖）
+export function scanNow() {
+  return request({
+    url: BASE + '/watch/scan-now',
+    method: 'post',
+    silent: true
+  })
+}
