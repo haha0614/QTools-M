@@ -1,7 +1,7 @@
 {
   "name": "qtools-m",
   "version": "3.9.2",
-  "description": "青兔管理后台（QTools-M，基于若依 RuoYi-Vue3）",
+  "description": "青兔工具箱 · 管理后台（QTools-M，基于若依 RuoYi-Vue3）",
   "author": "若依",
   "license": "MIT",
   "type": "module",

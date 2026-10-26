@@ -2,11 +2,10 @@
   <div class="sidebar-logo-container" :class="{ 'collapse': collapse }">
     <transition name="sidebarLogoFade">
       <router-link v-if="collapse" key="collapse" class="sidebar-logo-link" to="/">
-        <img v-if="logo" :src="logo" class="sidebar-logo" />
-        <h1 v-else class="sidebar-title">{{ title }}</h1>
+        <BrandMark class="sidebar-logo" :size="24" />
       </router-link>
       <router-link v-else key="expand" class="sidebar-logo-link" to="/">
-        <img v-if="logo" :src="logo" class="sidebar-logo" />
+        <BrandMark class="sidebar-logo" :size="24" />
         <h1 class="sidebar-title">{{ title }}</h1>
       </router-link>
     </transition>
@@ -14,7 +13,8 @@
 </template>
 
 <script setup>
-import logo from '@/assets/logo/logo.png'
+// P5.39：图标与 QTools-C 共用同一份 BrandMark（Lucide rabbit，内联 currentColor，亮/暗主题都可用）
+import BrandMark from '@/components/BrandMark.vue'
 import useSettingsStore from '@/store/modules/settings'
 import variables from '@/assets/styles/variables.module.scss'
 
@@ -75,10 +75,11 @@ const getLogoTextColor = computed(() => {
     width: 100%;
 
     & .sidebar-logo {
-      width: 32px;
-      height: 32px;
+      width: 24px;
+      height: 24px;
       vertical-align: middle;
-      margin-right: 12px;
+      margin-right: 10px;
+      color: var(--el-color-primary);
     }
 
     & .sidebar-title {
@@ -87,7 +88,9 @@ const getLogoTextColor = computed(() => {
       color: v-bind(getLogoTextColor);
       font-weight: 600;
       line-height: 50px;
-      font-size: 14px;
+      /* 13px + nowrap：站点全名「青兔工具箱 · 管理后台」在 200px 侧栏内不折行、不截断 */
+      font-size: 13px;
+      white-space: nowrap;
       font-family: Avenir, Helvetica Neue, Arial, Helvetica, sans-serif;
       vertical-align: middle;
     }

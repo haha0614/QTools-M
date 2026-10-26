@@ -1,7 +1,10 @@
 <template>
   <div class="register">
     <el-form ref="registerRef" :model="registerForm" :rules="registerRules" class="register-form">
-      <h3 class="title">{{ title }}</h3>
+      <h3 class="title">
+        <BrandMark class="title-mark" :size="26" />
+        <span>{{ title }}</span>
+      </h3>
       <el-form-item prop="username">
         <el-input 
           v-model="registerForm.username" 
@@ -79,6 +82,7 @@
 import { ElMessageBox } from "element-plus"
 import { getCodeImg, register } from "@/api/login"
 import defaultSettings from '@/settings'
+import BrandMark from '@/components/BrandMark.vue'
 import { usePasswordRule } from "@/utils/passwordRule"
 
 const title = import.meta.env.VITE_APP_TITLE
@@ -163,10 +167,20 @@ getCode()
   background-image: url("../assets/images/login-background.jpg");
   background-size: cover;
 }
+/* P5.39：与 QTools-C 同一套品牌标识（Lucide rabbit 图标 + 站点名） */
 .title {
   margin: 0px auto 30px auto;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   color: #707070;
+}
+
+.title-mark {
+  flex: 0 0 auto;
+  display: block;
+  color: var(--el-color-primary);
 }
 
 .register-form {

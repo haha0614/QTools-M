@@ -1,10 +1,10 @@
-# 青兔管理后台（QTools-M）
+# 青兔工具箱 · 管理后台（QTools-M）
 
 > 一句话定位：基于若依 RuoYi-Vue3 的 QTools 后台管理端，产物由后端**单端口托管在 `/admin-ui/`**，内置**媒体库管理页**。
 
 ## 简介
 
-本仓库是「青兔在线工具箱（QTools）」的**后台管理端前端工程**，上游为 [RuoYi-Vue3](https://gitee.com/y_project/RuoYi-Vue) 3.9.2（Vue 3 + Vite 6 + Element Plus），标题「青兔管理后台」，`package.json` 的 `name` 为 `qtools-m`。
+本仓库是「青兔工具箱（QTools）」的**后台管理端前端工程**，上游为 [RuoYi-Vue3](https://gitee.com/y_project/RuoYi-Vue) 3.9.2（Vue 3 + Vite 6 + Element Plus），标题「青兔工具箱 · 管理后台」（品牌名 + 职能后缀），`package.json` 的 `name` 为 `qtools-m`。
 
 相对上游，本仓库除了品牌与本地开发安全调整外，**新增了一个完整的媒体库管理页**（`src/views/media/index.vue` + `src/api/media.js`），用于管理后端 `qtools-media` 模块索引的视频 / 相册 / 图片：统计、分类筛选、隐藏、软删与回收站、彻底删除、人物归属、重建索引与缩略图等。
 
@@ -36,7 +36,7 @@
 | 系统管理 | 用户、角色、菜单、部门、岗位、字典、参数、通知公告（若依自带） |
 | 系统监控 | 在线用户、定时任务、操作日志、登录日志、缓存监控、服务监控、连接池监视（Druid）（若依自带） |
 | 系统工具 | 表单构建、代码生成、系统接口（若依自带） |
-| 登录 / 首页 / 个人中心 | 若依自带（品牌文案已改为青兔） |
+| 登录 / 首页 / 个人中心 | 若依自带（品牌文案已改为青兔工具箱 · 管理后台） |
 | **工具列表（`tool_info`）** | ⚠️ **仍无管理页面**，后台看不到、也改不了工具数据 |
 | **访问埋点（`tool_visit`）** | ⚠️ **仍无管理页面**，无访问量统计视图 |
 
@@ -199,13 +199,13 @@ const baseUrl = 'http://localhost:8080' // 后端接口
 | 文件 | 变量 | 值 |
 | --- | --- | --- |
 | `.env.development` | `VITE_APP_ENV` | `development` |
-| `.env.development` | `VITE_APP_TITLE` | `青兔管理后台` |
+| `.env.development` | `VITE_APP_TITLE` | `青兔工具箱 · 管理后台` |
 | `.env.development` | `VITE_APP_BASE_API` | `/dev-api` |
 | `.env.production` | `VITE_APP_ENV` | `production` |
-| `.env.production` | `VITE_APP_TITLE` | `青兔管理后台` |
+| `.env.production` | `VITE_APP_TITLE` | `青兔工具箱 · 管理后台` |
 | `.env.production` | `VITE_APP_BASE_API` | `''`（空字符串，**同源**） |
 | `.env.production` | `VITE_BUILD_COMPRESS` | `''`（空字符串，**关闭预压缩**） |
-| `.env.staging` | `VITE_APP_TITLE` | `青兔管理后台` |
+| `.env.staging` | `VITE_APP_TITLE` | `青兔工具箱 · 管理后台` |
 | `.env.staging` | `VITE_APP_BASE_API` | `/stage-api` |
 
 两个空值是最容易踩坑的地方，单独说明：
@@ -300,9 +300,10 @@ mysql -uroot -p --default-character-set=utf8mb4 qtools -e "source E:/111/project
 
 | 项 | 上游 | 本仓库 |
 | --- | --- | --- |
-| 品牌文案 | 若依 | 三个 `.env.*` 的 `VITE_APP_TITLE` 改为 `青兔管理后台`；`package.json` 的 `name` 为 `qtools-m`、`description` 为 `青兔管理后台（QTools-M，基于若依 RuoYi-Vue3）` |
-| 底部版权 | 若依 | `src/settings.js` 的 `footerContent` 改为青兔版权 |
-| 首页文案 | 若依介绍 | `src/views/index.vue` 的主标题与简介改为青兔说明 |
+| 品牌文案 | 若依 | 三个 `.env.*` 的 `VITE_APP_TITLE` 改为 `青兔工具箱 · 管理后台`；`package.json` 的 `name` 为 `qtools-m`、`description` 为 `青兔工具箱 · 管理后台（QTools-M，基于若依 RuoYi-Vue3）` |
+| 底部版权 | 若依 | `src/settings.js` 的 `footerContent` 改为 `Copyright © 2026 青兔工具箱 · 管理后台 \| Powered by RuoYi` |
+| 品牌标识 | 若依 logo | 侧栏 / 登录页 / 注册页统一用 `src/components/BrandMark.vue`（与 QTools-C 同一套 Lucide rabbit 图标，数据源 `src/utils/brandMark.js`）；`public/favicon.svg` 与 QTools-C 同文件 |
+| 首页文案 | 若依介绍 | `src/views/index.vue` 的主标题与简介改为青兔工具箱说明 |
 | **媒体库管理页** | 无 | **新增** `src/views/media/index.vue`（约 42 KB）与 `src/api/media.js`，对接 `/api/media/admin/**` |
 | 开发监听 / 端口 | 监听所有网卡、端口 `80` | `server.host = 'localhost'`（仅本机）、`server.port = 5174`、`strictPort: true` |
 | 部署基路径 | `base = '/'` | `base = VITE_APP_ENV === 'production' ? '/admin-ui/' : '/'` |
