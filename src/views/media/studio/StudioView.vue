@@ -36,7 +36,7 @@
         </template>
       </el-table-column>
       <el-table-column label="备注" min-width="200" :show-overflow-tooltip="true">
-        <template #default="scope">{{ textOr(scope.row.remark) }}</template>
+        <template #default="scope">{{ textOr(scope.row.note) }}</template>
       </el-table-column>
       <el-table-column label="视频数" width="110" align="right">
         <template #default="scope">
@@ -76,7 +76,7 @@
             @keyup.enter="emit('submit')" />
         </el-form-item>
         <el-form-item label="备注">
-          <el-input v-model="form.remark" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="选填" />
+          <el-input v-model="form.note" type="textarea" :rows="3" maxlength="500" show-word-limit placeholder="选填" />
         </el-form-item>
       </el-form>
       <p class="studio-form-tip">名称需唯一；视频与工作室的归属在媒体库 / 视频接口里维护（PUT /admin/videos/{id}/studios）。</p>
@@ -92,7 +92,7 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  /** 当前页数据：{ id, name, remark?, videoCount?, albumCount? }[] */
+  /** 当前页数据：{ id, name, note?, videoCount?, albumCount? }[] */
   rows: { type: Array, default: () => [] },
   total: { type: Number, default: 0 },
   loading: { type: Boolean, default: false },
@@ -106,7 +106,7 @@ const props = defineProps({
   pageSize: { type: Number, default: 10 },
   /** 新建 / 编辑对话框状态与表单对象（由父组件持有，双向绑定到 form 上） */
   formVisible: { type: Boolean, default: false },
-  form: { type: Object, default: () => ({ id: null, name: '', remark: '' }) },
+  form: { type: Object, default: () => ({ id: null, name: '', note: '' }) },
   saving: { type: Boolean, default: false },
   deletingId: { type: [String, Number], default: null }
 })

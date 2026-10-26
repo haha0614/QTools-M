@@ -30,9 +30,9 @@
  * 工作室管理（P5-A 管理端；P5-C 落地页面）
  * 分层：本文件只做取数与保存（GET/POST/PUT/DELETE /api/media/admin/studios），
  *       展示与三态在 StudioView.vue（纯 props，可单独渲染验证）。
- * 契约：GET  /api/media/admin/studios?q=&page=&size= → { rows|list, total }，行内 { id, name, remark?, videoCount? }
- *       POST /api/media/admin/studios           { name, remark? }
- *       PUT  /api/media/admin/studios/{id}      { name?, remark? }
+ * 契约：GET  /api/media/admin/studios?q=&page=&size= → { rows|list, total }，行内 { id, name, note?, videoCount? }
+ *       POST /api/media/admin/studios           { name, note? }
+ *       PUT  /api/media/admin/studios/{id}      { name?, note? }
  *       DELETE /api/media/admin/studios/{id}    （仍有引用时后端 4xx，前端原样展示并阻止）
  *       归属：PUT /api/media/admin/videos/{id}/studios { studioIds }（api/media.js 已导出 setVideoStudios）
  * 三态：接口未就绪（404 / 501 / 连不上）→ 页内黄色提示；其它错误 → 页内红色提示；正常 → 列表。
@@ -55,7 +55,7 @@ const query = reactive({ q: '', pageNum: 1, pageSize: 10 })
 
 const formVisible = ref(false)
 const saving = ref(false)
-const form = reactive({ id: null, name: '', remark: '' })
+const form = reactive({ id: null, name: '', note: '' })
 
 function toNum(v) {
   const n = Number(v)
@@ -129,14 +129,14 @@ function goPersons() {
 function openCreate() {
   form.id = null
   form.name = ''
-  form.remark = ''
+  form.note = ''
   formVisible.value = true
 }
 
 function openEdit(row) {
   form.id = row.id
   form.name = row.name || ''
-  form.remark = row.remark || ''
+  form.note = row.note || ''
   formVisible.value = true
 }
 
@@ -147,7 +147,7 @@ function submitForm() {
     return
   }
   if (saving.value) return
-  const payload = { name: name, remark: (form.remark || '').trim() }
+  const payload = { name: name, note: (form.note || '').trim() }
   saving.value = true
   const task = form.id ? updateStudio(form.id, payload) : createStudio(payload)
   task.then(() => {
