@@ -438,6 +438,31 @@ export function deletePerson(id) {
   })
 }
 
+/* ------------------------------------------------- 人物卡片补充（P5.63，站端只读） */
+/* 管理端分页（/admin/persons）带 videoCount / albumCount，但**没有**照片数、也没有相册封面：
+   卡片上的「Z 张照片」（al.photo_count 求和）和「头像第二级（相册封面）」只能走站端这两个只读接口。
+   两者都是匿名可读的 /api/media/person/{id}/*，与管理端权限无关；失败时静默，卡片降级即可。 */
+
+// 某人物名下的相册分页：行里带 count（照片数）与 cover（thumbs/ 相对路径）
+export function listPersonAlbums(id, query) {
+  return request({
+    url: '/api/media/person/' + encodeURIComponent(id) + '/albums',
+    method: 'get',
+    params: query || { page: 1, size: 200 },
+    silent: true
+  })
+}
+
+// 某人物名下的视频分页：只需一行的 id 去拼 /api/media/thumb/v/{id}（头像第三级）
+export function listPersonVideos(id, query) {
+  return request({
+    url: '/api/media/person/' + encodeURIComponent(id) + '/videos',
+    method: 'get',
+    params: query || { page: 1, size: 1 },
+    silent: true
+  })
+}
+
 // 整条视频的人物集合：body { personIds: [], roles: { <personId>: '角色名' } }
 export function setVideoPersons(id, data) {
   return request({
