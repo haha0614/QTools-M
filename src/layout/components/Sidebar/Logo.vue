@@ -1,10 +1,10 @@
 <template>
   <div class="sidebar-logo-container" :class="{ 'collapse': collapse }">
     <transition name="sidebarLogoFade">
-      <router-link v-if="collapse" key="collapse" class="sidebar-logo-link" to="/">
+      <router-link v-if="collapse" key="collapse" class="sidebar-logo-link" :to="{ path: '/index' }">
         <BrandMark class="sidebar-logo" :size="24" />
       </router-link>
-      <router-link v-else key="expand" class="sidebar-logo-link" to="/">
+      <router-link v-else key="expand" class="sidebar-logo-link" :to="{ path: '/index' }">
         <BrandMark class="sidebar-logo" :size="24" />
         <h1 class="sidebar-title">{{ title }}</h1>
       </router-link>
