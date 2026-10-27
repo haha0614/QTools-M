@@ -697,3 +697,46 @@ export function getRootArtifacts(id, refresh, silent) {
     timeout: 30000
   })
 }
+/* ---------------- 扫描入库（P5.91）：遍历某个库根目录写库 + 实时日志 + 取消 ----------------
+   契约：
+     POST /api/media/admin/scan                         { rootId, dryRun?, withVideo?, withPhoto?, limit?, force? }
+                                                        → { jobId, command, startedAt, status, rootId, ... }
+     GET  /api/media/admin/scan/jobs/active             → 任务视图 | null（进页面时接管正在跑的任务）
+     GET  /api/media/admin/scan/jobs/{jobId}?tail=500   → { jobId, status, lines[], counters{videos,albums,photos,skipped,errors},
+                                                          lineCount, warnings, startedAt, finishedAt, exitCode, reason, ... }
+     POST /api/media/admin/scan/jobs/{jobId}/cancel     → 同一份视图（status=cancelled）
+   权限：启动 / 取消 media:admin:edit（启动另接受 media:admin:scan）；读状态 media:admin:list。
+   任务只存在后端内存：进程重启后旧 jobId 一律 404 —— 页面按「任务丢了」处理，不报红。 */
+export function startScanIngest(body) {
+  return request({
+    url: BASE + '/scan',
+    method: 'post',
+    data: body || {},
+    silent: true
+  })
+}
+
+export function getScanIngestActive() {
+  return request({
+    url: BASE + '/scan/jobs/active',
+    method: 'get',
+    silent: true
+  })
+}
+
+export function getScanIngestJob(jobId, tail) {
+  return request({
+    url: BASE + '/scan/jobs/' + encodeURIComponent(jobId),
+    method: 'get',
+    params: tail ? { tail: tail } : undefined,
+    silent: true
+  })
+}
+
+export function cancelScanIngest(jobId) {
+  return request({
+    url: BASE + '/scan/jobs/' + encodeURIComponent(jobId) + '/cancel',
+    method: 'post',
+    silent: true
+  })
+}
