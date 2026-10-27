@@ -191,7 +191,11 @@ window.__p578 = {
     return [...document.querySelectorAll('.root-table .el-table__body tbody tr')].map(tr => {
       const sw = tr.querySelector('.el-switch')
       const tagBad = !!tr.querySelector('.root-path-bad')
-      const texts = [...tr.querySelectorAll('td')].map(td => (td.innerText || '').trim())
+      // P5.80：首列变成「展开列」（产物根子目录清单）。它不含业务信息，从解析里剔掉，
+      // 这样下面按 0..8 下标断言的列口径与 P5.78 完全一致（ID/名称/路径/类型/开关/可读/条目数/最后扫描/操作）。
+      const tds = [...tr.querySelectorAll('td')]
+      const hasExpand = tds.length > 0 && !!tds[0].querySelector('.el-table__expand-icon')
+      const texts = (hasExpand ? tds.slice(1) : tds).map(td => (td.innerText || '').trim())
       return {
         text: texts.join(' | '),
         switchOn: sw ? sw.classList.contains('is-checked') : null,
@@ -333,7 +337,10 @@ console.log('\n=== 4. 编辑对话框：改备注 → PUT ===')
 await goto(ADMIN + '/media-roots', 2500)
 await cdp.evaluate(`(() => {
   const tr = [...document.querySelectorAll('.root-table .el-table__body tbody tr')][1]
-  tr.querySelectorAll('.el-button')[0].click()
+  // P5.80：操作列最前面多了「子目录」按钮，下标不再稳定 → 改用行内 data-testid 定位「编辑」
+  const editBtn = tr.querySelector('[data-testid^=edit-]')
+  if (!editBtn) throw new Error('找不到行内编辑按钮')
+  editBtn.click()
   return true
 })()`)
 await sleep(900)

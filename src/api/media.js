@@ -672,3 +672,28 @@ export function setRootGuestVisible(id, guestVisible) {
     silent: true
   })
 }
+/* ========================================================================
+   P5.80：产物根（kind=thumbs）子目录清单
+   契约：
+     GET /api/media/admin/roots/{id}/artifacts?refresh=true|false
+       → { rootId, name, kind, path, exists, readable,
+           dirs:[{ name, label, files, bytes, exists }]（固定 7 项：p v s pv pv2 frames avcrop）,
+           unknown:[{ name, label, files, bytes, exists }]（白名单外的子目录）,
+           total:{ files, bytes }, looseFiles, looseBytes,
+           partial, partialReason, limits:{ maxFiles, maxMillis, maxDepth, cacheTtlMs },
+           cached, cacheAgeMs, scannedAt, durationMs, note }
+   语义：一个产物根包含全部派生资源。kind 不是 thumbs → 400（错误体 {error}）；id 不存在 → 404；
+         根目录当前不可用（盘没挂）→ 200 + exists:false + note。统计带边界（20 万文件 / 8 秒 /
+         6 层深），超限 partial=true 且已统计量仍是真数；结果缓存 60s，refresh=true 强制重扫。
+   权限：media:admin:list（与 GET /roots 一致）。
+   ======================================================================== */
+
+export function getRootArtifacts(id, refresh, silent) {
+  return request({
+    url: BASE + '/roots/' + encodeURIComponent(id) + '/artifacts',
+    method: 'get',
+    params: refresh ? { refresh: 'true' } : {},
+    silent: silent !== false,
+    timeout: 30000
+  })
+}

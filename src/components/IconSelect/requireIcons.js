@@ -1,8 +1,5 @@
-let icons = []
-const modules = import.meta.glob('./../../assets/icons/svg/*.svg')
-for (const path in modules) {
-  const p = path.split('assets/icons/svg/')[1].split('.svg')[0]
-  icons.push(p)
-}
+import { ICON_NAMES_SORTED } from '@/components/SvgIcon/iconNames'
 
-export default icons
+// 与 <svg-icon> 的存在性判定同源：图标选择器只列出 sprite 里真的有的图标，
+// 不给用户一个选中后必然空白的名字。
+export default ICON_NAMES_SORTED

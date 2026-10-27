@@ -11,12 +11,14 @@
     :form="form"
     :saving="saving"
     :form-error="formError"
+    :artifacts="artifacts"
     @refresh="load"
     @create="openCreate"
     @edit="openEdit"
     @delete="handleDelete"
     @submit="submitForm"
     @toggle-guest="toggleGuest"
+    @load-artifacts="loadArtifacts"
     @update:form-visible="(v) => (formVisible = v)"
   />
 </template>
@@ -34,12 +36,13 @@
  *   PUT    /api/media/admin/roots/{id}   { name?, path?, guestVisible?, note? }（局部更新，不传不动）
  *   DELETE /api/media/admin/roots/{id}   （仍有 media_video/media_photo 引用时后端 400，message 带引用数）
  *   GET    /api/media/admin/watch        → { roots:[{ id, path, lastScanAt }], ... }（只用来补「最后扫描」）
+ *   GET    /api/media/admin/roots/{id}/artifacts?refresh=true → 产物根子目录清单（P5.80，仅 kind=thumbs）
  *
  * 三态：接口未就绪（404 / 501 / 连不上）→ 页内黄色提示；其它错误 → 页内红色提示；正常 → 列表。
  *       全程不弹全局错误条、不抛未捕获异常。
  */
 import { getCurrentInstance, onMounted, reactive, ref } from 'vue'
-import { listRoots, createRoot, updateRoot, deleteRoot, setRootGuestVisible } from '@/api/media'
+import { listRoots, createRoot, updateRoot, deleteRoot, setRootGuestVisible, getRootArtifacts } from '@/api/media'
 import { listWatchRoots, lastScanByRoot } from './rootsModel'
 import RootView from './RootView.vue'
 
@@ -52,6 +55,9 @@ const notReady = ref('')
 const togglingId = ref(null)
 const deletingId = ref(null)
 const lastScanMap = ref({})
+
+/** 产物根子目录清单：{ [rootId]: { loading, error, data } }（P5.80，60s 缓存由后端负责） */
+const artifacts = ref({})
 
 const formVisible = ref(false)
 const saving = ref(false)
@@ -127,6 +133,29 @@ function loadLastScan() {
     lastScanMap.value = lastScanByRoot(rows.value, maps)
   }).catch(() => {
     lastScanMap.value = {}
+  })
+}
+
+/** 产物根展开 / 重扫：后端 60s 缓存 + refresh=true 强制重扫 */
+function setArtifactState(id, patch) {
+  const current = artifacts.value[id] || { loading: false, error: '', data: null }
+  artifacts.value = { ...artifacts.value, [id]: { ...current, ...patch } }
+}
+
+function loadArtifacts({ row, force }) {
+  if (!row || row.id === undefined || row.id === null) return
+  if (String(row.kind || '').toLowerCase() !== 'thumbs') return
+  const current = artifacts.value[row.id]
+  if (current && current.loading) return
+  // 已有数据且不是强制重扫：直接用（后端还有 60s 缓存，这里少打一次请求）
+  if (!force && current && current.data) return
+  setArtifactState(row.id, { loading: true, error: '' })
+  getRootArtifacts(row.id, !!force, true).then(res => {
+    const body = res && typeof res === 'object' && res.data && !res.dirs ? res.data : res
+    if (!body || !Array.isArray(body.dirs)) throw new Error('产物清单返回体不认识')
+    setArtifactState(row.id, { loading: false, error: '', data: body })
+  }).catch(err => {
+    setArtifactState(row.id, { loading: false, error: errText(err) || '产物清单读取失败（后端是否已部署 P5.80？）' })
   })
 }
 
