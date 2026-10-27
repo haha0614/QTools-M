@@ -6,10 +6,11 @@
  *      { id, name, alias, note, isPlaceholder, avatarPath, avatarKind, avatarRef, avatarUrl,
  *        gender, birthday, useCount, videoCount, albumCount, + P5-A 的 14 个资料字段（非空才有）}
  *      videoCount / albumCount 是 SQL 里的两个子查询（distinct 视频 / 相册并集），不用前端再算；
- *   2. GET /api/media/person/{id}/albums?page=1&size=200 —— 站端只读接口，**管理端分页缺的字段**：
- *      行里 al.photo_count → 相册张数（卡片上的「Z 张照片」只能这样求和）、al.cover_path → 相册封面
- *      （人物手动头像基本都没设，封面是头像最主要的来源）。
- *      名下有视频但没相册时再补 GET /api/media/person/{id}/videos?page=1&size=1 拿首个视频 id 当封面。
+ *   2. **老后端兜底**（P5.65 之前）：分页行没有照片数 / 封面时才补两个站端只读接口 ——
+ *      GET /api/media/person/{id}/albums?page=1&size=200（行里 al.photo_count → 「Z 张照片」求和、
+ *      al.cover_path → 相册封面），缺封面时再补 GET /api/media/person/{id}/videos?page=1&size=1
+ *      拿首个视频 id。P5.65 起 personNode 直接带 photoCount / coverPath / coverVideoId，
+ *      extrasNeeded() 判定「行里已经够了」→ 一张卡片的补充请求都不发（一页 1 个请求，改前是 1+N）。
  *
  * 头像优先级（与 QTools-C 的 personWall.js 同一口径，少一级「历史 avatarPath 单独落」）：
  *   0. 手动头像 avatarUrl（后端按 avatarKind/avatarRef 解析好的最终地址，有就用）
@@ -103,13 +104,46 @@ export function thumbUrlFromRel(rel) {
  */
 export function avatarOf(row, extra) {
   const e = extra || {}
-  const explicit = explicitAvatarUrl(row)
+  const r = row || {}
+  const explicit = explicitAvatarUrl(r)
   if (explicit) return { url: explicit, kind: 'profile' }
-  const album = thumbUrlFromRel(e.albumCover)
+  // P5.65：后端 personNode 直接给首册封面（coverPath）与首个视频 id（coverVideoId），
+  // 有就走它 —— 这两档与改前由站端补充接口现拼出来的值同一个来源、同一套 URL 规则。
+  const album = thumbUrlFromRel(text(e.albumCover) || text(r.coverPath || r.cover_path))
   if (album) return { url: album, kind: 'album' }
-  const tmp = text(e.videoId)
+  const tmp = text(e.videoId) || text(r.coverVideoId || r.cover_video_id)
   if (tmp) return { url: '/api/media/thumb/v/' + encodeURIComponent(tmp), kind: 'video' }
   return { url: '', kind: 'initial' }
+}
+
+/**
+ * 卡片「Z 张照片」的取值（P5.65）：行内 photoCount 优先（后端一条 SQL 聚合），
+ * 老后端没有这个键时才用站端补充接口求和的结果；两边都没有 → null（countsText 少渲染一段）。
+ */
+export function photosOf(row, extra) {
+  const r = row || {}
+  const raw = r.photoCount !== undefined ? r.photoCount : r.photo_count
+  if (raw !== undefined && raw !== null) return num(raw)
+  return extra ? extra.photos : null
+}
+
+/**
+ * 这一行还需要发哪些补充请求（P5.65 把 N+1 收掉的关键判定）。
+ *
+ * 新后端：personNode 带 photoCount + （coverPath 或 coverVideoId）→ { albums:false, videos:false }，
+ * 页面因此**一个补充请求都不发**；手动头像（avatarUrl / avatarPath）本来就压过相册封面，
+ * 有它时连封面都不用问。
+ * 老后端（行里没有 photoCount）→ 原样走改前那条路（albums → 缺封面再 videos），行为不变。
+ *
+ * @returns {{albums:boolean, videos:boolean}} 需要发的补充请求
+ */
+export function extrasNeeded(row) {
+  const r = row || {}
+  const known = (r.photoCount !== undefined && r.photoCount !== null) || (r.photo_count !== undefined && r.photo_count !== null)
+  if (!known) return { albums: true, videos: false }
+  const coverKnown = !!text(r.coverPath || r.cover_path) || !!text(r.coverVideoId || r.cover_video_id)
+  const videos = !coverKnown && !explicitAvatarUrl(r) && num(r.videoCount) > 0
+  return { albums: false, videos }
 }
 
 /**
@@ -177,7 +211,7 @@ export function buildCard(row, ctx) {
     alias: text(r.alias),
     initial: initialOf(name),
     avatar: avatarOf(r, extra),
-    counts: countsText(r.videoCount, r.albumCount, extra ? extra.photos : null),
+    counts: countsText(r.videoCount, r.albumCount, photosOf(r, extra)),
     chips: chipsOf(r, c.enabled, c.maxChips),
     hidden: isHidden(r)
   }

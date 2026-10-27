@@ -463,6 +463,41 @@ export function listPersonVideos(id, query) {
   })
 }
 
+/* ------------------------------------------------- 人物手动头像（P5.66，管理端自己的写接口） */
+/* 契约（P5.66 后端同批落地，MediaAdminController）：
+     PUT    /api/media/admin/persons/{id}/avatar   body { kind: 'photo'|'frame'|'url', ref }
+     DELETE /api/media/admin/persons/{id}/avatar
+   两条都返整条 personNode（含后端解析好的 avatarKind / avatarRef / avatarUrl）。
+   权限 @PreAuthorize('media:admin:edit')，**不过**站端编辑策略闸门。
+
+   为什么不用站端那两条（PUT/DELETE /api/media/person/{id}/avatar）：
+     1. 用户口径「管理端用自己的接口，不共用用户端接口」——站端那两条是 @Anonymous，
+        为「访客在 full 档位下也能改」而开，管理端借道会让权限模型变成两套;
+     2. 站端那条会被「站端编辑策略」闸门挡住（off / local 档 403）——管理员不该被访客策略挡住;
+     3. 业务实现仍是同一份 IMediaPersonService.setAvatar / clearAvatar，后端没有复制逻辑，
+        差别只在入口与权限（详见后端两个方法的 javadoc）。
+   注意：老的 POST /api/media/admin/persons/{id}/avatar（body {path}）只写历史列 avatar_path，
+   表达不了「相册第 N 张 / 视频第 S 秒 + 裁剪」这三档，本模块不用它（本页仍然兼容读 avatarPath）。 */
+
+// 设人物手动头像：body { kind, ref }
+export function setPersonAvatar(id, kind, ref) {
+  return request({
+    url: BASE + '/persons/' + encodeURIComponent(id) + '/avatar',
+    method: 'put',
+    data: { kind: kind, ref: ref },
+    silent: true
+  })
+}
+
+// 清除人物手动头像（回到相册首图 → 视频封面 → 首字占位三级自动）
+export function clearPersonAvatar(id) {
+  return request({
+    url: BASE + '/persons/' + encodeURIComponent(id) + '/avatar',
+    method: 'delete',
+    silent: true
+  })
+}
+
 // 整条视频的人物集合：body { personIds: [], roles: { <personId>: '角色名' } }
 export function setVideoPersons(id, data) {
   return request({
