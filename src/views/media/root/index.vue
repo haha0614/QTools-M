@@ -1,0 +1,233 @@
+<template>
+  <RootView
+    :rows="rows"
+    :loading="loading"
+    :not-ready="notReady"
+    :page-error="pageError"
+    :last-scan-map="lastScanMap"
+    :toggling-id="togglingId"
+    :deleting-id="deletingId"
+    :form-visible="formVisible"
+    :form="form"
+    :saving="saving"
+    :form-error="formError"
+    @refresh="load"
+    @create="openCreate"
+    @edit="openEdit"
+    @delete="handleDelete"
+    @submit="submitForm"
+    @toggle-guest="toggleGuest"
+    @update:form-visible="(v) => (formVisible = v)"
+  />
+</template>
+
+<script setup name="MediaRoot">
+/**
+ * 库根管理（P5.78 管理端页面）
+ * 分层：本文件只做取数与保存（/api/media/admin/roots + /api/media/admin/watch），
+ *       展示与三态在 RootView.vue（纯 props，可单独渲染验证）。
+ *
+ * 契约：
+ *   GET    /api/media/admin/roots        → [{ id, name, path, kind, guestVisible, note, exists, readable,
+ *                                            videoCount, albumCount, photoCount, isDefault }]
+ *   POST   /api/media/admin/roots        { name, path, kind, guestVisible, note }
+ *   PUT    /api/media/admin/roots/{id}   { name?, path?, guestVisible?, note? }（局部更新，不传不动）
+ *   DELETE /api/media/admin/roots/{id}   （仍有 media_video/media_photo 引用时后端 400，message 带引用数）
+ *   GET    /api/media/admin/watch        → { roots:[{ id, path, lastScanAt }], ... }（只用来补「最后扫描」）
+ *
+ * 三态：接口未就绪（404 / 501 / 连不上）→ 页内黄色提示；其它错误 → 页内红色提示；正常 → 列表。
+ *       全程不弹全局错误条、不抛未捕获异常。
+ */
+import { getCurrentInstance, onMounted, reactive, ref } from 'vue'
+import { listRoots, createRoot, updateRoot, deleteRoot, setRootGuestVisible } from '@/api/media'
+import { listWatchRoots, lastScanByRoot } from './rootsModel'
+import RootView from './RootView.vue'
+
+const { proxy } = getCurrentInstance()
+
+const rows = ref([])
+const loading = ref(false)
+const pageError = ref('')
+const notReady = ref('')
+const togglingId = ref(null)
+const deletingId = ref(null)
+const lastScanMap = ref({})
+
+const formVisible = ref(false)
+const saving = ref(false)
+const formError = ref('')
+const form = reactive({ id: null, name: '', path: '', kind: 'root', guestVisible: true, note: '' })
+
+/** 后端错误体是媒体模块的 {error:"..."}（真实 HTTP 400/403/404），这里统一成一句话 */
+function errText(err) {
+  const data = err && err.response && err.response.data
+  if (data && typeof data === 'object' && (data.error || data.msg)) return String(data.error || data.msg)
+  if (typeof err === 'string') return err
+  if (err && typeof err.message === 'string') return err.message
+  return ''
+}
+
+function errStatus(err) {
+  const status = err && err.response && err.response.status
+  return Number(status) || 0
+}
+
+function notReadyText(err, what) {
+  const status = errStatus(err)
+  const text = errText(err)
+  if (status === 404 || status === 501 || /404|not found|no static resource|未就绪/i.test(text)) {
+    return what + '未就绪（后端还没部署 P5.78）：该页暂时不可用，部署后刷新即可，其它媒体功能不受影响。'
+  }
+  return what + '读取失败：' + (text || '请求失败，请查看后端日志')
+}
+
+function toBool(value, fallback) {
+  if (value === undefined || value === null || value === '') return fallback
+  if (typeof value === 'boolean') return value
+  return value === 1 || value === '1' || value === 'true'
+}
+
+function normalize(row) {
+  return {
+    id: row && row.id,
+    name: row && row.name,
+    path: row && row.path,
+    kind: row && row.kind,
+    // 老后端没有这一列：按「未登录可见」渲染，与列默认值一致
+    guestVisible: toBool(row && row.guestVisible, true),
+    note: row && row.note,
+    exists: row ? row.exists !== false : false,
+    readable: row ? row.readable !== false : false,
+    videoCount: row && row.videoCount,
+    albumCount: row && row.albumCount,
+    photoCount: row && row.photoCount,
+    isDefault: !!(row && row.isDefault)
+  }
+}
+
+function load() {
+  loading.value = true
+  pageError.value = ''
+  notReady.value = ''
+  listRoots(true).then(res => {
+    const list = Array.isArray(res) ? res : (res && (res.list || res.roots)) || []
+    rows.value = list.filter(r => r && typeof r === 'object').map(normalize)
+    loadLastScan()
+  }).catch(err => {
+    rows.value = []
+    notReady.value = notReadyText(err, '库根接口')
+  }).finally(() => {
+    loading.value = false
+  })
+}
+
+/** 「最后扫描时间」来自自动扫描状态（同一份 data/scan 记录），取不到就留空，不影响主列表 */
+function loadLastScan() {
+  listWatchRoots().then(maps => {
+    lastScanMap.value = lastScanByRoot(rows.value, maps)
+  }).catch(() => {
+    lastScanMap.value = {}
+  })
+}
+
+function openCreate() {
+  form.id = null
+  form.name = ''
+  form.path = ''
+  form.kind = 'root'
+  form.guestVisible = true
+  form.note = ''
+  formError.value = ''
+  formVisible.value = true
+}
+
+function openEdit(row) {
+  form.id = row.id
+  form.name = row.name || ''
+  form.path = row.path || ''
+  form.kind = row.kind || 'root'
+  form.guestVisible = row.guestVisible !== false
+  form.note = row.note || ''
+  formError.value = ''
+  formVisible.value = true
+}
+
+function submitForm() {
+  if (!form.name || !form.name.trim()) {
+    formError.value = '名称必填'
+    return
+  }
+  if (!form.path || !form.path.trim()) {
+    formError.value = '路径必填（必须是服务器上已存在的目录）'
+    return
+  }
+  const body = {
+    name: form.name.trim(),
+    path: form.path.trim(),
+    guestVisible: !!form.guestVisible,
+    note: form.note || ''
+  }
+  saving.value = true
+  formError.value = ''
+  const action = form.id ? updateRoot(form.id, body) : createRoot({ ...body, kind: form.kind || 'root' })
+  action.then(res => {
+    proxy.$modal.msgSuccess(form.id ? '已保存库根' : '已新增库根')
+    formVisible.value = false
+    const hint = res && res.hint
+    if (hint) proxy.$modal.msgSuccess(hint)
+    load()
+  }).catch(err => {
+    formError.value = errText(err) || '保存失败'
+  }).finally(() => {
+    saving.value = false
+  })
+}
+
+/** 行内开关：切换即 PUT，成功后就地更新该行并 toast；失败回滚开关位置 */
+function toggleGuest({ row, value }) {
+  const next = !!value
+  const previous = row.guestVisible !== false
+  if (next === previous) return
+  togglingId.value = row.id
+  setRootGuestVisible(row.id, next).then(res => {
+    row.guestVisible = res && res.guestVisible !== undefined ? toBool(res.guestVisible, next) : next
+    proxy.$modal.msgSuccess(next
+      ? '已设为未登录可见：未登录访客刷新后即可看到该库根'
+      : '已设为仅登录可见：未登录访客在索引里看不到它，直接访问返回 404')
+    // 条目数 / 可读性可能随后端状态变化，静默刷新一次（不闪 loading）
+    listRoots(true).then(list => {
+      if (Array.isArray(list)) rows.value = list.filter(r => r && typeof r === 'object').map(normalize)
+    }).catch(() => {})
+  }).catch(err => {
+    row.guestVisible = previous
+    proxy.$modal.msgError(errText(err) || '切换失败')
+  }).finally(() => {
+    togglingId.value = null
+  })
+}
+
+function handleDelete(row) {
+  const refs = Number(row.videoCount || 0) + Number(row.albumCount || 0) + Number(row.photoCount || 0)
+  const tip = refs > 0
+    ? '库根「' + (row.name || row.id) + '」下还有 ' + Number(row.videoCount || 0) + ' 条视频 / '
+      + Number(row.albumCount || 0) + ' 个相册 / ' + Number(row.photoCount || 0) + ' 张照片。\n'
+      + '删除只是把这条登记去掉，磁盘文件不动；但库里的 root_id 会变成悬空引用，后端会拒绝删除。\n'
+      + '确认继续？'
+    : '确认删除库根「' + (row.name || row.id) + '」？\n删除只是把这条登记去掉，磁盘文件不动。'
+  proxy.$modal.confirm(tip, '删除库根').then(() => {
+    deletingId.value = row.id
+    return deleteRoot(row.id)
+  }).then(res => {
+    proxy.$modal.msgSuccess('已删除库根' + (res && res.name ? '：' + res.name : ''))
+    load()
+  }).catch(err => {
+    if (err === 'cancel' || err === 'close') return
+    const text = errText(err)
+    if (text) proxy.$modal.msgError(text)
+  }).finally(() => {
+    deletingId.value = null
+  })
+}
+
+onMounted(load)
+</script>

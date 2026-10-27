@@ -649,3 +649,26 @@ export function getDeriveStatus(query) {
     silent: true
   })
 }
+
+/* ========================================================================
+   P5.78：库根「未登录是否可见」（纯新增，不改上面任何既有导出）
+   契约：
+     GET  /api/media/admin/roots            → [{ id, name, path, kind, guestVisible, note,
+                                                  exists, readable, videoCount, albumCount,
+                                                  photoCount, isDefault }]
+     PUT  /api/media/admin/roots/{id}  { guestVisible: true|false }
+          → 局部更新（不传的字段不动），返回体与 GET 行同形 + { updated, pathChanged }
+   语义：guestVisible=false 的根下，未登录访客在 /api/media/index 里看不到它的视频 / 相册 /
+         图片，直接访问其资源（按 id 或 hash）一律 404；登录用户不受影响。
+   改动写完立即清掉站端判定缓存与索引快照，所以开关切完下一次请求就生效（无需等 60s）。
+   ======================================================================== */
+
+// 行内开关：只改 guestVisible，一个字段一条请求（不把整行回传，避免覆盖别的列）
+export function setRootGuestVisible(id, guestVisible) {
+  return request({
+    url: BASE + '/roots/' + encodeURIComponent(id),
+    method: 'put',
+    data: { guestVisible: !!guestVisible },
+    silent: true
+  })
+}

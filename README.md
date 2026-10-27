@@ -53,6 +53,28 @@
 
 后端为前台工具站提供的两个匿名接口（**由 QTools-C 直连调用，与管理端无关**）：`GET /api/toolInfo/list`（工具列表）、`POST /api/toolVisit/add`（访问埋点上报）。
 
+## 媒体库管理功能文档（在总仓 `docs/` 下）
+
+| 文档 | 与本仓相关的部分 |
+| --- | --- |
+| `docs/作品简介与内容梗概.md` | 管理端简介接口是 `/api/media/admin/**`（权限 `media:admin:list` / `media:admin:edit`）；批量、停止、回滚的成功口径 |
+| `docs/人物-资料与头像.md` | **管理端人物卡片与换头像**：卡片布局口径、`photoCount / coverPath / coverVideoId` 由后端聚合（请求数 17→1）、14 个资料字段 |
+| `docs/本地AI-模型与转写.md` | 「AI 生成」按钮的 503 语义与降级行为 |
+| `docs/运维脚本与故障处理.md` | 打包前必须停后端（覆盖运行中的 jar 会 502）、迁移先于新包 |
+
+### 管理端人物卡片 / 换头像：只走 admin 接口
+
+管理端**不调用**站端那两条写接口，一律用自己的：
+
+| 用途 | 接口 | 权限 |
+| --- | --- | --- |
+| 保存头像 | `PUT /api/media/admin/persons/{id}/avatar`（body `{kind, ref}`） | `media:admin:edit` |
+| 恢复自动头像 | `DELETE /api/media/admin/persons/{id}/avatar` | `media:admin:edit` |
+
+理由：站端写接口要过 `requireWritable()` 的「访客能否编辑」档位闸门，管理员不该被它挡住；
+实测站端 off 档下站端接口 403、管理端接口照常 200，且管理端网络层 `stationAvatarWrites=0`。
+头像的三种 ref 形状、裁剪比例约束与 400 / 403 / 404 语义见 `docs/人物-资料与头像.md` 第 5–6 节。
+
 ## 技术栈
 
 版本取自 `package.json`：
