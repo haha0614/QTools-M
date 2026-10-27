@@ -37,6 +37,15 @@ export function updateAppUser(id, data) {
   })
 }
 
+// 切换角色（P5.89）：role 只接受 user / owner；后端拒绝把最后一个 owner 降级（400）
+export function updateAppUserRole(id, role) {
+  return request({
+    url: BASE + '/' + id,
+    method: 'put',
+    data: { role }
+  })
+}
+
 // 重置密码：password 为空则后端生成随机密码并一次性返回
 export function resetAppUserPassword(id, password) {
   return request({

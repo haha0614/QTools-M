@@ -102,65 +102,125 @@
       :empty-text="emptyText"
       @selection-change="(v) => (selection = v)"
     >
-      <el-table-column type="selection" width="42" />
-      <el-table-column label="ID" width="76">
+      <el-table-column type="selection" width="36" />
+      <el-table-column label="ID" width="40">
         <template #default="{ row }">
           <span class="mono" :data-testid="'user-id-' + row.username">{{ row.id }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="用户名" min-width="130">
+      <el-table-column label="用户名" min-width="80" show-overflow-tooltip>
         <template #default="{ row }">
           <span class="u-name" :data-testid="'user-name-' + row.username">{{ row.username }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="昵称" min-width="120" show-overflow-tooltip>
+      <el-table-column label="昵称" width="132" show-overflow-tooltip>
         <template #default="{ row }">
           <span :data-testid="'nickname-' + row.username">{{ row.nickname || '—' }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="状态" width="104">
+      <el-table-column label="状态" width="68">
         <template #default="{ row }">
           <el-tag :type="tagType(row)" effect="light" :data-testid="'status-' + row.username">
             {{ row.badgeText || row.statusText || row.status }}
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="注册时间" width="160">
+      <!-- P5.89：角色列（两档）—— 行内切换走 PUT /api/app/admin/users/{id} {role}（需 app:user:edit） -->
+      <el-table-column label="角色" width="118">
         <template #default="{ row }">
-          <span class="mono" :data-testid="'created-' + row.username">{{ row.createdAt || '—' }}</span>
+          <el-select
+            :model-value="row.role || 'user'"
+            size="small"
+            class="role-select"
+            :data-testid="'role-' + row.username"
+            :data-role-value="row.role || 'user'"
+            @change="(v) => handleRoleChange(row, v)"
+          >
+            <el-option label="普通用户" value="user" />
+            <el-option label="站长" value="owner" />
+          </el-select>
         </template>
       </el-table-column>
-      <el-table-column label="最后登录" width="160">
+      <el-table-column label="收藏数" width="58" align="right">
         <template #default="{ row }">
-          <span class="mono" :data-testid="'lastlogin-' + row.username">{{ row.lastLoginAt || '—' }}</span>
+          <span class="num" :data-testid="'favorite-' + row.username">{{ showCount(row.favoriteCount) }}</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" :width="isNarrow ? 132 : 156" fixed="right">
+      <el-table-column label="播放列表数" width="88" align="right">
         <template #default="{ row }">
-          <el-button link type="primary" :data-testid="'detail-' + row.username" @click="openDetail(row)">详情</el-button>
-          <el-dropdown trigger="click" class="row-more" @command="(cmd) => handleRowCommand(cmd, row)">
-            <el-button link type="primary" :data-testid="'more-' + row.username">
-              更多<el-icon class="el-icon--right"><arrow-down /></el-icon>
+          <span class="num" :data-testid="'playlist-' + row.username">{{ showCount(row.playlistCount) }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="封禁原因" min-width="84" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span class="ban-reason" :data-testid="'banreason-' + row.username">{{ row.bannedReason || '—' }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="注册时间" width="84">
+        <template #default="{ row }">
+          <span class="mono dt" :data-testid="'created-' + row.username">{{ row.createdAt || '—' }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="最后登录" width="84">
+        <template #default="{ row }">
+          <span class="mono dt" :data-testid="'lastlogin-' + row.username">{{ row.lastLoginAt || '—' }}</span>
+        </template>
+      </el-table-column>
+      <!-- 操作列：一行等宽按钮（详情/通过/拒绝/封禁·解封/更多），次要且低频的操作收进「更多」 -->
+      <el-table-column label="操作" width="300" :fixed="isNarrow ? false : 'right'" class-name="ops-column">
+        <template #default="{ row }">
+          <div class="ops-row" :data-testid="'ops-' + row.username">
+            <el-button class="op-btn" size="small" :data-testid="'detail-' + row.username" @click="openDetail(row)">
+              详情
             </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="approve" :disabled="row.status === 'approved'" :data-testid="'approve-' + row.username">
-                  通过
-                </el-dropdown-item>
-                <el-dropdown-item command="reject" :disabled="row.status === 'rejected'" :data-testid="'reject-' + row.username">
-                  拒绝（填原因）
-                </el-dropdown-item>
-                <el-dropdown-item command="pending" :disabled="row.status === 'pending'" :data-testid="'pending-' + row.username">
-                  撤销为待审核
-                </el-dropdown-item>
-                <el-dropdown-item command="edit" divided :data-testid="'edit-' + row.username">编辑资料</el-dropdown-item>
-                <el-dropdown-item command="resetPwd" :data-testid="'resetpwd-' + row.username">重置密码</el-dropdown-item>
-                <el-dropdown-item v-if="!row.banned" command="ban" :data-testid="'ban-' + row.username">封禁</el-dropdown-item>
-                <el-dropdown-item v-else command="unban" :data-testid="'unban-' + row.username">解封</el-dropdown-item>
-                <el-dropdown-item command="delete" divided :data-testid="'delete-' + row.username">删除</el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+            <el-button
+              class="op-btn"
+              size="small"
+              type="success"
+              plain
+              :disabled="row.status === 'approved'"
+              :data-testid="'approve-' + row.username"
+              @click="handleApprove(row)"
+            >
+              通过
+            </el-button>
+            <el-button
+              class="op-btn"
+              size="small"
+              type="warning"
+              plain
+              :disabled="row.status === 'rejected'"
+              :data-testid="'reject-' + row.username"
+              @click="openReject(row)"
+            >
+              拒绝
+            </el-button>
+            <el-button
+              class="op-btn"
+              size="small"
+              :type="row.banned ? 'success' : 'danger'"
+              plain
+              :data-testid="(row.banned ? 'unban-' : 'ban-') + row.username"
+              @click="row.banned ? handleUnban(row) : openBan(row)"
+            >
+              {{ row.banned ? '解封' : '封禁' }}
+            </el-button>
+            <el-dropdown trigger="click" class="op-more" @command="(cmd) => handleRowCommand(cmd, row)">
+              <el-button class="op-btn" size="small" :data-testid="'more-' + row.username">
+                更多<el-icon class="op-caret"><arrow-down /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="edit" :data-testid="'edit-' + row.username">编辑资料</el-dropdown-item>
+                  <el-dropdown-item command="resetPwd" :data-testid="'resetpwd-' + row.username">重置密码</el-dropdown-item>
+                  <el-dropdown-item command="pending" :disabled="row.status === 'pending'" :data-testid="'pending-' + row.username">
+                    撤销为待审核
+                  </el-dropdown-item>
+                  <el-dropdown-item command="delete" divided :data-testid="'delete-' + row.username">删除</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+          </div>
         </template>
       </el-table-column>
     </el-table>
@@ -286,39 +346,92 @@
       </template>
     </el-dialog>
 
-    <!-- 详情 -->
-    <el-drawer v-model="detailVisible" title="账号详情" :size="drawerSize" append-to-body destroy-on-close>
+    <!-- 详情：弹窗（分区：基本信息 / 状态与审核 / 数据统计；开发者口径说明不再上屏，改挂 ? tooltip） -->
+    <el-dialog
+      v-model="detailVisible"
+      title="账号详情"
+      :width="detailWidth"
+      class="detail-dialog"
+      append-to-body
+      destroy-on-close
+      data-testid="detail-dialog"
+    >
       <div v-if="detail" data-testid="detail-panel" class="detail-panel">
-        <el-descriptions :column="1" border size="small">
-          <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
-          <el-descriptions-item label="用户名">{{ detail.username }}</el-descriptions-item>
-          <el-descriptions-item label="昵称">{{ detail.nickname || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="状态">
-            <el-tag :type="tagType(detail)" effect="light">{{ detail.badgeText || detail.statusText }}</el-tag>
-          </el-descriptions-item>
-          <el-descriptions-item label="封禁原因">{{ detail.bannedReason || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="封禁时间">{{ detail.bannedAt || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="注册时间">{{ detail.createdAt || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="最后登录">{{ detail.lastLoginAt || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="最近修改">{{ detail.updateTime || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="注册 IP">{{ detail.registerIp || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="邀请码">{{ detail.inviteCode || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="审核备注">{{ detail.reviewNote || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="审核时间">{{ detail.reviewedAt || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="审核人 ID">{{ detail.reviewedBy || '—' }}</el-descriptions-item>
-          <el-descriptions-item label="登录身份">
-            <span v-if="!detail.identities || !detail.identities.length">—</span>
+        <section class="detail-section" data-testid="detail-section-basic">
+          <h4 class="section-title">基本信息</h4>
+          <el-descriptions :column="detailColumns" border size="small">
+            <el-descriptions-item label="ID">{{ detail.id }}</el-descriptions-item>
+            <el-descriptions-item label="用户名">{{ detail.username }}</el-descriptions-item>
+            <el-descriptions-item label="昵称">{{ detail.nickname || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="邀请码">{{ detail.inviteCode || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="注册时间">{{ detail.createdAt || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="最后登录">{{ detail.lastLoginAt || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="最近修改">{{ detail.updateTime || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="注册 IP">{{ detail.registerIp || '—' }}</el-descriptions-item>
+          </el-descriptions>
+          <div class="identity-block">
+            <span class="identity-label">登录身份</span>
+            <span v-if="!detail.identities || !detail.identities.length" class="identity-empty">—</span>
             <span v-for="it in detail.identities" :key="it.type + it.identifier" class="identity-line">
               {{ it.type }}：{{ it.identifier }}
             </span>
-          </el-descriptions-item>
-          <el-descriptions-item label="收藏数">{{ showCount(detail.favoriteCount) }}</el-descriptions-item>
-          <el-descriptions-item label="播放列表数">{{ showCount(detail.playlistCount) }}</el-descriptions-item>
-          <el-descriptions-item label="视频数">{{ showCount(detail.videoCount) }}</el-descriptions-item>
-        </el-descriptions>
-        <p class="detail-note" data-testid="detail-counts-note">{{ detail.countsNote || '' }}</p>
+          </div>
+        </section>
+
+        <section class="detail-section" data-testid="detail-section-status">
+          <h4 class="section-title">状态与审核</h4>
+          <el-descriptions :column="detailColumns" border size="small">
+            <el-descriptions-item label="状态">
+              <el-tag :type="tagType(detail)" effect="light">{{ detail.badgeText || detail.statusText }}</el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="角色">
+              <el-tag :type="roleTagType(detail.role)" effect="light" data-testid="detail-role">
+                {{ detail.roleText || roleText(detail.role) }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="封禁">{{ detail.banned ? '已封禁' : '未封禁' }}</el-descriptions-item>
+            <el-descriptions-item label="封禁原因">{{ detail.bannedReason || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="封禁时间">{{ detail.bannedAt || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="审核备注">{{ detail.reviewNote || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="审核时间">{{ detail.reviewedAt || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="审核人 ID">{{ detail.reviewedBy || '—' }}</el-descriptions-item>
+          </el-descriptions>
+        </section>
+
+        <section class="detail-section" data-testid="detail-section-stats">
+          <h4 class="section-title">数据统计</h4>
+          <el-descriptions :column="detailColumns" border size="small">
+            <el-descriptions-item label="收藏数">
+              <span class="stat-cell">
+                <span :data-testid="'detail-favorite-' + detail.username">{{ showCount(detail.favoriteCount) }}</span>
+                <el-tooltip :content="countHints.favorite" placement="top">
+                  <el-icon class="stat-hint" data-testid="hint-favorite"><question-filled /></el-icon>
+                </el-tooltip>
+              </span>
+            </el-descriptions-item>
+            <el-descriptions-item label="播放列表数">
+              <span class="stat-cell">
+                <span :data-testid="'detail-playlist-' + detail.username">{{ showCount(detail.playlistCount) }}</span>
+                <el-tooltip :content="countHints.playlist" placement="top">
+                  <el-icon class="stat-hint" data-testid="hint-playlist"><question-filled /></el-icon>
+                </el-tooltip>
+              </span>
+            </el-descriptions-item>
+            <el-descriptions-item label="视频数">
+              <span class="stat-cell">
+                <span data-testid="detail-video">{{ showCount(detail.videoCount) }}</span>
+                <el-tooltip :content="countHints.video" placement="top">
+                  <el-icon class="stat-hint" data-testid="hint-video"><question-filled /></el-icon>
+                </el-tooltip>
+              </span>
+            </el-descriptions-item>
+          </el-descriptions>
+        </section>
       </div>
-    </el-drawer>
+      <template #footer>
+        <el-button data-testid="detail-close" @click="detailVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -342,12 +455,13 @@
  */
 import { computed, getCurrentInstance, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { ArrowDown } from '@element-plus/icons-vue'
+import { ArrowDown, QuestionFilled } from '@element-plus/icons-vue'
 import {
   listAppUsers,
   getAppUserStats,
   getAppUser,
   updateAppUser,
+  updateAppUserRole,
   resetAppUserPassword,
   banAppUser,
   unbanAppUser,
@@ -412,12 +526,21 @@ const detail = ref(null)
 const viewportWidth = ref(typeof window === 'undefined' ? 1440 : window.innerWidth)
 const isNarrow = computed(() => viewportWidth.value < 768)
 const dialogWidth = computed(() => (isNarrow.value ? '92%' : '480px'))
-const drawerSize = computed(() => (isNarrow.value ? '88%' : '420px'))
+/* 详情弹窗：宽 min(720px, 94vw)，窄屏自动全宽；描述列数跟着视口走 */
+const detailWidth = 'min(720px, 94vw)'
+const detailColumns = computed(() => (isNarrow.value ? 1 : 2))
 function onResize() {
   viewportWidth.value = window.innerWidth
 }
 
 const emptyText = computed(() => (pageError.value ? pageError.value : '没有符合条件的账号'))
+
+/* 三个统计口径的说明挂在 ? 上：只在需要时展开，不占正文（原抽屉底部那段开发者口径说明已删除） */
+const countHints = {
+  favorite: '收藏数：该账号在用户端收藏的媒体条数（media_owner.user_id 关联 media_favorite 统计）',
+  playlist: '播放列表数：该账号在用户端创建的自建播放列表条数（media_owner.user_id 关联 media_playlist 统计）',
+  video: '视频数：媒体库视频无归属账号，恒为空'
+}
 
 /** 徽标：封禁优先于审核态（后端 badgeText 已算好，这里兜底） */
 function tagType(row) {
@@ -512,15 +635,55 @@ async function afterWrite() {
   await loadAll()
 }
 
+/** 「更多」菜单只放次要操作：通过 / 拒绝 / 封禁·解封已在操作列外露，不再从这里派发 */
 async function handleRowCommand(command, row) {
-  if (command === 'approve') return handleApprove(row)
-  if (command === 'reject') return openReject(row)
   if (command === 'pending') return handleReset2Pending(row)
   if (command === 'edit') return openEdit(row)
   if (command === 'resetPwd') return openResetPwd(row)
-  if (command === 'ban') return openBan(row)
-  if (command === 'unban') return handleUnban(row)
   if (command === 'delete') return handleDelete(row)
+}
+
+/* ------------------------------------------------ P5.89 角色（两档：user 普通用户 / owner 站长） */
+
+/** 角色徽标色：站长醒目（warning），普通用户中性 */
+function roleTagType(role) {
+  return role === 'owner' ? 'warning' : 'info'
+}
+
+function roleText(role) {
+  return role === 'owner' ? '站长' : '普通用户'
+}
+
+/**
+ * 行内切换角色（需 app:user:edit）：
+ *   · 先确认（升站长 = 拿到站端 full 权限，降级 = 回到三档策略，都是影响面很大的动作）；
+ *   · 提交后用 afterWrite() 重新拉当前页 + 统计，不本地改行（刷新后状态与库一致）；
+ *   · 唯一 owner 降级由后端 400 拒绝，原文（含「请先把另一个账号设为站长」）直接弹出来。
+ * select 用 :model-value + @change 而不是 v-model：取消 / 失败时不必回滚本地值。
+ */
+async function handleRoleChange(row, role) {
+  if (!row || !role || row.role === role) return
+  const next =
+    role === 'owner'
+      ? '站长（拥有站端 full 权限：无视编辑策略三档，人物卡背景等调整可持久化到服务端）'
+      : '普通用户（按编辑策略三档：off / local 时站端写接口 403）'
+  try {
+    await ElMessageBox.confirm('把「' + row.username + '」设为' + next + '？', '切换角色', {
+      type: 'warning',
+      confirmButtonText: '确认',
+      cancelButtonText: '取消'
+    })
+  } catch (e) {
+    return
+  }
+  try {
+    const res = unwrap(await updateAppUserRole(row.id, role))
+    const changed = res && res.changed === false
+    ElMessage.success(changed ? '「' + row.username + '」已经是' + roleText(role) : '已把「' + row.username + '」设为' + roleText(role))
+    await afterWrite()
+  } catch (e) {
+    ElMessage.error(errorText(e, '切换角色失败'))
+  }
 }
 
 async function handleApprove(row) {
@@ -937,16 +1100,66 @@ onBeforeUnmount(() => {
   }
   .user-table {
     width: 100%;
-  }
-  .row-more {
-    margin-left: 8px;
+    /* 单元格左右内边距收到 8px：11 列（含新增 3 列 + 300px 操作列）在 1440 视口下仍不横滚 */
+    :deep(.cell) {
+      padding-left: 8px;
+      padding-right: 8px;
+    }
   }
   .mono {
     font-variant-numeric: tabular-nums;
     color: var(--el-text-color-regular);
   }
+  /* 时间戳两行（日期 / 时分秒）：96px 装得下，比原来 160px 省 128px；文本内容不变（只按空格折行） */
+  .dt {
+    display: inline-block;
+    max-width: 100%;
+    font-size: 12px;
+    line-height: 1.25;
+    white-space: normal;
+    word-break: keep-all;
+    overflow-wrap: normal;
+  }
+  .num {
+    font-variant-numeric: tabular-nums;
+  }
+  .ban-reason {
+    color: var(--el-color-danger);
+  }
   .u-name {
     font-weight: 500;
+  }
+  /* P5.89：角色列的行内下拉 —— 118px 列宽里放得下「普通用户」四个字，窄屏表格本来就横向滚动 */
+  .role-select {
+    width: 104px;
+  }
+  /* 操作列：一行等宽按钮，垂直居中、左对齐；间距 6px 用 flex gap，不叠 el-button 的默认 margin */
+  .ops-row {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 6px;
+  }
+  .op-btn {
+    width: 52px;
+    height: 28px;
+    min-height: 28px;
+    margin: 0;
+    padding: 0 4px;
+    font-size: 12px;
+    line-height: 1;
+  }
+  .op-btn + .op-btn {
+    margin-left: 0;
+  }
+  .op-more {
+    margin: 0;
+    vertical-align: middle;
+  }
+  .op-caret {
+    margin-left: 2px;
+    font-size: 11px;
   }
   .pager {
     margin-top: 12px;
@@ -990,20 +1203,62 @@ onBeforeUnmount(() => {
     font-size: 12px;
     color: var(--el-text-color-secondary);
   }
+  .identity-block {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-top: 10px;
+    font-size: 12px;
+  }
+  .identity-label {
+    flex: 0 0 auto;
+    color: var(--el-text-color-secondary);
+  }
   .identity-line {
     display: block;
+    color: var(--el-text-color-regular);
   }
-  .detail-note {
-    margin: 10px 0 0;
-    font-size: 12px;
-    line-height: 1.5;
+  .identity-empty {
     color: var(--el-text-color-secondary);
+  }
+
+  /* 详情弹窗：三段分区 + 统计项的 ? 说明 */
+  .detail-section + .detail-section {
+    margin-top: 16px;
+  }
+  .section-title {
+    margin: 0 0 8px;
+    padding-left: 8px;
+    border-left: 3px solid var(--el-color-primary);
+    font-size: 13px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--el-text-color-primary);
+  }
+  .stat-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .stat-hint {
+    font-size: 14px;
+    color: var(--el-text-color-secondary);
+    cursor: help;
+    &:hover {
+      color: var(--el-color-primary);
+    }
   }
 
   /* 窄屏（375）：筛选纵向排、卡片两列、表格横向滚动（不挤掉操作列） */
   @media (max-width: 768px) {
     .filter-bar {
       display: block;
+    }
+    /* block 之后 inline 表单不会自己撑满：否则 select / input 只剩内容宽度，看起来像坏掉 */
+    .filter-bar :deep(.el-form-item) {
+      display: block;
+      width: 100%;
+      margin-right: 0;
     }
     .status-select,
     .kw-input {
@@ -1022,6 +1277,17 @@ onBeforeUnmount(() => {
       justify-content: center;
       flex-wrap: wrap;
     }
+  }
+}
+</style>
+
+<style lang="scss">
+/* 详情弹窗 append-to-body：scoped 选择器够不到，这里用唯一的 .detail-dialog 类兜住
+   375 窄屏下三段分区会比视口高，给 body 定高内滚，标题栏与「关闭」按钮始终可见 */
+.detail-dialog {
+  .el-dialog__body {
+    max-height: 70vh;
+    overflow-y: auto;
   }
 }
 </style>
