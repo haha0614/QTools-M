@@ -89,6 +89,53 @@ export function purgeTrash(kind, id, trashRel) {
   })
 }
 
+
+// ------------------------------------------------------------------ 内容分级（P5.99）
+
+// 单条视频改分级：body {rating:'general'|'guidance'|'restricted'}
+export function setVideoRating(id, rating) {
+  return request({
+    url: BASE + '/video/' + encodeURIComponent(id) + '/rating',
+    method: 'put',
+    data: { rating: rating }
+  })
+}
+
+// 单本相册改分级（整册属性：册里的图片继承它）
+export function setAlbumRating(id, rating) {
+  return request({
+    url: BASE + '/album/' + encodeURIComponent(id) + '/rating',
+    method: 'put',
+    data: { rating: rating }
+  })
+}
+
+// 批量改分级：{type:'video'|'album', ids:[], rating}
+export function setRatingBatch(payload) {
+  return request({
+    url: BASE + '/rating/batch',
+    method: 'post',
+    data: payload
+  })
+}
+
+// 读分级可见性策略：{general, guidance, restricted, items:[{value,label,guestVisible}]}
+export function getRatingPolicy() {
+  return request({
+    url: BASE + '/rating-policy',
+    method: 'get'
+  })
+}
+
+// 局部改分级可见性策略：只传要改的那几档（true = 未登录可见）
+export function setRatingPolicy(payload) {
+  return request({
+    url: BASE + '/rating-policy',
+    method: 'put',
+    data: payload
+  })
+}
+
 // 改相册人物归属（personId 传 null 表示未归类）
 export function setAlbumPerson(id, personId) {
   return request({
@@ -737,6 +784,37 @@ export function cancelScanIngest(jobId) {
   return request({
     url: BASE + '/scan/jobs/' + encodeURIComponent(jobId) + '/cancel',
     method: 'post',
+    silent: true
+  })
+}
+
+/* ---------------- P5.97：建根前预演 + 流水线单步重试 ----------------
+   契约：
+     POST /api/media/admin/scan/preview   { path }
+       → { path, exists, readable, videos, albums, photos, files, bytes,
+           ignored: { '.txt': 3, … }, ignoredTotal, walkTruncated, walkTruncatedReason,
+           dryRunMs, estimateSeconds, command }
+       只读（dry-run 不连库、不写库），因此接受一个**还没登记**的路径：
+       新增库根表单填完路径就能看到「下面有多少东西」，不必先建根再回扫描页试。
+       参数 media:admin:edit；路径不存在 / 不是目录 / 无权限 → 400（错误体是 {error}）。
+     POST /api/media/admin/scan/jobs/{jobId}/retry?phase=scan|hash|meta|thumb|sprite|index
+       → 同一份任务视图（该阶段重置为 pending，成功后自动接上后面没成功的阶段）
+   两条都 silent：错误由页面就地展示（与扫描入库其它调用一致）。 */
+export function previewScanRoot(path) {
+  return request({
+    url: BASE + '/scan/preview',
+    method: 'post',
+    data: { path: path },
+    silent: true,
+    timeout: 200000
+  })
+}
+
+export function retryScanIngestPhase(jobId, phase) {
+  return request({
+    url: BASE + '/scan/jobs/' + encodeURIComponent(jobId) + '/retry',
+    method: 'post',
+    params: { phase: phase },
     silent: true
   })
 }

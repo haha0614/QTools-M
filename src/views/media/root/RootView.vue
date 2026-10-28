@@ -37,8 +37,45 @@
       </p>
     </div>
 
+    <!-- P5.99：分级与可见性 —— 三个分级的「未登录是否可见」开关。
+         为什么放在库根管理页顶部：它是同一个问题的另一维（库根 = 位置，分级 = 内容门类），
+         两者都决定未登录访客能看到什么，分散到两页只会让人漏掉其中一维。 -->
+    <div class="rating-policy-card" data-testid="rating-policy-card">
+      <div class="rating-policy-head">
+        <span class="rating-policy-title">分级与可见性</span>
+        <span class="rating-policy-sub">
+          未登录访客对每一档内容的可见性；与上面的「未登录可见」（库根）叠加：两者都通过才看得见。
+        </span>
+      </div>
+      <p v-if="ratingError" class="rating-policy-error" data-testid="rating-policy-error">{{ ratingError }}</p>
+      <p v-else-if="!ratingPolicy" class="rating-policy-hint" data-testid="rating-policy-unavailable">
+        分级策略接口未就绪（/api/media/admin/rating-policy）：部署 P5.99 后端并执行
+        doc/media_content_rating.sql 后刷新即可，其它功能不受影响。
+      </p>
+      <div v-else class="rating-policy-rows">
+        <div v-for="item in ratingPolicyItems" :key="item.value" class="rating-policy-row"
+          :data-testid="'rating-row-' + item.value">
+          <span class="rating-policy-label">{{ item.label }}</span>
+          <el-switch :model-value="item.guestVisible" :loading="!!ratingBusy[item.value]"
+            :disabled="!!ratingBusy[item.value]" v-hasPermi="['media:admin:edit']"
+            :data-testid="'rating-switch-' + item.value"
+            @update:model-value="(v) => emit('toggleRating', { rating: item.value, value: v })" />
+          <span class="rating-policy-state">{{ item.guestVisible ? '未登录可见' : '仅登录可见' }}</span>
+        </div>
+        <p class="rating-policy-tip">
+          关掉某一档后：未登录访客的索引里不会出现该档内容，直链一律 404，站点的分级筛选里也不再出现这一档；
+          只剩一档可见时，站点不再显示分级筛选。
+        </p>
+      </div>
+    </div>
+
     <el-alert v-if="notReady" :title="notReady" type="warning" :closable="false" show-icon class="root-alert" />
     <el-alert v-else-if="pageError" :title="pageError" type="error" :closable="false" show-icon class="root-alert" />
+
+    <!-- P5.95：唯一内容根（或全部内容根）被关掉「未登录可见」→ 未登录访客看到的是空站点，
+         这种事故已经发生过两次（测试改 flag 后忘记恢复），必须在页面顶部主动喊出来 -->
+    <el-alert v-if="hiddenWarning" :title="hiddenWarning" type="error" :closable="false" show-icon
+      class="root-alert root-guest-warning" data-testid="guest-hidden-warning" />
 
     <el-table ref="tableRef" v-if="loading || rows.length" v-loading="loading" :data="rows" class="root-table"
       row-key="id" :row-class-name="rowClass" @expand-change="onExpandChange">
@@ -144,6 +181,12 @@
               :data-testid="'guest-switch-' + scope.row.id"
               @update:model-value="(v) => emit('toggleGuest', { row: scope.row, value: v })" />
           </el-tooltip>
+          <!-- P5.95：这一行就是「让站点看起来空了」的那个根：开关旁挂一个小警示图标 + 同样的文案 -->
+          <el-tooltip v-if="warnOnRow(scope.row)" placement="top" :content="hiddenWarning">
+            <el-icon class="root-guest-warn-icon" :data-testid="'guest-hidden-icon-' + scope.row.id" color="#f56c6c">
+              <WarningFilled />
+            </el-icon>
+          </el-tooltip>
           <div v-if="isArtifactRoot(scope.row)" class="root-kind-raw">产物根无内容</div>
         </template>
       </el-table-column>
@@ -163,6 +206,13 @@
       </el-table-column>
       <el-table-column label="操作" width="196" align="center" fixed="right" class-name="small-padding fixed-width">
         <template #default="scope">
+          <el-tooltip :content="scanTip(scope.row)" placement="top">
+            <span>
+              <el-button link type="primary" icon="VideoPlay" :disabled="!canScan(scope.row)"
+                :data-testid="'scan-' + scope.row.id" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
+                @click="emit('scan', scope.row)">扫描</el-button>
+            </span>
+          </el-tooltip>
           <el-tooltip content="子目录清单（各产物类型的文件数与占用）" placement="top" :disabled="!isArtifactRoot(scope.row)">
             <el-button link type="primary" icon="Files" :disabled="!isArtifactRoot(scope.row)"
               :data-testid="'subdirs-btn-' + scope.row.id" @click="toggleArtifacts(scope.row)">子目录</el-button>
@@ -188,6 +238,10 @@
       「未登录可见」＝ 未登录访客（浏览器无有效 app token）能否看到这个根下的内容：
       关掉后它的视频 / 相册 / 图片不会出现在站端索引里，直接访问其资源一律 404；登录用户不受影响。
       开关<b>即点即存</b>，下一次请求即生效。产物根没有媒体条目，这个开关对它没有影响。
+    </p>
+    <p class="root-tip" data-testid="guest-rule-tip">
+      什么时候会出现顶部的红色警告：<b>全部内容根都关掉「未登录可见」时</b>（只有一个内容根的部署里，
+      那就是「唯一内容根被关掉」）。有多个内容根、但还有根是可见的，则不警告 —— 访客仍然看得到东西。
     </p>
     <p class="root-tip">
       产物根里的 7 类派生资源：<code>p</code> 图片缩略图 / <code>v</code> 视频封面 / <code>s</code> 精灵图 /
@@ -224,6 +278,40 @@
         <el-form-item label="备注">
           <el-input v-model="form.note" type="textarea" :rows="2" maxlength="200" show-word-limit placeholder="可选" />
         </el-form-item>
+
+        <!-- P5.97 A：填完路径立刻预演（防抖 500ms，后端 dry-run 不写库），所见即真实将入库的数量 -->
+        <el-form-item v-if="!form.id && isFormContentRoot" label="预演">
+          <div class="root-preview" data-testid="root-preview" :data-state="previewState">
+            <p v-if="preview.loading" class="root-preview-line">正在预演（只读，不写库）：走一遍目录…</p>
+            <p v-else-if="preview.error" class="root-form-error" data-testid="root-preview-error">{{ preview.error }}</p>
+            <p v-else-if="preview.data" class="root-preview-line" data-testid="root-preview-text">
+              识别到 <b>{{ toNum(preview.data.videos) }}</b> 个视频 /
+              <b>{{ toNum(preview.data.albums) }}</b> 本相册 /
+              <b>{{ toNum(preview.data.photos) }}</b> 张图片
+              <template v-if="toNum(preview.data.ignoredTotal) > 0">
+                ；另有 {{ toNum(preview.data.ignoredTotal) }} 个文件不会入库（{{ ignoredText }}）
+              </template>
+              <template v-if="toNum(preview.data.files) > 0">
+                ；目录共 {{ toNum(preview.data.files) }} 个文件 {{ humanBytes(preview.data.bytes) }}
+              </template>
+              <span class="root-preview-eta">预计首次扫描约 {{ estimateText }}</span>
+            </p>
+            <p v-else class="root-preview-line muted">填完绝对路径后会自动预演：这条路径下有多少能入库、多少会被忽略</p>
+            <p v-if="preview.data && preview.data.walkTruncated" class="root-form-hint">
+              忽略类型统计提前收工（{{ preview.data.walkTruncatedReason }}）：上面的忽略数是「至少这么多」
+            </p>
+          </div>
+        </el-form-item>
+
+        <!-- P5.97 A：创建后立即扫描入库（默认开）：一次点击跑完扫盘 → 补哈希 → 补元数据 → 缩略图 → 索引 -->
+        <el-form-item v-if="!form.id && isFormContentRoot" label="保存后">
+          <el-switch :model-value="formAutoScan"
+            @update:model-value="(v) => emit('update:formAutoScan', v)" data-testid="root-auto-scan" />
+          <div class="root-form-hint">
+            创建后立即扫描入库（推荐）：保存即开始扫描，完成后自动补内容哈希 / 补元数据 / 生成封面缩略图 / 重建索引；
+            进度在抽屉里，可随时停止。关掉它就只登记路径，之后在行上点「扫描」。
+          </div>
+        </el-form-item>
       </el-form>
       <p v-if="formError" class="root-form-error">{{ formError }}</p>
       <template #footer>
@@ -236,6 +324,7 @@
 
 <script setup>
 import { computed, nextTick, ref } from 'vue'
+import { RATING_OPTIONS } from '../ratingOptions'
 
 const props = defineProps({
   /** 当前列表：[{ id, name, path, kind, guestVisible, exists, readable, videoCount, albumCount, photoCount, isDefault }] */
@@ -255,7 +344,20 @@ const props = defineProps({
   formVisible: { type: Boolean, default: false },
   form: { type: Object, default: () => ({ id: null, name: '', path: '', kind: 'root', guestVisible: true, note: '' }) },
   saving: { type: Boolean, default: false },
-  formError: { type: String, default: '' }
+  formError: { type: String, default: '' },
+  /** 预演结果：{ loading, error, data:{ videos, albums, photos, files, bytes, ignored, ignoredTotal, estimateSeconds } } */
+  preview: { type: Object, default: () => ({ loading: false, error: '', data: null }) },
+  /** 「创建后立即扫描入库」开关（默认开） */
+  formAutoScan: { type: Boolean, default: true },
+  /**
+   * 内容分级可见性策略（P5.99）：{ general: true, guidance: true, restricted: true, items:[{value,label,guestVisible}] }
+   * null = 还没取到（后端未部署 / 读取失败），面板显示提示而不是一排假开关
+   */
+  ratingPolicy: { type: Object, default: null },
+  /** 正在保存的分级 → true（逐档禁用，避免连点） */
+  ratingBusy: { type: Object, default: () => ({}) },
+  /** 策略接口的错误文案（非空时面板内红字） */
+  ratingError: { type: String, default: '' }
 })
 
 const emit = defineEmits([
@@ -266,8 +368,29 @@ const emit = defineEmits([
   'submit',
   'toggleGuest',
   'loadArtifacts',
-  'update:formVisible'
+  'scan',
+  'update:formVisible',
+  'update:formAutoScan',
+  'toggleRating'
 ])
+
+/** 三档开关的展示模型：策略对象 → [{value,label,guestVisible}]（顺序固定 general → guidance → restricted） */
+const ratingPolicyItems = computed(() => {
+  const policy = props.ratingPolicy || {}
+  const items = Array.isArray(policy.items) ? policy.items : []
+  if (items.length) {
+    return items.map(it => ({
+      value: String(it.value || ''),
+      label: String(it.label || it.value || ''),
+      guestVisible: it.guestVisible !== false
+    }))
+  }
+  return RATING_OPTIONS.map(opt => ({
+    value: opt.value,
+    label: opt.label,
+    guestVisible: policy[opt.value] !== false
+  }))
+})
 
 const tableRef = ref(null)
 const introOpen = ref(false)
@@ -285,6 +408,60 @@ function isReadable(row) {
 /** 只有产物根（kind=thumbs）有子目录清单；kind 取值不动，只在这里判定 */
 function isArtifactRoot(row) {
   return !!row && String(row.kind || '').toLowerCase() === 'thumbs'
+}
+
+/** 内容根（kind=root）：只有它会产出媒体条目，也只有它影响「未登录访客看到什么」 */
+function isContentRoot(row) {
+  return !!row && String(row.kind || '').toLowerCase() === 'root'
+}
+
+/** 表单里的类型是不是内容根（只有内容根能预演 / 能扫描入库） */
+const isFormContentRoot = computed(() => String((props.form && props.form.kind) || 'root').toLowerCase() === 'root')
+
+/** 预演面板状态（给 data-state 断言用） */
+const previewState = computed(() => {
+  const p = props.preview || {}
+  if (p.loading) return 'loading'
+  if (p.error) return 'error'
+  return p.data ? 'ready' : 'idle'
+})
+
+/** 被忽略的文件类型：取数量最多的前几类，拼成「.txt×3 / .zip×1」 */
+const ignoredText = computed(() => {
+  const data = props.preview && props.preview.data
+  const map = (data && data.ignored) || {}
+  const rows = Object.keys(map).map((ext) => ({ ext: ext || '无扩展名', count: toNum(map[ext]) }))
+  rows.sort((a, b) => b.count - a.count)
+  if (!rows.length) return ''
+  const text = rows.slice(0, 5).map((row) => row.ext + '×' + row.count).join(' / ')
+  return rows.length > 5 ? text + ' …' : text
+})
+
+/** 预计耗时文本：预演已实测走盘时间，再加文件数的粗估（页面必须带「约」，不是 SLA） */
+const estimateText = computed(() => {
+  const data = props.preview && props.preview.data
+  const seconds = toNum(data && data.estimateSeconds)
+  if (!seconds) return '—'
+  if (seconds < 60) return '约 ' + seconds + ' 秒'
+  const minutes = Math.round(seconds / 60)
+  if (minutes < 60) return '约 ' + minutes + ' 分钟'
+  return '约 ' + (minutes / 60).toFixed(1) + ' 小时'
+})
+
+/** 内容根才能扫描入库（thumbs 产物根里全是派生产物，扫进来都是无主文件） */
+function canScan(row) {
+  return isContentRoot(row) && isReadable(row)
+}
+
+function scanTip(row) {
+  if (!isContentRoot(row)) return '只有内容根能扫描入库：产物根 / 回收站根里没有源文件'
+  if (!isReadable(row)) return '路径不可读（或不存在），先修好路径再扫'
+  return '扫描这个根：扫盘写库 → 补哈希 → 补元数据 → 生成封面缩略图 → 重建索引（可中途停止）'
+}
+
+/** 该行是否被关掉了「未登录可见」（缺省 = 可见，与后端 guestVisibleOf 同口径） */
+function isGuestHiddenRow(row) {
+  return !!row && row.guestVisible === false
 }
 
 /** 类型列：root → 内容根 / thumbs → 产物根（原值以小字保留，排查时对得上库） */
@@ -395,6 +572,35 @@ function rowClass({ row }) {
 
 const hiddenCount = computed(() => props.rows.filter(r => r && r.guestVisible === false).length)
 
+/** 内容根清单（P5.95 的警告只看它们：产物根 / 回收站根没有媒体条目） */
+const contentRoots = computed(() => props.rows.filter(isContentRoot))
+
+/**
+ * 红色警告文案（空串 = 不警告）
+ *
+ * <p>规则：**全部内容根都不可见**时才警告。</p>
+ *   - 只有一个内容根时，它就是「唯一内容根被关掉」——访客必然看到空站点；
+ *   - 有多个内容根时，只要还有一个可见的根，访客就看得到东西，这时提示只会变成噪音；
+ *     全都关掉才是真正的空站点。
+ *
+ * <p>文案与站端兜底提示（QTools-C 的 GuestHiddenEmpty）是同一件事的两端：管理端提前喊，
+ * 站端兜住已经发生的。</p>
+ */
+const hiddenWarning = computed(() => {
+  const roots = contentRoots.value
+  if (!roots.length) return ''
+  if (!roots.every(isGuestHiddenRow)) return ''
+  if (roots.length === 1) {
+    return '当前唯一的内容根已设为「未登录不可见」，未登录访客将看到空站点。若非本意，请打开「未登录可见」。'
+  }
+  return '全部 ' + roots.length + ' 个内容根都已设为「未登录不可见」，未登录访客将看到空站点。若非本意，请打开「未登录可见」。'
+})
+
+/** 行内警示图标只挂在「确实被关掉的内容根」上，且只在顶部警告成立时出现（同一套口径，不各判一套） */
+function warnOnRow(row) {
+  return !!hiddenWarning.value && isContentRoot(row) && isGuestHiddenRow(row)
+}
+
 /** 三态归一：not-ready > error > loading > ready > empty（顺序即优先级） */
 const state = computed(() => {
   if (props.notReady) return 'not-ready'
@@ -404,8 +610,99 @@ const state = computed(() => {
 })
 </script>
 <style scoped>
+/* ---------- 分级与可见性（P5.99） ---------- */
+.rating-policy-card {
+  margin-bottom: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-blank);
+}
+
+.rating-policy-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.rating-policy-title {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+}
+
+.rating-policy-sub {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
+.rating-policy-rows {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 18px;
+}
+
+.rating-policy-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rating-policy-label {
+  font-size: 13px;
+  color: var(--el-text-color-primary);
+  min-width: 70px;
+}
+
+.rating-policy-state {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  min-width: 70px;
+}
+
+.rating-policy-tip {
+  flex-basis: 100%;
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
+}
+
+.rating-policy-error {
+  margin: 0;
+  font-size: 12px;
+  color: var(--el-color-danger);
+}
+
+.rating-policy-hint {
+  margin: 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+
 .root-page {
   padding-bottom: 8px;
+}
+
+/* P5.95：库根被关掉「未登录可见」的红色警告（比普通错误条更醒目：粗描边 + 略浓的底色） */
+.root-guest-warning {
+  border: 1px solid var(--el-color-error);
+  margin-bottom: 10px;
+}
+
+.root-guest-warning :deep(.el-alert__title) {
+  font-weight: 600;
+}
+
+/* 行内小警示图标：跟在开关后面，与开关同一行居中 */
+.root-guest-warn-icon {
+  margin-left: 4px;
+  vertical-align: middle;
+  font-size: 14px;
+  cursor: help;
 }
 
 .root-toolbar {
@@ -557,6 +854,43 @@ const state = computed(() => {
   margin: 0 0 4px;
   font-size: 12px;
   color: var(--el-color-danger);
+}
+
+/* P5.97 预演面板：亮暗主题都用 --el-* 变量；375 窄屏下自动换行 */
+.root-preview {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px dashed var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-fill-color-lighter);
+}
+
+.root-preview[data-state='ready'] {
+  border-style: solid;
+  border-color: var(--el-color-success-light-5);
+  background: var(--el-color-success-light-9);
+}
+
+.root-preview[data-state='error'] {
+  border-color: var(--el-color-danger-light-5);
+  background: var(--el-color-danger-light-9);
+}
+
+.root-preview-line {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--el-text-color-regular);
+  word-break: break-all;
+}
+
+.root-preview-line.muted {
+  color: var(--el-text-color-secondary);
+}
+
+.root-preview-eta {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
 }
 
 :deep(.root-row-bad) td {

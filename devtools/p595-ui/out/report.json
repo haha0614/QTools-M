@@ -1,0 +1,75 @@
+{
+  "passed": 18,
+  "failures": [],
+  "facts": {
+    "captcha": {
+      "captchaOn": true,
+      "code": "有"
+    },
+    "singleHidden": {
+      "page": true,
+      "state": "ready",
+      "rows": "3",
+      "alertText": "当前唯一的内容根已设为「未登录不可见」，未登录访客将看到空站点。若非本意，请打开「未登录可见」。",
+      "alertColor": "rgb(245, 108, 108)",
+      "iconCount": 1,
+      "iconTitles": [
+        "trigger"
+      ],
+      "tipText": "什么时候会出现顶部的红色警告：全部内容根都关掉「未登录可见」时（只有一个内容根的部署里， 那就是「唯一内容根被关掉」）。有多个内容根、但还有根是可见的，则不警告 —— 访客仍然看得到东西。",
+      "switches": [
+        false,
+        true,
+        true
+      ]
+    },
+    "afterToggleOn": {
+      "page": true,
+      "state": "ready",
+      "rows": "3",
+      "alertText": "",
+      "alertColor": "",
+      "iconCount": 0,
+      "iconTitles": [],
+      "tipText": "什么时候会出现顶部的红色警告：全部内容根都关掉「未登录可见」时（只有一个内容根的部署里， 那就是「唯一内容根被关掉」）。有多个内容根、但还有根是可见的，则不警告 —— 访客仍然看得到东西。",
+      "switches": [
+        true,
+        true,
+        true
+      ]
+    },
+    "multiOneHidden": {
+      "page": true,
+      "state": "ready",
+      "rows": "3",
+      "alertText": "",
+      "alertColor": "",
+      "iconCount": 0,
+      "iconTitles": [],
+      "tipText": "什么时候会出现顶部的红色警告：全部内容根都关掉「未登录可见」时（只有一个内容根的部署里， 那就是「唯一内容根被关掉」）。有多个内容根、但还有根是可见的，则不警告 —— 访客仍然看得到东西。",
+      "switches": [
+        true,
+        true,
+        false
+      ]
+    },
+    "multiAllHidden": {
+      "page": true,
+      "state": "ready",
+      "rows": "3",
+      "alertText": "全部 2 个内容根都已设为「未登录不可见」，未登录访客将看到空站点。若非本意，请打开「未登录可见」。",
+      "alertColor": "rgb(245, 108, 108)",
+      "iconCount": 2,
+      "iconTitles": [
+        "trigger",
+        "trigger"
+      ],
+      "tipText": "什么时候会出现顶部的红色警告：全部内容根都关掉「未登录可见」时（只有一个内容根的部署里， 那就是「唯一内容根被关掉」）。有多个内容根、但还有根是可见的，则不警告 —— 访客仍然看得到东西。",
+      "switches": [
+        false,
+        true,
+        false
+      ]
+    }
+  }
+}

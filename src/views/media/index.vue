@@ -21,31 +21,30 @@
         <span v-if="selectedVideoTotal" class="media-selected" data-testid="selected-count">
           已选 {{ selectedVideoTotal }} 项
           <el-button link type="primary" @click="clearVideoSelection">清空</el-button>
+          <!-- P5.99：勾选后批量设置内容分级 -->
+          <el-button type="primary" size="small" icon="PriceTag" v-hasPermi="['media:admin:edit']"
+            data-testid="video-batch-rating" @click="openBatchRating('video')">批量设置分级</el-button>
         </span>
         <el-button icon="Refresh" :loading="statsLoading" @click="refreshAll">刷新</el-button>
         <el-button icon="PriceTag" @click="openTagManager" v-hasPermi="['media:admin:list']">标签管理</el-button>
         <el-button icon="Setting" @click="openEditPolicy" v-hasPermi="['media:admin:edit']">编辑策略</el-button>
-        <el-input-number v-model="scanLimit" :min="0" :max="10000" :step="1" :disabled="scanRunning"
-          controls-position="right" class="scan-limit" title="试跑条数：只对重建缩略图 / 生成精灵图预览生效，0 = 不限" />
-        <el-button type="primary" plain icon="RefreshRight" :loading="scanRunning" :disabled="scanRunning" @click="handleScan('scan')"
-          v-hasPermi="['media:admin:scan']">重建索引</el-button>
-        <el-button type="primary" plain icon="Picture" :loading="scanRunning" :disabled="scanRunning" @click="handleScan('thumb')"
-          v-hasPermi="['media:admin:scan']">重建缩略图</el-button>
-        <el-button type="primary" plain icon="Film" :loading="scanRunning" :disabled="scanRunning" @click="handleScan('sprite,preview')"
-          v-hasPermi="['media:admin:scan']">生成精灵图/预览</el-button>
-        <el-button type="danger" plain icon="Delete" :loading="scanRunning" :disabled="scanRunning" @click="handleGc"
-          v-hasPermi="['media:admin:scan']">清理派生文件(GC)</el-button>
-        <!-- 维护面板：把命令行维护操作收进抽屉，与上面 4 个扫描按钮并列（不替换它们） -->
+        <!-- P5.97：扫盘入库的唯一入口（原来这里 4 个按钮 = 维护面板里那 4 个的重复入口）。
+             一次点击跑完整条流水线：扫盘 → 补哈希 → 补元数据 → 封面缩略图 → 重建索引。 -->
+        <el-button type="primary" icon="Upload" @click="openScanDrawer" v-hasPermi="['media:admin:scan', 'media:admin:edit']">
+          扫描 / 导入
+        </el-button>
+        <!-- 维护面板：派生资源重建 / GC / 备份 / 自动扫描 / 重建索引（诊断）都在这里，不再另开按钮 -->
         <el-button icon="Tools" @click="maintVisible = true" v-hasPermi="['media:admin:list']">维护</el-button>
         <!-- P4-B 重复文件：工具栏入口 → 抽屉（与维护面板并列，不替换任何既有按钮） -->
         <el-button icon="CopyDocument" @click="openDuplicates" v-hasPermi="['media:admin:list']">重复文件</el-button>
       </div>
     </div>
 
-    <!-- 生成类任务的成本提示：全片解码，别一上来就全量跑 -->
+    <!-- 一句话说清入口分工（P5.97 合并后只剩两组） -->
     <div class="scan-tip">
-      精灵图 / 预览视频是<strong>全片解码</strong>：176 个视频约需 5 小时，建议先在工具栏填「试跑条数」（如 3）跑一小批再全量。
-      「清理派生文件(GC)」只删 thumbs/v、thumbs/s、thumbs/pv2 下的孤儿派生文件（媒体源与索引不受影响），但删除不可撤销。
+      「扫描 / 导入」= 扫盘入库，点一次就把后续步骤串起来（补哈希 → 补元数据 → 封面缩略图 → 重建索引），可中途停止；
+      「维护」= 派生资源重建（缩略图 / 精灵图 · 预览）、清理孤儿(GC)、备份、自动扫描开关，以及<strong>诊断用</strong>的「重建索引」。
+      精灵图 / 预览是<strong>全片解码</strong>（176 个视频约需 5 小时），先在维护里的「试跑条数」填 3 跑一小批再全量。
     </div>
 
     <!-- 扫描进度 -->
@@ -107,8 +106,15 @@
           <el-table-column type="selection" width="44" align="center" />
           <el-table-column label="封面" width="66" align="center">
             <template #default="scope">
-              <img class="media-cover media-cover-click" :src="mediaSrc('/api/media/thumb/v/' + scope.row.id)" loading="lazy"
-                alt="封面" title="点击放大" @click="openVideoPreview(scope.row)" />
+              <span class="media-cover-wrap">
+                <img class="media-cover media-cover-click" :src="mediaSrc('/api/media/thumb/v/' + scope.row.id)" loading="lazy"
+                  alt="封面" title="点击放大" @click="openVideoPreview(scope.row)" />
+                <!-- P6.00：posterSource=file = 同目录「视频名-封面」自带封面（不是 ffmpeg 截帧） -->
+                <el-tooltip v-if="scope.row.posterSource === 'file'"
+                  :content="'自带封面：' + (scope.row.posterFile || '同目录「视频名-封面」文件')" placement="top">
+                  <span class="cover-badge">封</span>
+                </el-tooltip>
+              </span>
             </template>
           </el-table-column>
           <el-table-column label="标题" prop="title" min-width="200" :show-overflow-tooltip="true" />
@@ -124,6 +130,18 @@
             <template #default="scope">{{ formatVolume(scope.row.size) }}</template>
           </el-table-column>
           <el-table-column label="编码" prop="vcodec" width="86" align="center" />
+          <el-table-column label="分级" width="132" align="center" class-name="rating-col">
+            <template #default="scope">
+              <!-- P5.99：行内下拉直接写库（PUT /video/{id}/rating），保存成功即反映到行对象；
+                   失败保留原值并弹错误（不做乐观更新，避免「看着改了其实没改」） -->
+              <el-select :model-value="ratingOf(scope.row)" size="small" class="rating-select"
+                :disabled="ratingBusy['v:' + scope.row.id]" data-testid="video-rating-select"
+                v-hasPermi="['media:admin:edit']" @update:model-value="(v) => changeRating(scope.row, 'video', v)">
+                <el-option v-for="opt in RATING_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+              </el-select>
+              <div v-if="ratingError[scope.row.id]" class="rating-error">{{ ratingError[scope.row.id] }}</div>
+            </template>
+          </el-table-column>
           <el-table-column label="状态" width="86" align="center">
             <template #default="scope">
               <el-tag :type="scope.row.hidden ? 'info' : 'success'" size="small">{{ scope.row.hidden ? '隐藏' : '正常' }}</el-tag>
@@ -184,7 +202,19 @@
           </el-form-item>
         </el-form>
 
-        <el-table v-loading="albumLoading" :data="albumList" class="media-table">
+        <!-- P5.99：相册也支持多选批量设置分级 -->
+        <div class="album-batch-bar">
+          <span v-if="selectedAlbumTotal" class="media-selected" data-testid="album-selected-count">
+            已选 {{ selectedAlbumTotal }} 本相册
+            <el-button link type="primary" @click="clearAlbumSelection">清空</el-button>
+            <el-button type="primary" size="small" icon="PriceTag" v-hasPermi="['media:admin:edit']"
+              data-testid="album-batch-rating" @click="openBatchRating('album')">批量设置分级</el-button>
+          </span>
+          <span v-else class="album-batch-hint">勾选多本相册可批量设置分级</span>
+        </div>
+        <el-table ref="albumTableRef" v-loading="albumLoading" :data="albumList" class="media-table" row-key="id"
+          @selection-change="handleAlbumSelection">
+          <el-table-column type="selection" width="44" align="center" />
           <el-table-column label="封面" width="66" align="center">
             <template #default="scope">
               <img class="media-cover media-cover-square media-cover-click" :src="mediaSrc(albumThumb(scope.row))" loading="lazy"
@@ -199,6 +229,16 @@
           <el-table-column label="图片数" prop="photoCount" width="90" align="right" />
           <el-table-column label="体积" width="110" align="right">
             <template #default="scope">{{ formatVolume(scope.row.bytes) }}</template>
+          </el-table-column>
+          <el-table-column label="分级" width="132" align="center" class-name="rating-col">
+            <template #default="scope">
+              <el-select :model-value="ratingOf(scope.row)" size="small" class="rating-select"
+                :disabled="ratingBusy['a:' + scope.row.id]" data-testid="album-rating-select"
+                v-hasPermi="['media:admin:edit']" @update:model-value="(v) => changeRating(scope.row, 'album', v)">
+                <el-option v-for="opt in RATING_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+              </el-select>
+              <div v-if="ratingError[scope.row.id]" class="rating-error">{{ ratingError[scope.row.id] }}</div>
+            </template>
           </el-table-column>
           <el-table-column label="状态" width="86" align="center">
             <template #default="scope">
@@ -471,7 +511,32 @@
       </template>
     </el-dialog>
 
+    <!-- 内容分级批量设置（P5.99）：POST /api/media/admin/rating/batch -->
+    <el-dialog v-model="ratingBatchVisible" :title="ratingBatchTitle" width="min(460px, 92vw)" append-to-body>
+      <p class="rating-batch-lead">
+        将给选中的 {{ ratingBatchCount }} 个{{ ratingBatchKindText }}统一设置分级。分级决定未登录访客能不能看到它。
+      </p>
+      <el-radio-group v-model="ratingBatchValue" class="rating-batch-group">
+        <el-radio v-for="opt in RATING_OPTIONS" :key="opt.value" :value="opt.value" :data-testid="'batch-rating-' + opt.value">
+          {{ opt.label }}
+        </el-radio>
+      </el-radio-group>
+      <p class="rating-batch-tip">
+        分级本身不影响已登录用户；「未登录可见」的开关在<strong>库根管理</strong>页的「分级与可见性」里。
+      </p>
+      <template #footer>
+        <el-button @click="ratingBatchVisible = false">取 消</el-button>
+        <el-button type="primary" :loading="ratingBatchSaving" data-testid="batch-rating-submit"
+          @click="submitBatchRating">保 存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 维护面板：扫描 / 元数据 / 派生资源 / 备份 / 库根；执行仍复用页面上既有的任务锁与轮询 -->
+    <!-- P5.97：扫描入库抽屉（与库根管理页共用同一个执行器组件） -->
+    <el-drawer v-model="scanVisible" title="扫描 / 导入媒体库" size="min(920px, 96vw)" append-to-body destroy-on-close>
+      <scan-page :auto-start="false" embedded @finished="handleScanFinished" />
+    </el-drawer>
+
     <el-drawer v-model="maintVisible" title="维护" size="min(860px, 96vw)" append-to-body destroy-on-close>
       <maint-panel v-model:scanLimit="scanLimit" :scan-running="scanRunning" :refresh-key="maintRefreshKey"
         :selected-video-ids="selectedVideoIds" @run="handleMaintRun" @gc="handleGc" />
@@ -494,6 +559,7 @@ import { listVideos, listAlbums, listPhotos, getAlbumPhotos, setHidden, removeMe
 import { listPersons, setVideoPersons, setAlbumPersons } from '@/api/media'
 // 维护面板（扫描 / 元数据 / 派生资源 / 备份 / 库根）：放在同目录子组件，主页面只做挂载与执行
 import MaintPanel from './MaintPanel'
+import ScanPage from './scan/index.vue'
 // 重复文件抽屉（P4-B）：独立子组件 + 独立 api 导出，不改动上面两行既有导入
 import DuplicatesPanel from './DuplicatesPanel'
 // 派生资源状态（P5.10-B）：徽标单元格 / 结果对话框 / 日志解析纯函数，三者都独立成文件，主页面只接线
@@ -504,6 +570,9 @@ import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
 import { deriveMapOf, buildResultModel, DERIVE_FILTER_DEFAULT, filterVideoRows } from './deriveModel'
 import { getDeriveStatus } from '@/api/media'
+// 内容分级（P5.99）：行内下拉 / 批量设置用到的接口与值域常量
+import { setVideoRating, setAlbumRating, setRatingBatch } from '@/api/media'
+import { RATING_OPTIONS, ratingOf } from './ratingOptions'
 
 const { proxy } = getCurrentInstance()
 
@@ -633,6 +702,18 @@ let scanTimer = null
 
 /** 维护面板：抽屉开关；maintRefreshKey 在任务结束后自增，让面板重读导出列表 / 库根 */
 const maintVisible = ref(false)
+
+/** P5.97：扫描入库抽屉（工具栏「扫描 / 导入」） */
+const scanVisible = ref(false)
+
+function openScanDrawer() {
+  scanVisible.value = true
+}
+
+/** 扫描任务结束：条目数变了，刷新统计与列表（与其它任务结束时同一套刷新） */
+function handleScanFinished() {
+  refreshAll()
+}
 const maintRefreshKey = ref(0)
 
 /** P4-B 重复文件抽屉：内容全在 DuplicatesPanel 里（自己拉数据、自己分页），页面只存开关 */
@@ -1039,6 +1120,105 @@ function submitPerson() {
   }).finally(() => { personSubmitting.value = false })
 }
 
+// ------------------------------------------------------------------ 内容分级（P5.99）
+
+/** 正在保存的行（键 = "v:<id>" / "a:<id>"）：保存期间禁用该行下拉，避免连点发出互相覆盖的请求 */
+const ratingBusy = reactive({})
+/** 行级错误文案（保存失败时贴在下拉下方；成功即清除） */
+const ratingError = reactive({})
+
+/**
+ * 行内改分级：不做乐观更新 —— 只有后端确认了才改 row.contentRating。
+ * 理由：分级直接决定未登录可见性，界面显示「已改」而库没改是最危险的一种假象。
+ */
+function changeRating(row, kind, value) {
+  if (!row || row.id == null || !value) return
+  const key = (kind === 'video' ? 'v:' : 'a:') + row.id
+  if (ratingBusy[key]) return
+  const prev = ratingOf(row)
+  if (prev === value) return
+  ratingBusy[key] = true
+  delete ratingError[row.id]
+  const call = kind === 'video' ? setVideoRating(row.id, value) : setAlbumRating(row.id, value)
+  call.then(res => {
+    const body = res && res.data && typeof res.data === 'object' ? res.data : res
+    row.contentRating = (body && body.rating) || value
+    proxy.$modal.msgSuccess('已设为' + ratingLabelOf(value))
+  }).catch(err => {
+    row.contentRating = prev
+    const detail = errorText(err)
+    ratingError[row.id] = detail || '保存失败'
+    proxy.$modal.msgError('分级保存失败：' + (detail || '未知错误'))
+  }).finally(() => {
+    ratingBusy[key] = false
+  })
+}
+
+function ratingLabelOf(value) {
+  const hit = RATING_OPTIONS.find(o => o.value === value)
+  return hit ? hit.label : value
+}
+
+// ---- 批量设置分级：视频用顶部工具栏，相册用相册页签里的勾选条 ----
+
+const albumTableRef = ref(null)
+const pickedAlbumMap = ref({})
+const selectedAlbums = computed(() => Object.keys(pickedAlbumMap.value).map(id => pickedAlbumMap.value[id]).filter(Boolean))
+const selectedAlbumTotal = computed(() => selectedAlbums.value.length)
+
+function handleAlbumSelection(rows) {
+  const map = {}
+  ;(Array.isArray(rows) ? rows : []).forEach(row => { if (row && row.id != null) map[String(row.id)] = row })
+  pickedAlbumMap.value = map
+}
+
+function clearAlbumSelection() {
+  pickedAlbumMap.value = {}
+  const table = albumTableRef.value
+  if (table && typeof table.clearSelection === 'function') table.clearSelection()
+}
+
+const ratingBatchVisible = ref(false)
+const ratingBatchType = ref('video')
+const ratingBatchValue = ref('general')
+const ratingBatchSaving = ref(false)
+const ratingBatchTitle = computed(() => (ratingBatchType.value === 'album' ? '批量设置相册分级' : '批量设置视频分级'))
+const ratingBatchKindText = computed(() => (ratingBatchType.value === 'album' ? '相册' : '视频'))
+const ratingBatchCount = computed(() => (ratingBatchType.value === 'album' ? selectedAlbumTotal.value : selectedVideoTotal.value))
+
+function openBatchRating(type) {
+  ratingBatchType.value = type === 'album' ? 'album' : 'video'
+  ratingBatchValue.value = 'general'
+  ratingBatchVisible.value = true
+}
+
+function submitBatchRating() {
+  const ids = (ratingBatchType.value === 'album' ? selectedAlbums.value : selectedVideos.value)
+    .map(row => (row && row.id != null ? String(row.id) : ''))
+    .filter(Boolean)
+  if (!ids.length) {
+    proxy.$modal.msgWarning('先勾选要设置的' + ratingBatchKindText.value)
+    return
+  }
+  const value = ratingBatchValue.value
+  ratingBatchSaving.value = true
+  setRatingBatch({ type: ratingBatchType.value, ids: ids, rating: value }).then(res => {
+    const body = res && res.data && typeof res.data === 'object' ? res.data : res
+    const updated = body && body.updated != null ? body.updated : ids.length
+    // 本地同步：列表里这几行的分级直接改掉（后端已落库，不需要整页重拉）
+    const rows = ratingBatchType.value === 'album' ? selectedAlbums.value : selectedVideos.value
+    rows.forEach(row => { row.contentRating = value })
+    proxy.$modal.msgSuccess('已把 ' + updated + ' 个' + ratingBatchKindText.value + '设为' + ratingLabelOf(value))
+    ratingBatchVisible.value = false
+    if (ratingBatchType.value === 'album') clearAlbumSelection()
+    else clearVideoSelection()
+  }).catch(err => {
+    proxy.$modal.msgError('批量设置失败：' + (errorText(err) || '未知错误'))
+  }).finally(() => {
+    ratingBatchSaving.value = false
+  })
+}
+
 // ------------------------------------------------------------------ 隐藏 / 软删
 
 function toggleHidden(row, kind) {
@@ -1200,16 +1380,6 @@ function scanTypeText(type) {
   return SCAN_TITLE[type] || type || 'full'
 }
 
-/** 四种触发共用一套「起任务 → 轮询 job 日志 → 完成提示 + 刷新」流程，只是 mode 与确认文案不同 */
-function handleScan(mode = 'scan') {
-  const jobMode = mode
-  // limit 只对逐条生成的 mode 生效；scan / gc 传了后端会 400，这里直接不发
-  const limit = jobMode === 'scan' || jobMode === 'gc' ? 0 : Number(scanLimit.value) || 0
-  proxy.$modal.confirm(SCAN_CONFIRM[jobMode] || SCAN_CONFIRM.scan).then(() => {
-    runScanTask(jobMode, { limit: limit })
-  }).catch(() => {})
-}
-
 /** GC：二次确认按钮明确写「确认删除」，请求带 confirm=true（后端没有它直接 400） */
 function handleGc() {
   proxy.$modal.confirm(GC_CONFIRM, '清理派生文件(GC)', { confirmButtonText: '确认删除', type: 'error' }).then(() => {
@@ -1322,12 +1492,12 @@ const MAINT_CONFIRM = {
     + '完成后在「最近导出」里按文件下载。确认执行？'
 }
 
-/** limit 只对这些逐条处理的 mode 生效（scan / gc 传了后端会 400，与 handleScan 的既有规则一致） */
+/** limit 只对这些逐条处理的 mode 生效（scan / gc 传了后端会 400：这些 mode 没有「只跑前 n 条」的语义） */
 const MAINT_LIMIT_MODES = ['thumb', 'sprite', 'preview', 'sprite,preview', 'enrich']
 
 /**
- * 维护面板的统一执行入口：确认文案由面板给出（它知道勾选项与前置条件），
- * 执行仍复用既有 runScanTask —— 所以任务锁、409 冲突处理、轮询与完成提示都和工具栏那 4 个按钮完全一致。
+ * 维护任务的唯一执行入口（P5.97 起工具栏不再有重复的扫描按钮）：确认文案由面板给出（它知道勾选项与
+ * 前置条件），执行复用 runScanTask —— 任务锁、409 冲突处理、轮询与完成提示只此一套。
  */
 function handleMaintRun(payload) {
   const item = payload || {}
@@ -1604,6 +1774,7 @@ function clearVideoSelection() {
 
 /** 换页 / 重新拉列表后清空勾选（与改动前一致；只有「筛选」不清空勾选） */
 watch(videoList, () => { pickedVideoMap.value = {} })
+watch(albumList, () => { pickedAlbumMap.value = {} })
 
 /** 当前行的派生资源状态（derive-status 没返回这一行时给 null → 徽标显示「状态未知」的灰点） */
 function deriveRowOf(row) {
@@ -2144,6 +2315,24 @@ onBeforeUnmount(() => { stopScanPolling() })
   transform: scale(1.06);
   box-shadow: 0 0 0 1px var(--el-color-primary);
 }
+/* P6.00：自带封面标记（叠在封面右上角，不改变列宽，也不影响点击放大） */
+.media-cover-wrap {
+  position: relative;
+  display: inline-block;
+  line-height: 0;
+}
+.cover-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  padding: 0 2px;
+  font-size: 10px;
+  line-height: 14px;
+  color: #fff;
+  background: var(--el-color-success);
+  border-radius: 2px;
+  cursor: help;
+}
 .preview-stage {
   display: flex;
   align-items: center;
@@ -2371,5 +2560,49 @@ onBeforeUnmount(() => { stopScanPolling() })
   .vp-role-name {
     flex-basis: 72px;
   }
+}
+
+/* ---------- 内容分级（P5.99）：行内下拉 + 批量条 ---------- */
+.rating-col :deep(.el-select) {
+  width: 100%;
+}
+.rating-select :deep(.el-input__wrapper) {
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.rating-error {
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--el-color-danger);
+  line-height: 1.2;
+}
+.album-batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 24px;
+  margin-bottom: 6px;
+}
+.album-batch-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.rating-batch-lead,
+.rating-batch-tip {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--el-text-color-primary);
+}
+.rating-batch-tip {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.rating-batch-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
 }
 </style>

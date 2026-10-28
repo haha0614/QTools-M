@@ -36,6 +36,110 @@ export function rootOptionDetail(root) {
   return (root.path || '（无路径）') + ' · ' + counts + state
 }
 
+
+/* ---------------------------------------------------------------- P5.97 流水线阶段 */
+
+/**
+ * 阶段中文名（后端带 label，这里只做兜底：老后端没有 phases 时页面不显示阶段条）
+ *
+ * 阶段顺序就是执行顺序：scan → hash → meta → thumb →（sprite）→ index。
+ * 「补元数据」是 P5.96 起扫描的自然延续（scan-media.js 不跑 ffprobe）。
+ */
+export const PHASE_LABELS = {
+  scan: '扫描入库',
+  hash: '补内容哈希',
+  meta: '补元数据',
+  thumb: '生成封面缩略图',
+  sprite: '生成精灵图预览',
+  index: '重建索引'
+}
+
+/** 阶段状态 → 中文 */
+export function phaseStatusText(status) {
+  const text = String(status || '')
+  if (text === 'pending') return '等待'
+  if (text === 'running') return '进行中'
+  if (text === 'done') return '完成'
+  if (text === 'failed') return '失败'
+  if (text === 'skipped') return '跳过'
+  if (text === 'cancelled') return '已取消'
+  return text || '等待'
+}
+
+/** 阶段状态 → Element Plus tag 类型 */
+export function phaseTagType(status) {
+  const text = String(status || '')
+  if (text === 'running') return 'warning'
+  if (text === 'done') return 'success'
+  if (text === 'failed') return 'danger'
+  if (text === 'skipped') return 'info'
+  if (text === 'cancelled') return 'info'
+  return 'info'
+}
+
+/** 阶段是否值得单独重试：失败 / 跳过 / 取消都能再点一次（阶段动作全部幂等） */
+export function canRetryPhase(phase, jobRunning) {
+  if (!phase || jobRunning) return false
+  return ['failed', 'skipped', 'cancelled'].indexOf(String(phase.status || '')) >= 0
+}
+
+/** 阶段耗时：1.2s / 2m30s（未开始给空串，别显示 0ms 骗人） */
+export function phaseCostText(ms) {
+  const value = Number(ms)
+  if (!Number.isFinite(value) || value <= 0) return ''
+  if (value < 1000) return value + 'ms'
+  const seconds = Math.round(value / 1000)
+  return seconds < 60 ? seconds + 's' : Math.floor(seconds / 60) + 'm' + (seconds % 60) + 's'
+}
+
+/** 后端任务视图 → 阶段数组（缺字段一律按「没有」处理） */
+export function normalizePhases(raw) {
+  const list = Array.isArray(raw) ? raw : []
+  return list
+    .filter((item) => item && typeof item === 'object' && item.key)
+    .map((item) => ({
+      key: String(item.key),
+      label: String(item.label || PHASE_LABELS[item.key] || item.key),
+      status: String(item.status || 'pending'),
+      startedAt: item.startedAt || '',
+      finishedAt: item.finishedAt || '',
+      costMs: item.costMs === undefined || item.costMs === null ? null : Number(item.costMs),
+      message: String(item.message || '')
+    }))
+}
+
+/**
+ * 阶段式进度条：每段等权（阶段数固定 3~6，等权比按耗时加权更可读——用户关心「走到第几步」）
+ *
+ * - 有阶段表：percent = (已完成阶段数 + 当前阶段的部分) / 总阶段数；
+ * - 没有阶段表（老后端 / dry-run）：退回原来那条「不确定进度」的滚动条。
+ */
+export function pipelineProgressOf(job) {
+  const phases = job && Array.isArray(job.phases) ? job.phases : []
+  if (!phases.length) return progressOf(job)
+  const settled = phases.filter((phase) => ['done', 'skipped', 'cancelled'].indexOf(phase.status) >= 0).length
+  const current = phases.find((phase) => phase.status === 'running') || null
+  if (isRunning(job.status)) {
+    const percent = Math.min(99, Math.round(((settled + (current ? 0.5 : 0)) / phases.length) * 100))
+    return { indeterminate: false, percent, current: current ? current.key : null }
+  }
+  return { indeterminate: false, percent: 100, current: null }
+}
+
+/** 阶段条一句话：当前阶段 / 全部完成 / 哪一步失败 */
+export function pipelineSummary(job) {
+  const phases = job && Array.isArray(job.phases) ? job.phases : []
+  if (!phases.length) return ''
+  const failed = phases.find((phase) => phase.status === 'failed')
+  if (failed) return '阶段「' + failed.label + '」失败：' + (failed.message || '见日志')
+  const running = phases.find((phase) => phase.status === 'running')
+  if (running) return '正在执行「' + running.label + '」'
+  const skipped = phases.filter((phase) => phase.status === 'skipped')
+  const done = phases.filter((phase) => phase.status === 'done')
+  return '全部阶段完成：' + done.length + ' 步成功'
+    + (skipped.length ? '，' + skipped.length + ' 步跳过（' + skipped.map((p) => p.label).join(' / ') + '）' : '')
+}
+
 /** 后端任务视图 → 页面模型；字段缺一律按「没有」处理（旧后端 / 半截响应都不该让页面崩） */
 export function normalizeJob(raw) {
   if (!raw || typeof raw !== 'object' || !raw.jobId) return null
@@ -59,7 +163,12 @@ export function normalizeJob(raw) {
     finishedAt: raw.finishedAt || '',
     exitCode: raw.exitCode === undefined || raw.exitCode === null ? null : Number(raw.exitCode),
     reason: raw.reason || '',
-    costMs: raw.costMs === undefined || raw.costMs === null ? null : Number(raw.costMs)
+    costMs: raw.costMs === undefined || raw.costMs === null ? null : Number(raw.costMs),
+    // P5.97 流水线：解析 / 派生档位 / 当前阶段 / 阶段表（老后端没有这些键 → 空，页面退化成单阶段）
+    pipeline: !!raw.pipeline,
+    derive: String(raw.derive || ''),
+    currentPhase: raw.currentPhase || null,
+    phases: normalizePhases(raw.phases)
   }
 }
 

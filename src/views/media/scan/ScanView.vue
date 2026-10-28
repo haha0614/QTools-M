@@ -47,6 +47,24 @@
         </span>
       </div>
 
+      <!-- P5.97：扫完之后要不要自动把后续步骤串起来（默认要）。关掉它就退回「只扫盘写库」。 -->
+      <div class="scan-options">
+        <el-checkbox :model-value="options.pipeline" :disabled="running || starting || options.dryRun"
+          data-testid="scan-pipeline"
+          @update:model-value="(value) => setOption('pipeline', value)">扫描后自动整理（补哈希 → 补元数据 → 封面缩略图 → 重建索引）</el-checkbox>
+        <span class="scan-limit">
+          <span class="scan-label">派生资源</span>
+          <el-select :model-value="options.derive" size="small" class="scan-derive"
+            :disabled="running || starting || options.dryRun || !options.pipeline" data-testid="scan-derive"
+            @update:model-value="(value) => setOption('derive', value)">
+            <el-option label="不生成（只入库）" value="none" />
+            <el-option label="封面 + 图片缩略图（默认，最省时间）" value="thumb" />
+            <el-option label="再加精灵图 + 预览片段（全片解码，很慢）" value="full" />
+          </el-select>
+        </span>
+        <span class="scan-hint">dry-run 只预演：不会跑后续任何阶段</span>
+      </div>
+
       <div class="scan-actions">
         <el-button type="primary" icon="Search" :loading="starting" :disabled="running || starting || !rootId"
           v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="scan-start" @click="emit('start')">开始扫描</el-button>
@@ -65,6 +83,26 @@
         <span class="scan-run-meta">日志 {{ job.lineCount }} 行<template v-if="job.warnings">（WARN {{ job.warnings }}）</template></span>
         <el-tag v-if="job.dryRun" type="info" size="small">dry-run</el-tag>
       </div>
+
+      <!-- P5.97 阶段条：每段一个状态 + 耗时，失败/跳过的段可以直接点「重试这一步」 -->
+      <ol v-if="job.phases && job.phases.length" class="scan-phases" data-testid="scan-phases">
+        <li v-for="phase in job.phases" :key="phase.key" class="scan-phase" :data-phase="phase.key"
+          :data-status="phase.status">
+          <div class="scan-phase-head">
+            <el-tag :type="phaseTagType(phase.status)" size="small" :data-testid="'scan-phase-tag-' + phase.key">
+              {{ phaseStatusText(phase.status) }}
+            </el-tag>
+            <span class="scan-phase-label">{{ phase.label }}</span>
+            <span v-if="phase.costMs" class="scan-phase-cost">{{ phaseCostText(phase.costMs) }}</span>
+          </div>
+          <p v-if="phase.message" class="scan-phase-msg">{{ phase.message }}</p>
+          <el-button v-if="canRetryPhase(phase, running)" link type="primary" size="small"
+            :loading="retrying === phase.key" :disabled="!!retrying"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" :data-testid="'scan-phase-retry-' + phase.key"
+            @click="emit('retry', phase.key)">重试这一步</el-button>
+        </li>
+      </ol>
+      <p v-if="pipelineText" class="scan-pipeline-text" data-testid="scan-pipeline-text">{{ pipelineText }}</p>
 
       <div class="scan-bar" :data-indeterminate="progress.indeterminate ? '1' : '0'" data-testid="scan-progress">
         <div class="scan-bar-inner" :style="{ width: progress.percent + '%' }"></div>
@@ -92,11 +130,6 @@
           <b>{{ statusText(job.status) }}</b>：{{ countersText(job.counters) }}
           <span v-if="job.costMs !== null" class="scan-run-meta">（耗时 {{ costText }}）</span>
         </div>
-        <div class="scan-result-actions">
-          <el-button type="primary" plain icon="RefreshRight" :loading="rebuild.running" :disabled="rebuild.running"
-            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="scan-rebuild" @click="emit('rebuild')">重建索引</el-button>
-          <span class="scan-hint">{{ rebuild.message || '扫描已让索引快照失效；「重建索引」是从库重算内存快照（可选）' }}</span>
-        </div>
         <div v-if="job.status === 'failed'" class="scan-fail" data-testid="scan-fail">
           <div class="scan-fail-title">任务失败：{{ failSummary(job) }}</div>
           <pre class="scan-fail-log">{{ failText }}</pre>
@@ -109,14 +142,17 @@
 <script setup name="MediaScanView">
 import { computed, nextTick, ref, watch } from 'vue'
 import {
-  countersText, failLines, failSummary, progressOf, rootOptionDetail, rootOptionLabel,
-  statusTagType, statusText
+  canRetryPhase, countersText, failLines, failSummary, phaseCostText, phaseStatusText, phaseTagType,
+  pipelineProgressOf, pipelineSummary, rootOptionDetail, rootOptionLabel, statusTagType, statusText
 } from './scanModel'
 
 const props = defineProps({
   roots: { type: Array, default: () => [] },
   rootId: { type: [Number, String], default: null },
-  options: { type: Object, default: () => ({ dryRun: false, withVideo: true, withPhoto: true, limit: 0, force: false }) },
+  options: {
+    type: Object,
+    default: () => ({ dryRun: false, withVideo: true, withPhoto: true, limit: 0, force: false, pipeline: true, derive: 'thumb' })
+  },
   job: { type: Object, default: null },
   loading: { type: Boolean, default: false },
   starting: { type: Boolean, default: false },
@@ -127,17 +163,19 @@ const props = defineProps({
   notReady: { type: String, default: '' },
   error: { type: String, default: '' },
   notice: { type: String, default: '' },
-  rebuild: { type: Object, default: () => ({ running: false, message: '' }) },
+  /** 正在单步重试的阶段键（空串 = 没有在重试） */
+  retrying: { type: String, default: '' },
   /** 日志区最多显示多少行（超出的由容器先切掉，CSS 只负责滚动） */
   logLimit: { type: Number, default: 500 }
 })
 
-const emit = defineEmits(['update:rootId', 'update:options', 'update:autoScroll', 'refresh', 'start', 'cancel', 'rebuild'])
+const emit = defineEmits(['update:rootId', 'update:options', 'update:autoScroll', 'refresh', 'start', 'cancel', 'retry'])
 
 const logRef = ref(null)
 
 const selectedRoot = computed(() => props.roots.find((root) => String(root.id) === String(props.rootId)) || null)
-const progress = computed(() => progressOf(props.job))
+const progress = computed(() => pipelineProgressOf(props.job))
+const pipelineText = computed(() => pipelineSummary(props.job))
 const logText = computed(() => (props.job && props.job.lines.length ? props.job.lines.join('\n') : '（等子进程第一行输出…）'))
 const failText = computed(() => {
   const lines = failLines(props.job)
@@ -304,6 +342,74 @@ watch(() => props.autoScroll, (value) => {
 @keyframes scan-bar-slide {
   0% { left: -40%; }
   100% { left: 100%; }
+}
+
+.scan-derive {
+  min-width: 240px;
+}
+
+/* P5.97 阶段条：一格一段，窄屏自动换行（375 上两列一屏看得完） */
+.scan-phases {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 10px;
+  padding: 0;
+  list-style: none;
+}
+
+.scan-phase {
+  flex: 1 1 180px;
+  min-width: 160px;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-left: 3px solid var(--el-border-color);
+  border-radius: 4px;
+  background: var(--el-fill-color-lighter);
+}
+
+.scan-phase[data-status='running'] {
+  border-left-color: var(--el-color-warning);
+}
+
+.scan-phase[data-status='done'] {
+  border-left-color: var(--el-color-success);
+}
+
+.scan-phase[data-status='failed'] {
+  border-left-color: var(--el-color-danger);
+}
+
+.scan-phase-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.scan-phase-label {
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.scan-phase-cost {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.scan-phase-msg {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
+  word-break: break-all;
+}
+
+.scan-pipeline-text {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--el-text-color-regular);
 }
 
 .scan-counters {

@@ -1,57 +1,70 @@
 <template>
-  <ScanView
-    :roots="roots"
-    :root-id="rootId"
-    :options="options"
-    :job="job"
-    :loading="loadingRoots"
-    :starting="starting"
-    :canceling="canceling"
-    :running="running"
-    :finished="finished"
-    :auto-scroll="autoScroll"
-    :not-ready="notReady"
-    :error="error"
-    :notice="notice"
-    :rebuild="rebuild"
-    :log-limit="LOG_LIMIT"
-    @update:root-id="(value) => (rootId = value)"
-    @update:options="(value) => Object.assign(options, value)"
-    @update:auto-scroll="(value) => (autoScroll = value)"
-    @refresh="loadRoots"
-    @start="start"
-    @cancel="cancel"
-    @rebuild="rebuildIndex"
-  />
+  <div :class="embedded ? 'scan-embed' : ''">
+    <ScanView
+      :roots="roots"
+      :root-id="rootId"
+      :options="options"
+      :job="job"
+      :loading="loadingRoots"
+      :starting="starting"
+      :canceling="canceling"
+      :running="running"
+      :finished="finished"
+      :auto-scroll="autoScroll"
+      :not-ready="notReady"
+      :error="error"
+      :notice="notice"
+      :retrying="retrying"
+      :log-limit="LOG_LIMIT"
+      @update:root-id="(value) => (rootId = value)"
+      @update:options="(value) => Object.assign(options, value)"
+      @update:auto-scroll="(value) => (autoScroll = value)"
+      @refresh="loadRoots"
+      @start="start"
+      @cancel="cancel"
+      @retry="retry"
+    />
+  </div>
 </template>
 
 <script setup name="MediaScanIngest">
 /**
- * 扫描入库（P5.91）：**真正遍历磁盘入库的入口**
+ * 扫描入库执行器（P5.91 起；P5.97 起是「流水线」而不是单一步骤）
  *
- * 与「重建索引」的区别（用户分不清的就是这两件事）：
- *   - 本页：起 node doc/media-import/scan-media.js 去读**磁盘**，把新文件写进 media_*；
- *   - 重建索引（mode=scan）：媒体根写死在配置 scanArgs 里，同样是扫盘，但只能扫那一个根，
- *     而且任务只在结束时把日志尾部落库——本页要的是「选根 + 实时日志 + 取消」。
+ * 一次点击跑完：扫盘写库 → 补 content_hash（扫描已写就跳过）→ 补元数据(ffprobe)
+ *               → 封面 + 图片缩略图 →（可选精灵图 / 预览片段）→ 重建索引快照。
+ * 每一步都是一个阶段：状态与耗时都在阶段条上，失败/跳过的阶段能只重试那一步。
+ *
+ * 入口（P5.97 合并后只剩两处，独立菜单已隐藏）：
+ *   - 媒体库页工具栏「扫描 / 导入」（抽屉）；
+ *   - 库根管理页：新增库根表单的预演 + 每行「扫描」按钮 + 「创建后立即扫描入库」开关。
  *
  * 契约（detail 见 api/media.js 末尾）：
- *   GET  /api/media/admin/roots                → 只挑 kind=root 的（thumbs 产物根不能扫）
- *   POST /api/media/admin/scan                 { rootId, dryRun?, withVideo?, withPhoto?, limit?, force? } → { jobId, ... }
- *   GET  /api/media/admin/scan/jobs/active     → 进页面时接管正在跑的任务（刷新 / 换设备都不会「看不见」）
- *   GET  /api/media/admin/scan/jobs/{id}?tail= → { status, lines[], counters, lineCount, exitCode, reason, ... }
+ *   POST /api/media/admin/scan                { rootId, pipeline?, derive?, hash?, rebuildIndex?,
+ *                                               withVideo?, withPhoto?, limit?, force?, dryRun? }
+ *   GET  /api/media/admin/scan/jobs/active    → 进页面接管正在跑的任务
+ *   GET  /api/media/admin/scan/jobs/{id}?tail → { status, phases[], lines[], counters, ... }
  *   POST /api/media/admin/scan/jobs/{id}/cancel
+ *   POST /api/media/admin/scan/jobs/{id}/retry?phase=scan|hash|meta|thumb|sprite|index
  *
  * 三态：接口未就绪（404/501/连不上）→ 页内黄色提示；其它错误 → 页内红色提示；正常 → 表单 + 运行面板。
  *      全程不弹全局错误条、不抛未捕获异常（与「库根管理 / 维护面板」同口径）。
  */
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
-import {
-  cancelScanIngest, getScanIngestActive, getScanIngestJob, listRoots, startScan, startScanIngest, getScanLatest
-} from '@/api/media'
-import {
-  errorStatus, errorText, isFinished, isJobGone, isRunning, linesTail, normalizeJob, normalizeRoots
-} from './scanModel'
+import { cancelScanIngest, getScanIngestActive, getScanIngestJob, listRoots, startScanIngest, retryScanIngestPhase } from '@/api/media'
+import { errorStatus, errorText, isFinished, isJobGone, isRunning, linesTail, normalizeJob, normalizeRoots } from './scanModel'
 import ScanView from './ScanView.vue'
+
+const props = defineProps({
+  /** 进页面就选中的库根（库根管理页「扫描」按钮 / 新建后立即扫描时传进来） */
+  rootId: { type: [Number, String], default: null },
+  /** 抽屉里渲染：去掉页面级内边距，其余不变 */
+  embedded: { type: Boolean, default: false },
+  /** 挂载后自动点一次「开始扫描」（库根管理页「创建后立即扫描入库」用它） */
+  autoStart: { type: Boolean, default: false }
+})
+
+const emit = defineEmits(['started', 'finished'])
 
 /** 日志区最多显示多少行（后端环形缓冲 2000 行，这里只按需取 500） */
 const LOG_LIMIT = 500
@@ -60,23 +73,36 @@ const LOG_LIMIT = 500
 const POLL_MS = 1000
 
 const roots = ref([])
-const rootId = ref(null)
+const rootId = ref(props.rootId || null)
 const loadingRoots = ref(false)
 const notReady = ref('')
 const error = ref('')
 const notice = ref('')
+const retrying = ref('')
 
-const options = reactive({ dryRun: false, withVideo: true, withPhoto: true, limit: 0, force: false })
+/**
+ * 流水线默认值（P5.97）：
+ *   pipeline=true 一次点击跑完整条链；derive=thumb 只做封面/缩略图（精灵图与预览是全片解码，很慢）
+ */
+const options = reactive({
+  dryRun: false,
+  withVideo: true,
+  withPhoto: true,
+  limit: 0,
+  force: false,
+  pipeline: true,
+  derive: 'thumb'
+})
 
 const job = ref(null)
 const starting = ref(false)
 const canceling = ref(false)
 const autoScroll = ref(true)
 
-const rebuild = reactive({ running: false, message: '' })
-
 let pollTimer = null
-let rebuildTimer = null
+
+/** autoStart 只生效一次：轮询刷新库根列表时不该反复开新的扫描 */
+let autoStarted = false
 
 const running = computed(() => !!(job.value && isRunning(job.value.status)))
 const finished = computed(() => !!(job.value && isFinished(job.value.status)))
@@ -98,7 +124,7 @@ function notReadyText(err, what) {
 }
 
 /** 库根下拉：只列 kind=root（服务端也拒绝 thumbs，前端不显示只是少一次 400） */
-function loadRoots() {
+function loadRoots(keepSelection) {
   loadingRoots.value = true
   notReady.value = ''
   listRoots(true).then((res) => {
@@ -107,6 +133,15 @@ function loadRoots() {
     if (!rootId.value && roots.value.length) {
       const first = roots.value.find((root) => root.exists && root.readable !== false) || roots.value[0]
       rootId.value = first.id
+    } else if (keepSelection && rootId.value) {
+      // 新根刚建好就来扫：它可能还不在上一次的列表里，重建后仍保持选中
+      const found = roots.value.find((root) => String(root.id) === String(rootId.value))
+      if (!found) rootId.value = roots.value.length ? roots.value[0].id : null
+    }
+    // 库根管理页勾了「创建后立即扫描入库」：根一出现在列表里就自动开跑（只自动一次）
+    if (props.autoStart && !autoStarted && rootId.value && !running.value && !starting.value) {
+      autoStarted = true
+      start()
     }
   }).catch((err) => {
     roots.value = []
@@ -146,7 +181,12 @@ function start() {
     withVideo: !!options.withVideo,
     withPhoto: !!options.withPhoto,
     limit: Number(options.limit) || 0,
-    force: !!options.force
+    force: !!options.force,
+    // P5.97：一次点击把后续步骤串起来（dry-run 时后端强制不串）
+    pipeline: !!options.pipeline && !options.dryRun,
+    derive: options.derive,
+    hash: true,
+    rebuildIndex: true
   }
   startScanIngest(body).then((res) => {
     const view = normalizeJob(res)
@@ -157,7 +197,10 @@ function start() {
     job.value = view
     notice.value = options.dryRun
       ? 'dry-run：只统计不写库，跑完对照日志里的条数即可确认参数对不对'
-      : ''
+      : (view.phases && view.phases.length > 1
+        ? '已启动：扫描完成后会自动接着补哈希 / 补元数据 / 生成缩略图 / 重建索引，可随时中途停止'
+        : '')
+    emit('started', view)
     poll()
   }).catch((err) => {
     const status = errorStatus(err)
@@ -183,6 +226,7 @@ function poll() {
       job.value = next
       if (isFinished(next.status)) {
         stopPoll()
+        emit('finished', next)
         // 条目数变了：静默刷新库根下拉（不闪 loading，不清用户已选的根）
         listRoots(true).then((list) => {
           const normalized = normalizeRoots(Array.isArray(list) ? list : (list && list.roots) || [])
@@ -216,7 +260,7 @@ function cancel() {
       next.lines = linesTail(next.lines, LOG_LIMIT)
       job.value = next
     }
-    notice.value = '已请求取消：子进程被 destroy，状态在任务线程收尾后落为 cancelled'
+    notice.value = '已请求取消：当前阶段的子进程被 destroy，状态在任务线程收尾后落为 cancelled'
   }).catch((err) => {
     error.value = errorText(err) || '取消失败'
   }).finally(() => {
@@ -224,41 +268,25 @@ function cancel() {
   })
 }
 
-/** 「重建索引」快捷按钮：mode=scan 的维护任务（同一把锁，扫描入库在跑时后端会 409） */
-function rebuildIndex() {
-  if (rebuild.running) return
-  rebuild.running = true
-  rebuild.message = '已触发重建索引，等待后端完成…'
-  startScan('scan', {}).then(() => {
-    pollRebuild()
+/** 单步重试（P5.97）：只重跑那一步，成功后后端会自动接上后面还没成功的阶段 */
+function retry(phaseKey) {
+  const current = job.value
+  if (!current || !phaseKey || retrying.value) return
+  retrying.value = phaseKey
+  error.value = ''
+  retryScanIngestPhase(current.jobId, phaseKey).then((res) => {
+    const next = normalizeJob(res)
+    if (next) {
+      next.lines = linesTail(next.lines, LOG_LIMIT)
+      job.value = next
+    }
+    notice.value = '已重试阶段「' + phaseKey + '」：成功后会自动接上后面还没成功的阶段'
+    poll()
   }).catch((err) => {
-    rebuild.running = false
-    rebuild.message = ''
-    error.value = errorText(err) || '触发重建索引失败'
+    error.value = errorText(err) || '重试失败'
+  }).finally(() => {
+    retrying.value = ''
   })
-}
-
-function pollRebuild() {
-  if (rebuildTimer) clearTimeout(rebuildTimer)
-  rebuildTimer = setTimeout(() => {
-    getScanLatest().then((res) => {
-      const status = res && res.status
-      if (isRunning(status)) {
-        rebuild.message = '重建索引运行中…'
-        pollRebuild()
-        return
-      }
-      rebuild.running = false
-      rebuild.message = status === 'failed'
-        ? '重建索引失败：去「维护面板」看该任务日志'
-        : '重建索引已完成：站端刷新即可看到新内容'
-      loadRoots()
-    }).catch((err) => {
-      rebuild.running = false
-      rebuild.message = ''
-      error.value = errorText(err) || '重建索引状态读取失败'
-    })
-  }, 2000)
 }
 
 onMounted(() => {
@@ -266,8 +294,13 @@ onMounted(() => {
   takeOver()
 })
 
-onBeforeUnmount(() => {
-  stopPoll()
-  if (rebuildTimer) clearTimeout(rebuildTimer)
-})
+onBeforeUnmount(stopPoll)
+
+defineExpose({ start, loadRoots })
 </script>
+
+<style scoped>
+.scan-embed {
+  padding: 0;
+}
+</style>

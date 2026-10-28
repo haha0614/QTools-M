@@ -82,11 +82,13 @@
       </p>
     </section>
 
-    <!-- ============================== 扫描 ============================== -->
+    <!-- ============================== 诊断 / 补数据 ============================== -->
+    <!-- P5.97：日常不需要这里的任何一个按钮——「扫描 / 导入」一次点击就把补哈希、缩略图、索引都串完了。
+         这一组只在「怀疑数据不对」时用：历史上漏跑的项、换过算法的产物、老库的 content_hash。 -->
     <section class="maint-group">
       <div class="maint-group-head">
-        <span class="maint-group-title">扫描</span>
-        <span class="maint-group-desc">重扫媒体根并刷新索引库：不删除任何文件，会保留隐藏状态与人物归属</span>
+        <span class="maint-group-title">诊断 / 补数据</span>
+        <span class="maint-group-desc">日常用不到：扫描 / 导入已自动做完全部后续步骤</span>
       </div>
       <div class="maint-row">
         <span class="maint-label">分册方式</span>
@@ -100,10 +102,15 @@
         <el-input v-model="exclude" :disabled="scanRunning" clearable placeholder="如 *.tmp,sample/**（留空 = 不排除任何路径）" />
       </div>
       <div class="maint-actions">
-        <el-button type="primary" plain icon="RefreshRight" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="emitRun({ mode: 'scan', options: scanOptions() })">
-          重建索引
-        </el-button>
+        <el-tooltip content="诊断用：所有写操作结束后索引快照都会自动失效/重建。只有在怀疑站端看到的索引不对时才手动跑一次" placement="top">
+          <span>
+            <el-button type="primary" plain icon="RefreshRight" :loading="scanRunning" :disabled="scanRunning"
+              v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-rescan"
+              @click="emitRun({ mode: 'scan', options: scanOptions() })">
+              重建索引（诊断）
+            </el-button>
+          </span>
+        </el-tooltip>
         <el-button icon="Stamp" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
           @click="emitRun({ mode: 'backfill-hash', options: {} })">
           补内容哈希
@@ -114,7 +121,13 @@
         </el-button>
       </div>
       <p class="maint-hint">
-        <strong>补内容哈希</strong>：按文件内容算哈希写回索引，<strong>幂等</strong>——已算过的记录不会重算，只补空值；视频多时耗时较久，可挑空闲时段跑。
+        <strong>重建索引（诊断）</strong>：重扫媒体根并刷新索引库（不删文件、保留隐藏状态与人物归属）。
+        <strong>扫描 / 导入</strong>在扫完之后会自动重建索引快照，所以这里平时不用点——它是一个排障入口
+        （比如库根刚改过路径、或怀疑站端看到的还是旧快照）。
+      </p>
+      <p class="maint-hint">
+        <strong>补内容哈希</strong>：按文件内容算哈希写回索引，<strong>幂等</strong>——已算过的记录不会重算，只补空值。
+        新扫进来的文件在扫描阶段就已经写了哈希（它同时是缩略图的文件名），这一项只补<strong>老库的历史空值</strong>。
       </p>
       <p class="maint-hint">
         <strong>修复封面路径</strong>：把索引里失效的封面路径按磁盘实况纠正。<strong>必须先跑「重建缩略图」</strong>，否则磁盘上没有缩略图可指向，任务修不到东西。
@@ -242,19 +255,21 @@
       </p>
     </section>
 
-    <!-- ============================== 库根 ============================== -->
+    <!-- ============================== 库根（只读） ============================== -->
+    <!-- P5.97：这里原来有一整套「新增 / 编辑 / 删除库根」，与「库根管理」页是同一件事的两个入口，
+         而且两边的类型取值还不一样（旧的 video/photo/both vs root/thumbs/trash）。
+         现在只留只读清单 + 一个跳转：库根的增删改、预演、扫描都在「库根管理」页。 -->
     <section class="maint-group">
       <div class="maint-group-head">
-        <span class="maint-group-title">库根</span>
-        <span class="maint-group-desc">媒体根目录清单：改完需要跑一次「重建索引」才会生效</span>
+        <span class="maint-group-title">库根（只读）</span>
+        <span class="maint-group-desc">增删改 / 预演 / 扫描都在「库根管理」页；这里只看清单与条目数</span>
       </div>
       <div class="maint-actions">
         <el-button type="primary" plain icon="FolderOpened" :loading="rootsLoading" v-hasPermi="['media:admin:list']" @click="loadRoots">刷新库根</el-button>
-        <el-button icon="Plus" v-hasPermi="['media:admin:edit']" @click="openRootDialog(null)">新增库根</el-button>
+        <el-button icon="TopRight" v-hasPermi="['media:admin:list']" data-testid="maint-goto-roots" @click="gotoRoots">去库根管理</el-button>
       </div>
       <el-alert v-if="rootsError" :title="rootsError" type="warning" :closable="false" show-icon class="maint-alert" />
-      <el-alert v-if="rootActionError" :title="rootActionError" type="error" :closable="true" show-icon class="maint-alert"
-        @close="rootActionError = ''" />
+      
       <el-table v-if="roots.length" v-loading="rootsLoading" :data="roots" size="small" class="maint-table">
         <el-table-column label="名称" prop="name" min-width="110" :show-overflow-tooltip="true" />
         <el-table-column label="路径" prop="path" min-width="200" :show-overflow-tooltip="true" />
@@ -277,9 +292,7 @@
         </el-table-column>
         <el-table-column label="操作" width="120" align="center" fixed="right">
           <template #default="scope">
-            <el-button link type="primary" icon="Edit" v-hasPermi="['media:admin:edit']" @click="openRootDialog(scope.row)">编辑</el-button>
-            <el-button link type="danger" icon="Delete" :loading="rootDeletingId === scope.row.id" v-hasPermi="['media:admin:edit']"
-              @click="confirmDeleteRoot(scope.row)">删除</el-button>
+            <el-button link type="primary" icon="TopRight" v-hasPermi="['media:admin:list']" @click="gotoRoots">去库根管理</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -287,34 +300,6 @@
         v-if="!rootsLoading && !rootsError && !roots.length" />
     </section>
 
-    <!-- 库根新增 / 编辑 -->
-    <el-dialog v-model="rootVisible" :title="rootForm.id ? '编辑库根' : '新增库根'" width="min(520px, 94vw)" append-to-body>
-      <el-form :model="rootForm" label-width="72px">
-        <el-form-item label="名称">
-          <el-input v-model="rootForm.name" maxlength="64" show-word-limit placeholder="展示用名称，如 主视频库" />
-        </el-form-item>
-        <el-form-item label="路径">
-          <el-input v-model="rootForm.path" placeholder="服务器上的绝对路径，如 D:/media/videos" />
-        </el-form-item>
-        <el-form-item label="类型">
-          <el-select v-model="rootForm.kind" filterable allow-create default-first-option :disabled="!!rootForm.id"
-            placeholder="video / photo / both（可直接输入）" style="width: 100%">
-            <el-option label="video（只放视频）" value="video" />
-            <el-option label="photo（只放图片）" value="photo" />
-            <el-option label="both（两者都有）" value="both" />
-          </el-select>
-          <span class="maint-inline-note" v-if="rootForm.id">类型只在新增时生效，后端改库根不接受 kind</span>
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="rootForm.note" type="textarea" :rows="2" maxlength="200" show-word-limit placeholder="可选" />
-        </el-form-item>
-      </el-form>
-      <p class="maint-hint">保存后不会立即扫描；要生效请跑一次「重建索引」。</p>
-      <template #footer>
-        <el-button @click="rootVisible = false">取 消</el-button>
-        <el-button type="primary" :loading="rootSaving" v-hasPermi="['media:admin:edit']" @click="submitRoot">保 存</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
@@ -323,7 +308,7 @@ import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
 import fileSaver from 'file-saver'
 import { blobValidate } from '@/utils/ruoyi'
 import {
-  listExports, downloadExport, listRoots, createRoot, updateRoot, deleteRoot,
+  listExports, downloadExport, listRoots,
   getWatchStatus, pauseWatch, resumeWatch, scanNow, updateWatchConfig
 } from '@/api/media'
 import { errText, errStatus, notReadyText } from './maint-error'
@@ -728,11 +713,7 @@ function downloadFile(row) {
 const roots = ref([])
 const rootsLoading = ref(false)
 const rootsError = ref('')
-const rootActionError = ref('')
-const rootVisible = ref(false)
-const rootSaving = ref(false)
-const rootDeletingId = ref(null)
-const rootForm = ref({ id: null, name: '', path: '', kind: 'video', note: '' })
+
 
 function loadRoots() {
   rootsLoading.value = true
@@ -748,71 +729,9 @@ function loadRoots() {
   })
 }
 
-function openRootDialog(row) {
-  rootForm.value = row
-    ? { id: row.id, name: row.name || '', path: row.path || '', kind: row.kind || 'video', note: row.note || '' }
-    : { id: null, name: '', path: '', kind: 'video', note: '' }
-  rootActionError.value = ''
-  rootVisible.value = true
-}
-
-function submitRoot() {
-  const form = rootForm.value
-  const name = (form.name || '').trim()
-  const path = (form.path || '').trim()
-  if (!name) {
-    proxy.$modal.msgWarning('请填写名称')
-    return
-  }
-  if (!path) {
-    proxy.$modal.msgWarning('请填写路径')
-    return
-  }
-  if (rootSaving.value) {
-    return
-  }
-  const data = { name: name, path: path, note: (form.note || '').trim() }
-  // 后端 PUT /roots/{id} 只接受 name / path / note：kind 只在新增时传，避免「改了没反应」
-  if (!form.id) {
-    data.kind = (form.kind || '').trim()
-  }
-  rootSaving.value = true
-  const pending = form.id ? updateRoot(form.id, data) : createRoot(data)
-  pending.then(res => {
-    const hint = (res && (res.hint || '')) || ''
-    proxy.$modal.msgSuccess((form.id ? '库根已更新' : '库根已新增') + (hint ? '：' + hint : ''))
-    rootVisible.value = false
-    loadRoots()
-  }).catch(err => {
-    rootActionError.value = (form.id ? '更新库根失败：' : '新增库根失败：') + (errText(err) || '请求失败，请查看后端日志')
-  }).finally(() => {
-    rootSaving.value = false
-  })
-}
-
-/** 删库根：二次确认 + 影响说明；后端 400 时把引用数原样展示出来 */
-function confirmDeleteRoot(row) {
-  if (!row || row.id == null) {
-    return
-  }
-  rootActionError.value = ''
-  proxy.$modal.confirm(
-    '删除库根「' + (row.name || row.path) + '」只会把它从扫描清单里移除：不删除磁盘上的任何文件，也不清理已入库的记录。'
-      + '若仍被引用，后端会拒绝并返回引用数量。确认删除？',
-    '删除库根',
-    { confirmButtonText: '确认删除', type: 'error' }
-  ).then(() => {
-    rootDeletingId.value = row.id
-    deleteRoot(row.id).then(res => {
-      const warning = (res && res.warning) || ''
-      proxy.$modal.msgSuccess('库根已删除' + (warning ? '：' + warning : ''))
-      loadRoots()
-    }).catch(err => {
-      rootActionError.value = '删除库根失败：' + (errText(err) || '请求失败，请查看后端日志')
-    }).finally(() => {
-      rootDeletingId.value = null
-    })
-  }).catch(() => {})
+/** 库根的增删改 / 预演 / 扫描都在「库根管理」页（P5.97 合并）：这里只跳过去，不再维护第二套表单 */
+function gotoRoots() {
+  proxy.$router.push('/media-roots')
 }
 
 onMounted(() => {
