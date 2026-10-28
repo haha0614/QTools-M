@@ -1,0 +1,61 @@
+[
+  {
+    "path": "/admin-ui/system/user",
+    "children": [
+      "NO .app-main"
+    ],
+    "mainLen": -1,
+    "bodyText": "404错误!\n找不到网页！\n对不起，您正在寻找的页面不存在。尝试检查URL的错误，然后按浏览器上的刷新按钮或尝试在我们的应用程序中找到其他内容。\n返回首页",
+    "appLen": 965
+  },
+  {
+    "path": "/admin-ui/system/role",
+    "children": [
+      "DIV.app-container",
+      "#text",
+      "#text",
+      "#comment"
+    ],
+    "mainLen": 22022
+  },
+  {
+    "path": "/admin-ui/system/dict",
+    "children": [
+      "DIV.app-container",
+      "#text",
+      "#text",
+      "#comment"
+    ],
+    "mainLen": 52421
+  },
+  {
+    "path": "/admin-ui/system/menu",
+    "children": [
+      "DIV.app-container",
+      "#text",
+      "#text",
+      "#comment"
+    ],
+    "mainLen": 506409
+  },
+  {
+    "path": "/admin-ui/monitor/online",
+    "children": [
+      "DIV.app-container",
+      "#text",
+      "#text",
+      "#comment"
+    ],
+    "mainLen": 31193
+  },
+  {
+    "path": "/admin-ui/monitor/job",
+    "children": [
+      "DIV.app-container",
+      "#text",
+      "#text",
+      "#comment"
+    ],
+    "mainLen": 28151
+  }
+]

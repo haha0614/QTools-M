@@ -1,0 +1,74 @@
+[
+  {
+    "tag": "A0 /index",
+    "url": "/admin-ui/index",
+    "mainLen": 18579,
+    "mainHtml": "<div data-v-f2003431=\"\" data-v-d81fce3f=\"\" class=\"app-container dashboard\"><div data-v-f2003431=\"\" class=\"el-row\" style=",
+    "firstCls": "app-container dashboard",
+    "textLen": 214,
+    "errs": []
+  },
+  {
+    "tag": "A1 /index -> 媒体库",
+    "url": "/admin-ui/index",
+    "mainLen": 18579,
+    "mainHtml": "<div data-v-f2003431=\"\" data-v-d81fce3f=\"\" class=\"app-container dashboard\"><div data-v-f2003431=\"\" class=\"el-row\" style=",
+    "firstCls": "app-container dashboard",
+    "textLen": 214,
+    "errs": []
+  },
+  {
+    "tag": "B0 /media-roots",
+    "url": "/admin-ui/media-roots",
+    "mainLen": 29577,
+    "mainHtml": "<div data-v-7c1e4907=\"\" class=\"app-container root-page\" data-state=\"ready\" data-rows=\"3\"><div data-v-7c1e4907=\"\" class=\"",
+    "firstCls": "app-container root-page",
+    "textLen": 900,
+    "errs": []
+  },
+  {
+    "tag": "B1 /media-roots -> 首页",
+    "url": "/admin-ui/index",
+    "mainLen": 14,
+    "mainHtml": "<!----><!---->",
+    "firstCls": "",
+    "textLen": 0,
+    "errs": []
+  },
+  {
+    "tag": "C0 /media-roots",
+    "url": "/admin-ui/media-roots",
+    "mainLen": 29577,
+    "mainHtml": "<div data-v-7c1e4907=\"\" class=\"app-container root-page\" data-state=\"ready\" data-rows=\"3\"><div data-v-7c1e4907=\"\" class=\"",
+    "firstCls": "app-container root-page",
+    "textLen": 900,
+    "errs": []
+  },
+  {
+    "tag": "C1 /media-roots -> 媒体库",
+    "url": "/admin-ui/media",
+    "mainLen": 14,
+    "mainHtml": "<!----><!---->",
+    "firstCls": "",
+    "textLen": 0,
+    "errs": []
+  },
+  {
+    "tag": "C2 -> 人物管理",
+    "url": "/admin-ui/media-person",
+    "mainLen": 14,
+    "mainHtml": "<!----><!---->",
+    "firstCls": "",
+    "textLen": 0,
+    "errs": []
+  },
+  {
+    "tag": "D0 reload /media",
+    "url": "/admin-ui/media",
+    "mainLen": 134890,
+    "mainHtml": "<div data-v-4368ccc6=\"\" data-v-d81fce3f=\"\" class=\"app-container media-page\"><div data-v-4368ccc6=\"\" class=\"el-row media-",
+    "firstCls": "app-container media-page",
+    "textLen": 2037,
+    "errs": []
+  }
+]

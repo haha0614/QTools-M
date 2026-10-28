@@ -1,0 +1,127 @@
+{
+  "label": "before",
+  "at": "2026-10-28T03:37:09.463Z",
+  "entry": {
+    "rows": 3,
+    "dataState": "ready",
+    "title": "库根管理",
+    "hasTable": true,
+    "hasRatingCard": true
+  },
+  "rows": [
+    {
+      "key": "media",
+      "target": "媒体库",
+      "wantPath": "/media",
+      "click": "clicked",
+      "path": "/admin-ui/media",
+      "urlOk": true,
+      "whiteout": true,
+      "mainTextLen": 0,
+      "mainText": "",
+      "hits": {
+        "target": false,
+        "tables": 0,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "person",
+      "target": "人物管理",
+      "wantPath": "/media-person",
+      "click": "clicked",
+      "path": "/admin-ui/media-person",
+      "urlOk": true,
+      "whiteout": true,
+      "mainTextLen": 0,
+      "mainText": "",
+      "hits": {
+        "target": false,
+        "tables": 0,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "studios",
+      "target": "工作室管理",
+      "wantPath": "/media-studios",
+      "click": "clicked",
+      "path": "/admin-ui/media-studios",
+      "urlOk": true,
+      "whiteout": true,
+      "mainTextLen": 0,
+      "mainText": "",
+      "hits": {
+        "target": false,
+        "tables": 0,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "roots",
+      "target": "库根管理",
+      "wantPath": "/media-roots",
+      "click": "clicked",
+      "path": "/admin-ui/media-roots",
+      "urlOk": true,
+      "whiteout": true,
+      "mainTextLen": 0,
+      "mainText": "",
+      "hits": {
+        "target": false,
+        "tables": 0,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "appuser",
+      "target": "用户管理",
+      "wantPath": "/appuser/user",
+      "click": "clicked",
+      "path": "/admin-ui/appuser/user",
+      "urlOk": true,
+      "whiteout": true,
+      "mainTextLen": 0,
+      "mainText": "",
+      "hits": {
+        "target": false,
+        "tables": 0,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "system",
+      "target": "角色管理",
+      "wantPath": "/system/role",
+      "click": "clicked",
+      "path": "/admin-ui/system/role",
+      "urlOk": true,
+      "whiteout": true,
+      "mainTextLen": 0,
+      "mainText": "",
+      "hits": {
+        "target": false,
+        "tables": 0,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    }
+  ]
+}

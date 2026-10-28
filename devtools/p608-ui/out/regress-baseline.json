@@ -1,0 +1,68 @@
+{
+  "baseRoots": [
+    {
+      "id": 1,
+      "name": "主库",
+      "path": "E:/111/视频",
+      "kind": "root",
+      "guestVisible": true,
+      "note": "默认媒体根（application.yml 的 rootPath）",
+      "exists": true,
+      "readable": true,
+      "videoCount": 176,
+      "albumCount": 158,
+      "photoCount": 9629,
+      "isDefault": true
+    },
+    {
+      "id": 2,
+      "name": "缩略图",
+      "path": "E:/111/project/QTools/data/media/thumbs",
+      "kind": "thumbs",
+      "guestVisible": true,
+      "note": "派生资源，可重建",
+      "exists": true,
+      "readable": true,
+      "videoCount": 0,
+      "albumCount": 0,
+      "photoCount": 0,
+      "isDefault": false
+    },
+    {
+      "id": 3,
+      "name": "剪辑视频",
+      "path": "E:/视频",
+      "kind": "root",
+      "guestVisible": true,
+      "note": "",
+      "exists": true,
+      "readable": true,
+      "videoCount": 63,
+      "albumCount": 11,
+      "photoCount": 259,
+      "isDefault": false
+    }
+  ],
+  "basePolicy": {
+    "general": true,
+    "guidance": true,
+    "restricted": false,
+    "items": [
+      {
+        "value": "general",
+        "label": "大众级",
+        "guestVisible": true
+      },
+      {
+        "value": "guidance",
+        "label": "家长指导级",
+        "guestVisible": true
+      },
+      {
+        "value": "restricted",
+        "label": "限制级",
+        "guestVisible": false
+      }
+    ]
+  }
+}

@@ -120,10 +120,11 @@ export function setRatingBatch(payload) {
 }
 
 // 读分级可见性策略：{general, guidance, restricted, items:[{value,label,guestVisible}]}
-export function getRatingPolicy() {
+export function getRatingPolicy(signal) {
   return request({
     url: BASE + '/rating-policy',
-    method: 'get'
+    method: 'get',
+    signal: signal
   })
 }
 
@@ -275,11 +276,12 @@ export function downloadExport(dir, file) {
 }
 
 // 库根列表：[{ id, name, path, kind, note, exists, readable, videoCount, photoCount }]
-export function listRoots(silent) {
+export function listRoots(silent, signal) {
   return request({
     url: BASE + '/roots',
     method: 'get',
-    silent: !!silent
+    silent: !!silent,
+    signal: signal
   })
 }
 
@@ -424,11 +426,12 @@ export function setEditPolicy(level) {
    后端未部署时统一 404：全部 silent，由维护面板就地给出「未启用或接口未就绪」，不弹全局提示。 */
 
 // 监听状态
-export function getWatchStatus(silent) {
+export function getWatchStatus(silent, signal) {
   return request({
     url: BASE + '/watch',
     method: 'get',
-    silent: silent !== false
+    silent: silent !== false,
+    signal: signal
   })
 }
 
@@ -782,13 +785,14 @@ export function setRootGuestVisible(id, guestVisible) {
    权限：media:admin:list（与 GET /roots 一致）。
    ======================================================================== */
 
-export function getRootArtifacts(id, refresh, silent) {
+export function getRootArtifacts(id, refresh, silent, signal) {
   return request({
     url: BASE + '/roots/' + encodeURIComponent(id) + '/artifacts',
     method: 'get',
     params: refresh ? { refresh: 'true' } : {},
     silent: silent !== false,
-    timeout: 30000
+    timeout: 30000,
+    signal: signal
   })
 }
 /* ---------------- 扫描入库（P5.91）：遍历某个库根目录写库 + 实时日志 + 取消 ----------------
@@ -847,13 +851,14 @@ export function cancelScanIngest(jobId) {
      POST /api/media/admin/scan/jobs/{jobId}/retry?phase=scan|hash|meta|thumb|sprite|index
        → 同一份任务视图（该阶段重置为 pending，成功后自动接上后面没成功的阶段）
    两条都 silent：错误由页面就地展示（与扫描入库其它调用一致）。 */
-export function previewScanRoot(path) {
+export function previewScanRoot(path, signal) {
   return request({
     url: BASE + '/scan/preview',
     method: 'post',
     data: { path: path },
     silent: true,
-    timeout: 200000
+    timeout: 200000,
+    signal: signal
   })
 }
 

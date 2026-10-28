@@ -1,18 +1,24 @@
 <template>
   <section class="app-main">
-    <router-view v-slot="{ Component, route }">
-      <transition name="fade-transform" mode="out-in">
-        <keep-alive :include="tagsViewStore.cachedViews">
-          <component v-if="!route.meta.link" :is="Component" :key="route.path"/>
-        </keep-alive>
-      </transition>
-    </router-view>
+    <!-- P6.08 路由级兜底：error-boundary 用 onErrorCaptured 接住本页组件抛出的异常，
+         换成「本页出错了 / 重试 / 回首页」，而不是让整个 SPA 留白（侧栏与路由切换仍然可用）。
+         注意：它只包请求层，不新增 DOM 层级，布局与 transition 行为保持原样。 -->
+    <error-boundary>
+      <router-view v-slot="{ Component, route }">
+        <transition name="fade-transform" mode="out-in">
+          <keep-alive :include="tagsViewStore.cachedViews">
+            <component v-if="!route.meta.link" :is="Component" :key="route.path"/>
+          </keep-alive>
+        </transition>
+      </router-view>
+    </error-boundary>
     <iframe-toggle />
     <copyright />
   </section>
 </template>
 
 <script setup>
+import ErrorBoundary from '@/components/ErrorBoundary'
 import copyright from "./Copyright/index"
 import iframeToggle from "./IframeToggle/index"
 import useTagsViewStore from '@/store/modules/tagsView'

@@ -1,41 +1,49 @@
 <template>
-  <RootView
-    :rows="rows"
-    :loading="loading"
-    :not-ready="notReady"
-    :page-error="pageError"
-    :last-scan-map="lastScanMap"
-    :toggling-id="togglingId"
-    :deleting-id="deletingId"
-    :form-visible="formVisible"
-    :form="form"
-    :saving="saving"
-    :form-error="formError"
-    :artifacts="artifacts"
-    :preview="preview"
-    :form-auto-scan="formAutoScan"
-    :rating-policy="ratingPolicy"
-    :rating-busy="ratingBusy"
-    :rating-error="ratingError"
-    @refresh="loadAll"
-    @toggle-rating="toggleRating"
-    @update:form-auto-scan="(v) => (formAutoScan = v)"
-    @scan="openScan"
-    @create="openCreate"
-    @edit="openEdit"
-    @delete="handleDelete"
-    @submit="submitForm"
-    @toggle-guest="toggleGuest"
-    @load-artifacts="loadArtifacts"
-    @update:form-visible="(v) => (formVisible = v)"
-  />
+  <!-- P6.08：本页必须是**单根**。
+       原来这里是两个根（<RootView> + 下面那个 <el-drawer>），渲染出的是 Fragment；
+       而 AppMain 的 <transition mode="out-in"> 只接受唯一子节点：离开本页时它拿不到
+       唯一元素，leave 永远等不到结束，之后的每次路由切换都只渲染空注释（整站白屏）。
+       这是「进了库根管理页再点别的页面就白屏」的根因，包一层普通 div 即可根治。 -->
+  <div class="media-root-page">
+    <RootView
+      :rows="rows"
+      :loading="loading"
+      :not-ready="notReady"
+      :page-error="pageError"
+      :last-scan-map="lastScanMap"
+      :toggling-id="togglingId"
+      :deleting-id="deletingId"
+      :form-visible="formVisible"
+      :form="form"
+      :saving="saving"
+      :form-error="formError"
+      :artifacts="artifacts"
+      :preview="preview"
+      :form-auto-scan="formAutoScan"
+      :rating-policy="ratingPolicy"
+      :rating-busy="ratingBusy"
+      :rating-error="ratingError"
+      @refresh="loadAll"
+      @toggle-rating="toggleRating"
+      @update:form-auto-scan="(v) => (formAutoScan = v)"
+      @scan="openScan"
+      @create="openCreate"
+      @edit="openEdit"
+      @delete="handleDelete"
+      @submit="submitForm"
+      @toggle-guest="toggleGuest"
+      @load-artifacts="loadArtifacts"
+      @update:form-visible="(v) => (formVisible = v)"
+    />
 
-  <!-- P5.97：扫描入口并入本页——每行「扫描」与「创建后立即扫描入库」都开这个抽屉 -->
-  <el-drawer v-model="scanVisible" :title="scanTitle" size="min(920px, 96vw)" append-to-body destroy-on-close>
-    <scan-page :root-id="scanRootId" :auto-start="scanAutoStart" embedded
-      @finished="load" @started="scanAutoStart = false" />
-  </el-drawer>
+    <!-- P5.97：扫描入口并入本页——每行「扫描」与「创建后立即扫描入库」都开这个抽屉 -->
+    <el-drawer v-model="scanVisible" :title="scanTitle" size="min(920px, 96vw)" append-to-body destroy-on-close>
+      <scan-page :root-id="scanRootId" :auto-start="scanAutoStart" embedded
+        @finished="load" @started="scanAutoStart = false" />
+    </el-drawer>
+  </div>
 </template>
+
 
 <script setup name="MediaRoot">
 /**
@@ -97,6 +105,14 @@ const preview = reactive({ loading: false, error: '', data: null, path: '' })
 let previewTimer = null
 let previewSeq = 0
 
+/* P6.08 卸载卫生：本页所有异步副作用的收口。
+   disposed 拦住「已经在途、但组件已经销毁」的回调（回包不许再写 ref / 碰 proxy.$modal）；
+   abortCtrl 则把还在飞的只读请求直接中止（库根列表 / 分级策略 / 产物清单 / 预演 / 监听状态）。
+   写操作（新增 / 保存 / 删除 / 切开关）不 abort：请求已经发出，中止只会丢掉回包、改变不了服务端事实。 */
+const abortCtrl = typeof AbortController !== 'undefined' ? new AbortController() : null
+const abortSignal = abortCtrl ? abortCtrl.signal : undefined
+let disposed = false
+
 const scanVisible = ref(false)
 const scanRootId = ref(null)
 const scanAutoStart = ref(false)
@@ -157,11 +173,13 @@ function loadAll() {
 
 function loadRatingPolicy() {
   ratingError.value = ''
-  getRatingPolicy().then(res => {
+  getRatingPolicy(abortSignal).then(res => {
+    if (disposed) return
     const body = res && typeof res === 'object' && res.data && !res.general ? res.data : res
     if (!body || typeof body !== 'object') throw new Error('策略返回体不认识')
     ratingPolicy.value = body
   }).catch(err => {
+    if (disposed) return
     ratingPolicy.value = null
     ratingError.value = ''
     if (errStatus(err) !== 404) {
@@ -193,23 +211,28 @@ function load() {
   loading.value = true
   pageError.value = ''
   notReady.value = ''
-  listRoots(true).then(res => {
+  listRoots(true, abortSignal).then(res => {
+    if (disposed) return
     const list = Array.isArray(res) ? res : (res && (res.list || res.roots)) || []
     rows.value = list.filter(r => r && typeof r === 'object').map(normalize)
     loadLastScan()
   }).catch(err => {
+    if (disposed) return
     rows.value = []
     notReady.value = notReadyText(err, '库根接口')
   }).finally(() => {
+    if (disposed) return
     loading.value = false
   })
 }
 
 /** 「最后扫描时间」来自自动扫描状态（同一份 data/scan 记录），取不到就留空，不影响主列表 */
 function loadLastScan() {
-  listWatchRoots().then(maps => {
+  listWatchRoots(abortSignal).then(maps => {
+    if (disposed) return
     lastScanMap.value = lastScanByRoot(rows.value, maps)
   }).catch(() => {
+    if (disposed) return
     lastScanMap.value = {}
   })
 }
@@ -228,11 +251,13 @@ function loadArtifacts({ row, force }) {
   // 已有数据且不是强制重扫：直接用（后端还有 60s 缓存，这里少打一次请求）
   if (!force && current && current.data) return
   setArtifactState(row.id, { loading: true, error: '' })
-  getRootArtifacts(row.id, !!force, true).then(res => {
+  getRootArtifacts(row.id, !!force, true, abortSignal).then(res => {
+    if (disposed) return
     const body = res && typeof res === 'object' && res.data && !res.dirs ? res.data : res
     if (!body || !Array.isArray(body.dirs)) throw new Error('产物清单返回体不认识')
     setArtifactState(row.id, { loading: false, error: '', data: body })
   }).catch(err => {
+    if (disposed) return
     setArtifactState(row.id, { loading: false, error: errText(err) || '产物清单读取失败（后端是否已部署 P5.80？）' })
   })
 }
@@ -249,17 +274,17 @@ function runPreview(path) {
   }
   const seq = ++previewSeq
   preview.loading = true
-  previewScanRoot(text).then(res => {
-    if (seq !== previewSeq) return
+  previewScanRoot(text, abortSignal).then(res => {
+    if (disposed || seq !== previewSeq) return
     const body = res && typeof res === 'object' && res.data && !res.videos ? res.data : res
     preview.data = body && typeof body === 'object' ? body : null
     if (!preview.data) preview.error = '预演返回体不认识（后端是否已部署 P5.97？）'
   }).catch(err => {
-    if (seq !== previewSeq) return
+    if (disposed || seq !== previewSeq) return
     preview.data = null
     preview.error = errText(err) || '预演失败（路径不存在 / 无权限 / 后端未部署）'
   }).finally(() => {
-    if (seq === previewSeq) preview.loading = false
+    if (!disposed && seq === previewSeq) preview.loading = false
   })
 }
 
@@ -376,7 +401,8 @@ function toggleGuest({ row, value }) {
       ? '已设为未登录可见：未登录访客刷新后即可看到该库根'
       : '已设为仅登录可见：未登录访客在索引里看不到它，直接访问返回 404')
     // 条目数 / 可读性可能随后端状态变化，静默刷新一次（不闪 loading）
-    listRoots(true).then(list => {
+    listRoots(true, abortSignal).then(list => {
+      if (disposed) return
       if (Array.isArray(list)) rows.value = list.filter(r => r && typeof r === 'object').map(normalize)
     }).catch(() => {})
   }).catch(err => {
@@ -411,7 +437,14 @@ function handleDelete(row) {
 }
 
 onBeforeUnmount(() => {
-  if (previewTimer) clearTimeout(previewTimer)
+  // P6.08：本页的全部副作用在这里一次收口
+  disposed = true
+  if (previewTimer) {
+    clearTimeout(previewTimer)
+    previewTimer = null
+  }
+  // 中止还在飞的只读请求（列表 / 策略 / 产物 / 预演 / 监听状态）
+  if (abortCtrl) abortCtrl.abort()
 })
 
 onMounted(() => {

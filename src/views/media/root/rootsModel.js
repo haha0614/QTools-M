@@ -30,8 +30,8 @@ function formatTime(value) {
 }
 
 /** 拉一次扫描状态并折成 { [rootId]: 'yyyy-MM-dd HH:mm:ss' }；失败一律空对象 */
-export function listWatchRoots() {
-  return getWatchStatus(true).then(res => {
+export function listWatchRoots(signal) {
+  return getWatchStatus(true, signal).then(res => {
     const body = res && typeof res === 'object' && res.data && !Array.isArray(res) ? res.data : res
     const roots = body && Array.isArray(body.roots) ? body.roots : []
     const byId = {}

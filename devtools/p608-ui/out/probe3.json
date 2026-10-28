@@ -1,0 +1,61 @@
+{
+  "dom": {
+    "url": "http://127.0.0.1:8080/admin-ui/media",
+    "mainHtmlLen": 14,
+    "mainHtml": "<!----><!---->",
+    "kids": [],
+    "mainDisplay": "block",
+    "mainOpacity": "1",
+    "mainH": 721,
+    "bodyText": "青兔工具箱 · 管理后台\n首页\n系统管理\n系统监控\n系统工具\n若依官网\n工具管理\n媒体管理\n媒体库\n人物管理\n工作室管理\n库根管理\n用户端\n首页\n/\n媒体管理\n/\n媒体库\n青兔\n首页库根管理\n媒体库\n刷新",
+    "tagsView": [
+      "首页",
+      "库根管理",
+      "媒体库"
+    ],
+    "vueApp": true
+  },
+  "events": [
+    {
+      "method": "Page.frameStartedLoading",
+      "params": {
+        "frameId": "FDD2BA2FD5CC71A766EB6EF0EB15C21A"
+      }
+    },
+    {
+      "method": "Page.navigatedWithinDocument",
+      "params": {
+        "frameId": "FDD2BA2FD5CC71A766EB6EF0EB15C21A",
+        "url": "http://127.0.0.1:8080/admin-ui/media-roots",
+        "navigationType": "historyApi"
+      }
+    },
+    {
+      "method": "Page.frameStoppedLoading",
+      "params": {
+        "frameId": "FDD2BA2FD5CC71A766EB6EF0EB15C21A"
+      }
+    },
+    {
+      "method": "Page.frameStartedLoading",
+      "params": {
+        "frameId": "FDD2BA2FD5CC71A766EB6EF0EB15C21A"
+      }
+    },
+    {
+      "method": "Page.navigatedWithinDocument",
+      "params": {
+        "frameId": "FDD2BA2FD5CC71A766EB6EF0EB15C21A",
+        "url": "http://127.0.0.1:8080/admin-ui/media",
+        "navigationType": "historyApi"
+      }
+    },
+    {
+      "method": "Page.frameStoppedLoading",
+      "params": {
+        "frameId": "FDD2BA2FD5CC71A766EB6EF0EB15C21A"
+      }
+    }
+  ],
+  "vue": ""
+}

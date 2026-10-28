@@ -1,0 +1,25 @@
+{
+  "state": {
+    "path": "/media",
+    "textLen": 0,
+    "children": [
+      "#comment",
+      "#text",
+      "#comment",
+      "#text",
+      "#comment",
+      "#text",
+      "#text",
+      "#text"
+    ],
+    "htmlHead": "<!-- P6.08 路由级兜底：error-boundary 用 onErrorCaptured 接住本页组件抛出的异常，\r\n         换成「本页出错"
+  },
+  "logs": [
+    "[console.warning] [Vue warn]: Component inside <Transition> renders non-element root node that cannot be animated. \n  at <MediaRoot onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< undefined > key=\"/media-roots\" > \n  at <KeepAlive include= Array(0) > \n  at <BaseTransition mode=\"out-in\" appear=false persisted=false  ... > \n  at <Transition name=\"fade-transform\" mode=\"out-in\" > \n  at <RouterView> \n  at <ErrorBoundary> \n  at <AppMain> \n  at <Index onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< undefined > > \n  at <RouterView> \n  at <App>",
+    "[console.warning] [Vue warn]: Component inside <Transition> renders non-element root node that cannot be animated. \n  at <MediaRoot onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > key=\"/media-roots\" > \n  at <KeepAlive include= Array(1) > \n  at <BaseTransition mode=\"out-in\" appear=false persisted=false  ... > \n  at <Transition name=\"fade-transform\" mode=\"out-in\" > \n  at <RouterView> \n  at <ErrorBoundary> \n  at <AppMain> \n  at <Index onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > \n  at <RouterView> \n  at <App>",
+    "[console.warning] [Vue warn]: Component inside <Transition> renders non-element root node that cannot be animated. \n  at <MediaRoot onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > key=\"/media-roots\" > \n  at <KeepAlive include= Array(1) > \n  at <BaseTransition mode=\"out-in\" appear=false persisted=false  ... > \n  at <Transition name=\"fade-transform\" mode=\"out-in\" > \n  at <RouterView> \n  at <ErrorBoundary> \n  at <AppMain> \n  at <Index onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > \n  at <RouterView> \n  at <App>",
+    "[console.warning] [Vue warn]: Component inside <Transition> renders non-element root node that cannot be animated. \n  at <MediaRoot onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > key=\"/media-roots\" > \n  at <KeepAlive include= Array(1) > \n  at <BaseTransition mode=\"out-in\" appear=false persisted=false  ... > \n  at <Transition name=\"fade-transform\" mode=\"out-in\" > \n  at <RouterView> \n  at <ErrorBoundary> \n  at <AppMain> \n  at <Index onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > \n  at <RouterView> \n  at <App>",
+    "[console.warning] [Vue warn]: Component inside <Transition> renders non-element root node that cannot be animated. \n  at <MediaRoot onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > key=\"/media-roots\" > \n  at <KeepAlive include= Array(1) > \n  at <BaseTransition mode=\"out-in\" appear=false persisted=false  ... > \n  at <Transition name=\"fade-transform\" mode=\"out-in\" > \n  at <RouterView> \n  at <ErrorBoundary> \n  at <AppMain> \n  at <Index onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > \n  at <RouterView> \n  at <App>",
+    "[console.warning] [Vue warn]: Component inside <Transition> renders non-element root node that cannot be animated. \n  at <MediaRoot onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > key=\"/media-roots\" > \n  at <KeepAlive include= Array(1) > \n  at <BaseTransition mode=\"out-in\" appear=false persisted=false  ... > \n  at <Transition name=\"fade-transform\" mode=\"out-in\" > \n  at <RouterView> \n  at <ErrorBoundary> \n  at <AppMain> \n  at <Index onVnodeUnmounted=fn<onVnodeUnmounted> ref=Ref< Proxy(Object) > > \n  at <RouterView> \n  at <App>"
+  ]
+}

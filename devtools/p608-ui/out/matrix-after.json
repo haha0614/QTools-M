@@ -1,0 +1,127 @@
+{
+  "label": "after",
+  "at": "2026-10-28T03:47:34.684Z",
+  "entry": {
+    "rows": 3,
+    "dataState": "ready",
+    "title": "库根管理",
+    "hasTable": true,
+    "hasRatingCard": true
+  },
+  "rows": [
+    {
+      "key": "media",
+      "target": "媒体库",
+      "wantPath": "/media",
+      "click": "clicked",
+      "path": "/admin-ui/media",
+      "urlOk": true,
+      "whiteout": false,
+      "mainTextLen": 2037,
+      "mainText": "视频 / 239 / 隐藏 0 / 相册 / 170 / 隐藏 0 / 图片 / 9888 / 隐藏 0 / 人物 / 13 / 含未归类 / 总占用 / 138.8 GB / 视频 109.4 GB / 相册 29",
+      "hits": {
+        "target": true,
+        "tables": 3,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "person",
+      "target": "人物管理",
+      "wantPath": "/media-person",
+      "click": "clicked",
+      "path": "/admin-ui/media-person",
+      "urlOk": true,
+      "whiteout": false,
+      "mainTextLen": 737,
+      "mainText": "人物管理 / 共 13 人 / 搜索 / 刷新 / 资料 / 工作室管理 / 新建人物 / 换 / 素人 / #125 / 159 部视频 · 2 本相册 · 118 张照片 / 编辑 / 删除 / 换头像 / 站内",
+      "hits": {
+        "target": true,
+        "tables": 0,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "studios",
+      "target": "工作室管理",
+      "wantPath": "/media-studios",
+      "click": "clicked",
+      "path": "/admin-ui/media-studios",
+      "urlOk": true,
+      "whiteout": false,
+      "mainTextLen": 127,
+      "mainText": "工作室管理 / 共 2 个 / 搜索 / 刷新 / 返回人物管理 / 新建工作室 / 名称 / \t / 备注 / \t / 视频数 / \t / 相册数 / \t / 操作 / 青兔娱乐 / \t / 青兔传媒下属工作室 / \t / 0 / \t / 0",
+      "hits": {
+        "target": true,
+        "tables": 1,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "roots",
+      "target": "库根管理",
+      "wantPath": "/media-roots",
+      "click": "clicked",
+      "path": "/admin-ui/media-roots",
+      "urlOk": true,
+      "whiteout": false,
+      "mainTextLen": 900,
+      "mainText": "库根管理 / 共 3 个库根 / 刷新 / 新增库根 / 库根登记的是存放位置：内容根放源文件，产物根放派生产物；只有内容根会产生媒体条目。 / 展开 / 分级与可见性 / 未登录访客对每",
+      "hits": {
+        "target": true,
+        "tables": 1,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "appuser",
+      "target": "用户管理",
+      "wantPath": "/appuser/user",
+      "click": "clicked",
+      "path": "/admin-ui/appuser/user",
+      "urlOk": true,
+      "whiteout": false,
+      "mainTextLen": 294,
+      "mainText": "用户管理 /  / 用户端账号（独立于后台 sys_user）：资料 / 密码 / 封禁 / 删除 /  / 刷新 / 1 / 总数 / 0 / 待审核 / 1 / 正常 / 0 / 已拒绝 / 0 / 已封禁 / 状态",
+      "hits": {
+        "target": true,
+        "tables": 1,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    },
+    {
+      "key": "system",
+      "target": "角色管理",
+      "wantPath": "/system/role",
+      "click": "clicked",
+      "path": "/admin-ui/system/role",
+      "urlOk": true,
+      "whiteout": false,
+      "mainTextLen": 208,
+      "mainText": "角色名称 / 权限字符 / 状态 / 角色状态 / 创建时间 / - / 搜索 / 重置 / 新增 / 修改 / 删除 / 导出 / \t / 角色编号 / \t / 角色名称 / \t / 权限字符 / \t / 显示顺序 / \t / 状态 / \t / 创建",
+      "hits": {
+        "target": true,
+        "tables": 1,
+        "pageError": false
+      },
+      "uncaught": [],
+      "consoleErrors": [],
+      "consoleWarns": []
+    }
+  ]
+}
