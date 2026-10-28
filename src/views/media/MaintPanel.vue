@@ -1,346 +1,774 @@
 <template>
   <div class="maint-panel">
     <p class="maint-lead">
-      把命令行维护操作变成按钮。<strong>任一时刻只允许一个任务</strong>（与工具栏那 4 个扫描按钮共用同一把锁：任务运行中所有按钮都会禁用）。
-      危险操作（GC / 删除库根 / 修复封面路径）都会先弹二次确认。
+      把命令行维护操作变成按钮。<strong>任一时刻只允许一个任务</strong>（与工具栏「扫描 / 导入」共用同一把锁：任务运行中所有按钮都会禁用）。
+      日常只需要第一段；诊断段平时不用点；危险段默认收起，必须输入「确认」才会执行。
     </p>
     <p class="maint-lead">
       权限：查看本面板需要 <code>media:admin:list</code>；执行扫描类任务由后端校验 <code>media:admin:scan</code>（按钮同时接受
-      <code>media:admin:edit</code>），库根的增删改需要 <code>media:admin:edit</code>。缺权限时后端返回 403，面板会就地给出错误。
+      <code>media:admin:edit</code>）；清空回收站需要 <code>media:admin:remove</code>。缺权限时后端返回 403，面板会就地给出错误。
     </p>
 
-    <!-- ============================== 自动扫描 ============================== -->
-    <section class="maint-group">
+    <!-- ============================== 1 日常生成 ============================== -->
+    <section class="maint-group" data-testid="maint-section-generate">
       <div class="maint-group-head">
-        <span class="maint-group-title">自动扫描</span>
-        <span class="maint-group-desc">后端文件监听：库根里出现新文件（防抖 {{ watchDebounceText }}，夜间静默 {{ watchQuietText }}）后自动重建索引</span>
-        <el-tag :type="watchBadge.type" size="small" class="watch-badge">{{ watchBadge.text }}</el-tag>
+        <span class="maint-group-title">日常生成</span>
+        <span class="maint-group-desc">生成可随时重建的派生资源；先选范围再开始，选中项只处理视频列表里勾选的行</span>
       </div>
-      <el-alert v-if="watchError" :title="watchError" type="warning" :closable="false" show-icon class="maint-alert" />
-
-      <!-- 运行期开关：切一下就是 PUT /watch/config，失败回滚到后端真值 -->
-      <div class="maint-actions watch-toggle-row">
-        <span class="maint-inline-label">监听开关</span>
-        <el-switch v-model="watchEnabled" :disabled="!watchAllowed || watchEnabledBusy" :loading="watchEnabledBusy"
-          active-text="开启" inactive-text="关闭" v-hasPermi="['media:admin:edit']" @change="onEnabledChange" />
-        <span class="maint-inline-note">切换即保存（PUT /api/media/admin/watch/config），不必重启后端</span>
-      </div>
-      <el-alert v-if="!watchAllowed" type="info" :closable="false" show-icon class="maint-alert"
-        title="部署层已禁止运行期开关（qtools.media.watch.allowRuntimeToggle=false）" />
-
-      <!-- 去抖 / 夜间静默：点「保存」才提交（数字框连续点击时不会每一下都发一次 PUT） -->
-      <div class="maint-actions watch-cfg-row">
-        <span class="maint-inline-label">去抖</span>
-        <el-input-number v-model="watchDebounce" :min="1" :max="60" :step="1" step-strictly controls-position="right"
-          :disabled="!watchAllowed || watchCfgSaving" class="watch-cfg-number" />
-        <span class="maint-inline-note">秒</span>
-        <span class="maint-inline-label">夜间静默</span>
-        <el-input v-model="watchQuiet" clearable placeholder="HH:mm-HH:mm，留空=全天监听" class="watch-cfg-quiet"
-          :disabled="!watchAllowed || watchCfgSaving" />
-        <el-button type="primary" plain icon="Check" :loading="watchCfgSaving"
-          :disabled="!watchAllowed || !watchCfgDirty || watchCfgSaving"
-          v-hasPermi="['media:admin:edit']" @click="saveWatchConfig">保存</el-button>
-        <span class="maint-inline-note">{{ watchCfgDirty ? '有未保存的改动' : '与后端一致' }}</span>
-      </div>
-
-      <div class="maint-actions">
-        <el-button icon="Refresh" :loading="watchLoading" v-hasPermi="['media:admin:list']" @click="loadWatch">刷新状态</el-button>
-        <el-tooltip :disabled="!watchActionTip" :content="watchActionTip" placement="top">
-          <span class="watch-tip-wrap">
-            <el-button v-if="watchInfo.running" icon="VideoPause" :loading="watchBusy" :disabled="watchPauseResumeDisabled"
-              v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(false)">暂停</el-button>
-            <el-button v-else type="primary" plain icon="VideoPlay" :loading="watchBusy" :disabled="watchPauseResumeDisabled"
-              v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(true)">继续</el-button>
-          </span>
-        </el-tooltip>
-        <el-button type="primary" plain icon="RefreshRight" :loading="scanNowLoading" :disabled="scanNowLoading || scanRunning"
-          v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="doScanNow">立即扫描</el-button>
-        <span class="maint-inline-note">暂停只停监听，不打断已在跑的任务；监听未开时「立即扫描」仍可用（后端回落到直接扫描）</span>
-      </div>
-      <el-table v-if="watchRoots.length" :data="watchRoots" size="small" class="maint-table">
-        <el-table-column label="路径" prop="path" min-width="240" :show-overflow-tooltip="true" />
-        <el-table-column label="已注册" width="80" align="center">
-          <template #default="scope">
-            <el-tag :type="scope.row.registered ? 'success' : 'info'" size="small">{{ scope.row.registered ? '是' : '否' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="最后事件" width="150" align="center">
-          <template #default="scope">{{ formatWatchTime(scope.row.lastEventAt) }}</template>
-        </el-table-column>
-        <el-table-column label="最后扫描" width="150" align="center">
-          <template #default="scope">{{ formatWatchTime(scope.row.lastScanAt) }}</template>
-        </el-table-column>
-        <el-table-column label="排队" width="70" align="center">
-          <template #default="scope">{{ scope.row.pending != null ? scope.row.pending : '-' }}</template>
-        </el-table-column>
-      </el-table>
-      <el-empty v-else :description="watchEmptyText" :image-size="60" />
-      <p class="maint-hint">
-        <strong>「已注册」为否</strong>：该根当前没有监听句柄（路径不存在 / 不可读 / 触达监听上限），先跑一次「重建索引」把它重新纳入。
-        上方的开关与两个参数走 <code>PUT /api/media/admin/watch/config</code> 在运行期生效（不重启后端）；
-        部署层可设 <code>qtools.media.watch.allowRuntimeToggle=false</code> 关掉这个能力，此时开关与参数输入全部置灰，改动仍只能改配置文件后重启。
-      </p>
-    </section>
-
-    <!-- ============================== 诊断 / 补数据 ============================== -->
-    <!-- P5.97：日常不需要这里的任何一个按钮——「扫描 / 导入」一次点击就把补哈希、缩略图、索引都串完了。
-         这一组只在「怀疑数据不对」时用：历史上漏跑的项、换过算法的产物、老库的 content_hash。 -->
-    <section class="maint-group">
-      <div class="maint-group-head">
-        <span class="maint-group-title">诊断 / 补数据</span>
-        <span class="maint-group-desc">日常用不到：扫描 / 导入已自动做完全部后续步骤</span>
-      </div>
-      <div class="maint-row">
-        <span class="maint-label">分册方式</span>
-        <el-radio-group v-model="albumMode" :disabled="scanRunning" size="small">
-          <el-radio-button value="dir">按目录 (dir)</el-radio-button>
-          <el-radio-button value="prefix">按文件名前缀 (prefix)</el-radio-button>
-        </el-radio-group>
-      </div>
-      <div class="maint-row">
-        <span class="maint-label">排除规则</span>
-        <el-input v-model="exclude" :disabled="scanRunning" clearable placeholder="如 *.tmp,sample/**（留空 = 不排除任何路径）" />
-      </div>
-      <div class="maint-actions">
-        <el-tooltip content="诊断用：所有写操作结束后索引快照都会自动失效/重建。只有在怀疑站端看到的索引不对时才手动跑一次" placement="top">
-          <span>
-            <el-button type="primary" plain icon="RefreshRight" :loading="scanRunning" :disabled="scanRunning"
-              v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-rescan"
-              @click="emitRun({ mode: 'scan', options: scanOptions() })">
-              重建索引（诊断）
-            </el-button>
-          </span>
-        </el-tooltip>
-        <el-button icon="Stamp" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="emitRun({ mode: 'backfill-hash', options: {} })">
-          补内容哈希
-        </el-button>
-        <el-button icon="SetUp" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="emitRun({ mode: 'fix-poster', options: {}, confirm: FIX_POSTER_CONFIRM, title: '修复封面路径' })">
-          修复封面路径
-        </el-button>
-      </div>
-      <p class="maint-hint">
-        <strong>重建索引（诊断）</strong>：重扫媒体根并刷新索引库（不删文件、保留隐藏状态与人物归属）。
-        <strong>扫描 / 导入</strong>在扫完之后会自动重建索引快照，所以这里平时不用点——它是一个排障入口
-        （比如库根刚改过路径、或怀疑站端看到的还是旧快照）。
-      </p>
-      <p class="maint-hint">
-        <strong>补内容哈希</strong>：按文件内容算哈希写回索引，<strong>幂等</strong>——已算过的记录不会重算，只补空值。
-        新扫进来的文件在扫描阶段就已经写了哈希（它同时是缩略图的文件名），这一项只补<strong>老库的历史空值</strong>。
-      </p>
-      <p class="maint-hint">
-        <strong>修复封面路径</strong>：把索引里失效的封面路径按磁盘实况纠正。<strong>必须先跑「重建缩略图」</strong>，否则磁盘上没有缩略图可指向，任务修不到东西。
-      </p>
-    </section>
-
-    <!-- ============================== 元数据 ============================== -->
-    <section class="maint-group">
-      <div class="maint-group-head">
-        <span class="maint-group-title">元数据</span>
-        <span class="maint-group-desc">用 ffprobe 补齐时长 / 分辨率 / 编码等字段：只补空值，不覆盖已有值</span>
-      </div>
-      <div class="maint-actions">
-        <el-button type="primary" plain icon="Cpu" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="emitRun({ mode: 'enrich' })">
-          补元数据(ffprobe)
-        </el-button>
-        <span class="maint-inline-label">试跑条数</span>
-        <el-input-number v-model="limitProxy" :min="0" :max="10000" :step="1" :disabled="scanRunning" controls-position="right"
-          class="maint-limit" title="只对按住逐条处理的模式生效（补元数据 / 缩略图 / 精灵图预览），0 = 不限" />
-        <span class="maint-inline-note">（与工具栏那个「试跑条数」是同一个值）</span>
-      </div>
-      <p class="maint-hint">先填 3 之类的小数字跑一小批，确认 ffprobe 路径可用后再全量。</p>
-    </section>
-
-    <!-- ============================== 派生资源 ============================== -->
-    <section class="maint-group">
-      <div class="maint-group-head">
-        <span class="maint-group-title">派生资源</span>
-        <span class="maint-group-desc">缩略图 / 精灵图 / 预览视频都在 thumbs 下，属于可随时重建的产物</span>
-      </div>
-      <!-- P5.10-B：只处理「视频」列表里勾选的行；没勾选时下面两个「生成选中项」按钮禁用 -->
-      <div class="maint-row">
-        <span class="maint-label">勾选视频</span>
-        <span class="maint-inline-note" data-testid="maint-selected" :data-count="selectedIdCount">
-          <template v-if="selectedIdCount">已选 {{ selectedIdCount }} 项：下面两个「生成选中项」只对这些 id 生效</template>
-          <template v-else>未勾选任何视频：先到「视频」列表勾选，再用「生成选中项」（否则只能整库跑）</template>
-        </span>
-      </div>
-      <div class="maint-row">
-        <span class="maint-label">派生资源选项</span>
+      <div class="maint-row maint-options-row">
+        <span class="maint-label">派生选项</span>
         <el-checkbox v-model="deriveForce" :disabled="scanRunning">强制重建（忽略新鲜度、全部重生成）</el-checkbox>
         <el-checkbox v-model="deriveNoFresh" :disabled="scanRunning">关闭新鲜度（不比较源文件时间）</el-checkbox>
-        <span class="maint-inline-note">影响：重建缩略图 / 生成精灵图·预览</span>
+        <span class="maint-inline-label">试跑条数</span>
+        <el-input v-model="limitProxy" type="number" min="0" max="10000" :disabled="scanRunning"
+          class="maint-limit" data-testid="maint-scan-limit"
+          title="只对逐条处理的模式生效（补元数据 / 缩略图 / 精灵图 / 预览），0 = 不限" />
+        <span class="maint-inline-note">0 = 不限</span>
       </div>
       <el-alert v-if="deriveForce" type="warning" :closable="false" show-icon class="maint-alert"
         title="强制重建会覆盖已有产物：全库精灵图 / 预览是【全片解码】，176 个视频约需 9–11 小时（缩略图快得多）。"
-        description="先用上面的「试跑条数」小规模验证再全量跑：条数按「封面 / 精灵图 / 预览」三件产物计数，限 3 条 ≈ 1 个视频的精灵图 + 预览片段。" />
-      <div class="maint-actions">
-        <el-button type="primary" plain icon="Picture" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="emitRun({ mode: 'thumb', options: deriveOptions() })">
-          重建缩略图
-        </el-button>
-        <el-button type="primary" plain icon="Film" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="emitRun({ mode: 'sprite,preview', options: deriveOptions(), confirm: deriveForce ? SPRITE_PREVIEW_FORCE_CONFIRM : '' })">
-          生成精灵图/预览
-        </el-button>
-        <el-button type="danger" plain icon="Delete" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="$emit('gc')">
-          清理孤儿(GC)
-        </el-button>
+        description="先在工具栏把试跑条数设成 3 之类的小数字验证，再去掉条数全量跑。" />
+
+      <div class="maint-task" data-testid="maint-task-thumb">
+        <div class="maint-task-line">
+          <span class="maint-task-title">生成缩略图</span>
+          <maint-scope v-model="scopes.thumb" supported :filter-active="filterActive" :filter-count="filteredCount"
+            :selected-count="selectedIdCount" :disabled="scanRunning" testid="thumb" />
+          <el-button type="primary" plain icon="Picture" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-start-thumb"
+            @click="runGenerate('thumb', 'thumb', '生成缩略图')">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-thumb">上次：{{ lastText('thumb') }}</div>
       </div>
-      <!-- P5.10-B：只生成勾选的视频（请求体带 videoIds，后端只对 thumb / sprite / preview 生效） -->
-      <div class="maint-actions">
-        <el-tooltip :disabled="selectedIdCount > 0" content="先在「视频」列表勾选要处理的视频" placement="top">
-          <span class="maint-tip-wrap">
-            <el-button type="success" plain icon="PictureFilled" :loading="scanRunning"
-              :disabled="scanRunning || !selectedIdCount" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-              @click="emitSelected('thumb', '重建缩略图')">
-              生成选中项（缩略图）
-            </el-button>
-          </span>
-        </el-tooltip>
-        <el-tooltip :disabled="selectedIdCount > 0" content="先在「视频」列表勾选要处理的视频" placement="top">
-          <span class="maint-tip-wrap">
-            <el-button type="success" plain icon="Film" :loading="scanRunning"
-              :disabled="scanRunning || !selectedIdCount" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-              @click="emitSelected('sprite,preview', '生成精灵图/预览')">
-              生成选中项（精灵图/预览）
-            </el-button>
-          </span>
-        </el-tooltip>
-        <span class="maint-inline-note">勾选 {{ selectedIdCount }} 项；与上面两个整库按钮共用同一把任务锁</span>
+
+      <div class="maint-task" data-testid="maint-task-sprite">
+        <div class="maint-task-line">
+          <span class="maint-task-title">生成精灵图</span>
+          <maint-scope v-model="scopes.sprite" supported :filter-active="filterActive" :filter-count="filteredCount"
+            :selected-count="selectedIdCount" :disabled="scanRunning" testid="sprite" />
+          <el-button type="primary" plain icon="Film" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-start-sprite"
+            @click="runGenerate('sprite', 'sprite', '生成精灵图')">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-sprite">上次：{{ lastText('sprite') }}</div>
       </div>
+
+      <div class="maint-task" data-testid="maint-task-preview">
+        <div class="maint-task-line">
+          <span class="maint-task-title">生成预览片段</span>
+          <maint-scope v-model="scopes.preview" supported :filter-active="filterActive" :filter-count="filteredCount"
+            :selected-count="selectedIdCount" :disabled="scanRunning" testid="preview" />
+          <el-button type="primary" plain icon="VideoCamera" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-start-preview"
+            @click="runGenerate('preview', 'preview', '生成预览片段')">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-preview">上次：{{ lastText('preview') }}</div>
+      </div>
+
+      <!-- 原「生成精灵图/预览」一键任务的等价入口：保留合并模式，避免 P6.04 精简把这个能力弄丢 -->
+      <div class="maint-task" data-testid="maint-task-sprite-preview">
+        <div class="maint-task-line">
+          <span class="maint-task-title">生成精灵图 + 预览片段</span>
+          <maint-scope v-model="scopes.spritePreview" supported :filter-active="filterActive" :filter-count="filteredCount"
+            :selected-count="selectedIdCount" :disabled="scanRunning" testid="sprite-preview" />
+          <el-button type="primary" plain icon="Film" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-start-sprite-preview"
+            @click="runGenerate('spritePreview', 'sprite,preview', '生成精灵图 + 预览片段')">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-sprite-preview">上次：{{ lastText('sprite,preview') }}</div>
+      </div>
+
       <p class="maint-hint">
-        <strong>清理孤儿(GC)</strong> 会真删 thumbs/v、thumbs/s、thumbs/pv2 下「既不在索引中、也没有同名源文件」的派生文件：媒体源与索引不受影响，但删除不可撤销。
-        精灵图 / 预览是<strong>全片解码</strong>，先用上面的试跑条数跑一小批更稳。
-        上面的「强制重建 / 关闭新鲜度」<strong>对两个按钮同时生效</strong>：换上新的取帧算法后要重生成旧片段，
-        必须勾「强制重建」（否则产物 mtime 比源文件新，脚本判定「已是最新」直接跳过）。
+        <strong>范围</strong>：「当前筛选结果」按视频页当前的筛选条件从后端重新取 id（最多 200 条，与后端 videoIds 上限一致）；
+        「选中项」只带视频列表里勾选的 id。精灵图 / 预览是全片解码，先用工具栏「试跑条数」小批量验证。
       </p>
     </section>
 
-    <!-- ============================== 备份 ============================== -->
-    <section class="maint-group">
+    <!-- ============================== 2 清理 ============================== -->
+    <section class="maint-group" data-testid="maint-section-clean">
       <div class="maint-group-head">
-        <span class="maint-group-title">备份</span>
-        <span class="maint-group-desc">导出便携包到服务器目录（任务日志里会打印落盘路径）</span>
+        <span class="maint-group-title">清理</span>
+        <span class="maint-group-desc">删除可重建的产物或已经删掉的内容；删除动作不可撤销</span>
       </div>
-      <div class="maint-actions">
-        <el-button type="primary" plain icon="Box" :loading="scanRunning" :disabled="scanRunning" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-          @click="emitRun({ mode: 'export', options: {} })">
-          导出便携包
-        </el-button>
-        <el-button icon="Refresh" :loading="exportLoading" v-hasPermi="['media:admin:list']" @click="loadExports">刷新导出列表</el-button>
+
+      <div class="maint-task" data-testid="maint-task-gc">
+        <div class="maint-task-line">
+          <span class="maint-task-title">清理派生资源（GC）</span>
+          <maint-scope v-model="allScope" :disabled="scanRunning" testid="gc" note="GC 只支持整库：后端没有 ids 参数" />
+          <span class="maint-inline-note" data-testid="maint-gc-used">已用 {{ gcUsedText }}</span>
+          <el-tooltip content="thumbs 下可安全删除的派生文件总量（缩略图 / 精灵图 / 预览），随时可重建" placement="top">
+            <el-icon class="maint-info-icon"><InfoFilled /></el-icon>
+          </el-tooltip>
+          <el-button type="danger" plain icon="Delete" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-start-gc"
+            @click="startGc">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-gc">上次：{{ lastText('gc') }}</div>
       </div>
-      <div class="maint-sub-title">最近导出（最多 10 次）</div>
-      <el-alert v-if="exportError" :title="exportError" type="warning" :closable="false" show-icon class="maint-alert" />
-      <el-table v-if="exportRows.length" :data="exportRows" size="small" class="maint-table">
-        <el-table-column label="目录" prop="dir" min-width="200" :show-overflow-tooltip="true" />
-        <el-table-column label="文件" prop="name" min-width="180" :show-overflow-tooltip="true" />
-        <el-table-column label="大小" width="100" align="right">
-          <template #default="scope">{{ formatFileSize(scope.row.size) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="90" align="center">
-          <template #default="scope">
-            <el-button link type="primary" icon="Download" :loading="downloadingKey === fileKey(scope.row)"
-              :disabled="!!downloadingKey" v-hasPermi="['media:admin:list']" @click="downloadFile(scope.row)">下载</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-empty :description="exportLoading ? '正在读取导出列表…' : '还没有导出记录（点「导出便携包」生成一个）'" :image-size="60"
-        v-if="!exportLoading && !exportError && !exportRows.length" />
+
+      <div class="maint-task" data-testid="maint-task-trash">
+        <div class="maint-task-line">
+          <span class="maint-task-title">清空回收站</span>
+          <maint-scope v-model="allScope" disabled testid="trash" note="回收站按整仓清空：后端只能逐条 purge" />
+          <span class="maint-inline-note" data-testid="maint-trash-count">{{ trashCountText }}</span>
+          <el-button type="danger" plain icon="DeleteFilled" :loading="clearingTrash" :disabled="clearingTrash || !trash.count"
+            v-hasPermi="['media:admin:remove']" data-testid="maint-clear-trash"
+            @click="clearTrash">清空</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-trash">上次：{{ lastText('trash') }}</div>
+      </div>
+
+      <div class="maint-task" data-testid="maint-task-duplicates">
+        <div class="maint-task-line">
+          <span class="maint-task-title">查找重复文件</span>
+          <maint-scope v-model="allScope" disabled testid="duplicates" note="重复文件按整库扫描：后端只支持 kind 分页" />
+          <el-button icon="CopyDocument" :loading="checkingDuplicates" :disabled="checkingDuplicates" data-testid="maint-check-duplicates"
+            v-hasPermi="['media:admin:list']" @click="checkDuplicates">检查</el-button>
+          <el-button link type="primary" icon="TopRight" data-testid="maint-open-duplicates" @click="openDuplicates">打开重复文件</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-duplicates">上次：{{ lastText('duplicates') }}</div>
+      </div>
+
       <p class="maint-hint">
-        导入恢复<strong>只能走命令行</strong>，并且需要显式加 <code>--force</code>（会覆盖目标库的索引，所以不在界面上开放）。
+        <strong>GC</strong> 只删 thumbs/v、thumbs/s、thumbs/pv2 下「既不在索引中、也没有同名源文件」的孤儿派生文件，媒体源与索引不受影响。
+        <strong>清空回收站</strong>会把回收站条目逐条彻底删除（不进备份），删完不可恢复；只想恢复某一条请到「回收站」标签页。
       </p>
     </section>
 
-    <!-- ============================== 库根（只读） ============================== -->
-    <!-- P5.97：这里原来有一整套「新增 / 编辑 / 删除库根」，与「库根管理」页是同一件事的两个入口，
-         而且两边的类型取值还不一样（旧的 video/photo/both vs root/thumbs/trash）。
-         现在只留只读清单 + 一个跳转：库根的增删改、预演、扫描都在「库根管理」页。 -->
-    <section class="maint-group">
+    <!-- ============================== 3 诊断 ============================== -->
+    <section class="maint-group" data-testid="maint-section-diagnose">
       <div class="maint-group-head">
-        <span class="maint-group-title">库根（只读）</span>
-        <span class="maint-group-desc">增删改 / 预演 / 扫描都在「库根管理」页；这里只看清单与条目数</span>
+        <span class="maint-group-title">诊断</span>
+        <span class="maint-group-desc">平时不用点：只在怀疑数据不对时逐项排查</span>
       </div>
-      <div class="maint-actions">
-        <el-button type="primary" plain icon="FolderOpened" :loading="rootsLoading" v-hasPermi="['media:admin:list']" @click="loadRoots">刷新库根</el-button>
-        <el-button icon="TopRight" v-hasPermi="['media:admin:list']" data-testid="maint-goto-roots" @click="gotoRoots">去库根管理</el-button>
+
+      <div class="maint-task" data-testid="maint-task-rescan">
+        <div class="maint-task-line">
+          <span class="maint-task-title">重建索引（诊断）</span>
+          <maint-scope v-model="allScope" disabled testid="rescan" note="重扫全部库根：后端没有 ids 参数" />
+          <el-button type="primary" plain icon="RefreshRight" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-rescan"
+            @click="runRescan">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-rescan">上次：{{ lastText('rescan') }}</div>
+        <div class="maint-row maint-subrow">
+          <span class="maint-label">分册方式</span>
+          <el-radio-group v-model="albumMode" :disabled="scanRunning" size="small">
+            <el-radio-button value="dir">按目录 (dir)</el-radio-button>
+            <el-radio-button value="prefix">按文件名前缀 (prefix)</el-radio-button>
+          </el-radio-group>
+        </div>
+        <div class="maint-row maint-subrow">
+          <span class="maint-label">排除规则</span>
+          <el-input v-model="exclude" :disabled="scanRunning" clearable placeholder="如 *.tmp,sample/**（留空 = 不排除任何路径）" />
+        </div>
       </div>
-      <el-alert v-if="rootsError" :title="rootsError" type="warning" :closable="false" show-icon class="maint-alert" />
-      
-      <el-table v-if="roots.length" v-loading="rootsLoading" :data="roots" size="small" class="maint-table">
-        <el-table-column label="名称" prop="name" min-width="110" :show-overflow-tooltip="true" />
-        <el-table-column label="路径" prop="path" min-width="200" :show-overflow-tooltip="true" />
-        <el-table-column label="类型" prop="kind" width="80" align="center" />
-        <el-table-column label="存在" width="70" align="center">
-          <template #default="scope">
-            <el-tag :type="scope.row.exists ? 'success' : 'danger'" size="small">{{ scope.row.exists ? '是' : '否' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="可读" width="70" align="center">
-          <template #default="scope">
-            <el-tag :type="scope.row.readable ? 'success' : 'danger'" size="small">{{ scope.row.readable ? '是' : '否' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="视频数" width="80" align="center">
-          <template #default="scope">{{ scope.row.videoCount != null ? scope.row.videoCount : '-' }}</template>
-        </el-table-column>
-        <el-table-column label="图片数" width="80" align="center">
-          <template #default="scope">{{ scope.row.photoCount != null ? scope.row.photoCount : '-' }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="120" align="center" fixed="right">
-          <template #default="scope">
-            <el-button link type="primary" icon="TopRight" v-hasPermi="['media:admin:list']" @click="gotoRoots">去库根管理</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-empty :description="rootsLoading ? '正在读取库根…' : '还没有库根（接口未就绪时这里也会是空的）'" :image-size="60"
-        v-if="!rootsLoading && !rootsError && !roots.length" />
+
+      <div class="maint-task" data-testid="maint-task-consistency">
+        <div class="maint-task-line">
+          <span class="maint-task-title">数据一致性检查</span>
+          <maint-scope v-model="allScope" disabled testid="consistency" note="只读检查，不改任何数据" />
+          <el-button icon="CircleCheck" :loading="checkingConsistency" :disabled="checkingConsistency"
+            v-hasPermi="['media:admin:list']" data-testid="maint-check-consistency" @click="checkConsistency">检查</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-consistency">上次：{{ lastText('consistency') }}</div>
+      </div>
+
+      <div class="maint-task" data-testid="maint-task-hash">
+        <div class="maint-task-line">
+          <span class="maint-task-title">补内容哈希</span>
+          <maint-scope v-model="allScope" disabled testid="hash" note="只补空值：后端没有 ids 参数" />
+          <el-button icon="Stamp" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-backfill-hash"
+            @click="runBackfillHash">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-backfill-hash">上次：{{ lastText('backfill-hash') }}</div>
+      </div>
+
+      <div class="maint-task" data-testid="maint-task-fixposter">
+        <div class="maint-task-line">
+          <span class="maint-task-title">修复封面路径</span>
+          <maint-scope v-model="allScope" disabled testid="fixposter" note="按磁盘实况纠正：后端没有 ids 参数" />
+          <el-button icon="SetUp" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-fix-poster"
+            @click="runFixPoster">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-fix-poster">上次：{{ lastText('fix-poster') }}</div>
+      </div>
+
+      <div class="maint-task" data-testid="maint-task-enrich">
+        <div class="maint-task-line">
+          <span class="maint-task-title">补元数据(ffprobe)</span>
+          <maint-scope v-model="allScope" disabled testid="enrich" note="逐条 ffprobe：后端没有 ids 参数，可配合试跑条数" />
+          <el-button type="primary" plain icon="Cpu" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-enrich"
+            @click="runEnrich">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-enrich">上次：{{ lastText('enrich') }}</div>
+      </div>
+
+      <div class="maint-task" data-testid="maint-task-export">
+        <div class="maint-task-line">
+          <span class="maint-task-title">导出便携包</span>
+          <maint-scope v-model="allScope" disabled testid="export" note="导出整库：后端没有 ids 参数" />
+          <el-button type="primary" plain icon="Box" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-export"
+            @click="runExport">开始</el-button>
+          <el-button icon="Refresh" :loading="exportLoading" v-hasPermi="['media:admin:list']" @click="loadExports">刷新导出列表</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-export">上次：{{ lastText('export') }}</div>
+        <div class="maint-sub-title">最近导出（最多 10 次）</div>
+        <el-alert v-if="exportError" :title="exportError" type="warning" :closable="false" show-icon class="maint-alert" />
+        <el-table v-if="exportRows.length" :data="exportRows" size="small" class="maint-table">
+          <el-table-column label="目录" prop="dir" min-width="200" :show-overflow-tooltip="true" />
+          <el-table-column label="文件" prop="name" min-width="180" :show-overflow-tooltip="true" />
+          <el-table-column label="大小" width="100" align="right">
+            <template #default="scope">{{ formatFileSize(scope.row.size) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="90" align="center">
+            <template #default="scope">
+              <el-button link type="primary" icon="Download" :loading="downloadingKey === fileKey(scope.row)"
+                :disabled="!!downloadingKey" v-hasPermi="['media:admin:list']" @click="downloadFile(scope.row)">下载</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+        <el-empty :description="exportLoading ? '正在读取导出列表…' : '还没有导出记录（点「开始」生成一个）'" :image-size="60"
+          v-if="!exportLoading && !exportError && !exportRows.length" />
+        <p class="maint-hint">导入恢复<strong>只能走命令行</strong>，并且需要显式加 <code>--force</code>（会覆盖目标库的索引，所以不在界面上开放）。</p>
+      </div>
+
+      <!-- 自动扫描（文件监听）：不是「扫描 / 导入」入口，这里只保留运行期开关与状态 -->
+      <div class="maint-subgroup" data-testid="maint-subgroup-watch">
+        <div class="maint-group-head">
+          <span class="maint-subgroup-title">文件监听（自动入库）</span>
+          <span class="maint-group-desc">库根里出现新文件（防抖 {{ watchDebounceText }}，夜间静默 {{ watchQuietText }}）后自动重建索引</span>
+          <el-tag :type="watchBadge.type" size="small" class="watch-badge">{{ watchBadge.text }}</el-tag>
+        </div>
+        <el-alert v-if="watchError" :title="watchError" type="warning" :closable="false" show-icon class="maint-alert" />
+        <div class="maint-actions watch-toggle-row">
+          <span class="maint-inline-label">监听开关</span>
+          <el-switch v-model="watchEnabled" :disabled="!watchAllowed || watchEnabledBusy" :loading="watchEnabledBusy"
+            active-text="开启" inactive-text="关闭" v-hasPermi="['media:admin:edit']" @change="onEnabledChange" />
+          <span class="maint-inline-note">切换即保存（PUT /api/media/admin/watch/config），不必重启后端</span>
+        </div>
+        <el-alert v-if="!watchAllowed" type="info" :closable="false" show-icon class="maint-alert"
+          title="部署层已禁止运行期开关（qtools.media.watch.allowRuntimeToggle=false）" />
+        <div class="maint-actions watch-cfg-row">
+          <span class="maint-inline-label">去抖</span>
+          <el-input-number v-model="watchDebounce" :min="1" :max="60" :step="1" step-strictly controls-position="right"
+            :disabled="!watchAllowed || watchCfgSaving" class="watch-cfg-number" />
+          <span class="maint-inline-note">秒</span>
+          <span class="maint-inline-label">夜间静默</span>
+          <el-input v-model="watchQuiet" clearable placeholder="HH:mm-HH:mm，留空=全天监听" class="watch-cfg-quiet"
+            :disabled="!watchAllowed || watchCfgSaving" />
+          <el-button type="primary" plain icon="Check" :loading="watchCfgSaving"
+            :disabled="!watchAllowed || !watchCfgDirty || watchCfgSaving"
+            v-hasPermi="['media:admin:edit']" @click="saveWatchConfig">保存</el-button>
+          <span class="maint-inline-note">{{ watchCfgDirty ? '有未保存的改动' : '与后端一致' }}</span>
+        </div>
+        <div class="maint-actions">
+          <el-button icon="Refresh" :loading="watchLoading" v-hasPermi="['media:admin:list']" @click="loadWatch">刷新状态</el-button>
+          <el-tooltip :disabled="!watchActionTip" :content="watchActionTip" placement="top">
+            <span class="watch-tip-wrap">
+              <el-button v-if="watchInfo.running" icon="VideoPause" :loading="watchBusy" :disabled="watchPauseResumeDisabled"
+                v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(false)">暂停</el-button>
+              <el-button v-else type="primary" plain icon="VideoPlay" :loading="watchBusy" :disabled="watchPauseResumeDisabled"
+                v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="toggleWatch(true)">继续</el-button>
+            </span>
+          </el-tooltip>
+          <span class="maint-inline-note">扫描 / 导入请用工具栏「扫描 / 导入」抽屉，或库根管理页行内「扫描」</span>
+        </div>
+        <el-table v-if="watchRoots.length" :data="watchRoots" size="small" class="maint-table">
+          <el-table-column label="路径" prop="path" min-width="240" :show-overflow-tooltip="true" />
+          <el-table-column label="已注册" width="80" align="center">
+            <template #default="scope">
+              <el-tag :type="scope.row.registered ? 'success' : 'info'" size="small">{{ scope.row.registered ? '是' : '否' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="最后事件" width="150" align="center">
+            <template #default="scope">{{ formatWatchTime(scope.row.lastEventAt) }}</template>
+          </el-table-column>
+          <el-table-column label="最后扫描" width="150" align="center">
+            <template #default="scope">{{ formatWatchTime(scope.row.lastScanAt) }}</template>
+          </el-table-column>
+          <el-table-column label="排队" width="70" align="center">
+            <template #default="scope">{{ scope.row.pending != null ? scope.row.pending : '-' }}</template>
+          </el-table-column>
+        </el-table>
+        <el-empty v-else :description="watchEmptyText" :image-size="60" />
+        <p class="maint-hint">
+          <strong>「已注册」为否</strong>：该根当前没有监听句柄（路径不存在 / 不可读 / 触达监听上限），先跑一次「重建索引」把它重新纳入。
+          开关与参数走 <code>PUT /api/media/admin/watch/config</code> 在运行期生效（不重启后端）。
+        </p>
+      </div>
+
+      <!-- 内容分级 / 标签体系：弹窗式维护入口，保留原能力，不在本抽屉里重复表单 -->
+      <div class="maint-subgroup" data-testid="maint-subgroup-dialogs">
+        <div class="maint-group-head">
+          <span class="maint-subgroup-title">其它维护入口</span>
+          <span class="maint-group-desc">自动分级与标签规范化都在弹窗里预览 / 执行，这里只负责打开</span>
+        </div>
+        <div class="maint-actions">
+          <el-button type="primary" plain icon="MagicStick" v-hasPermi="['media:admin:list']" data-testid="maint-rating-classify"
+            @click="ratingVisible = true">自动分级</el-button>
+          <el-button type="primary" plain icon="PriceTag" v-hasPermi="['media:admin:list']" data-testid="maint-tag-normalize"
+            @click="tagNormalizeVisible = true">标签规范化</el-button>
+        </div>
+        <p class="maint-hint">
+          自动分级规则在后端 <code>rating-rules.json</code>，标签规则在 <code>doc/media-import/tag-map.json</code>；
+          两个弹窗都先预览、确认后才写库，执行前自动备份标签表。
+        </p>
+      </div>
     </section>
 
+    <!-- ============================== 4 危险（默认折叠） ============================== -->
+    <section class="maint-group maint-danger" data-testid="maint-section-danger">
+      <div class="maint-group-head">
+        <span class="maint-group-title">危险</span>
+        <span class="maint-group-desc">会重扫 / 重写大量数据；默认收起，展开后还要输入「确认」</span>
+        <el-button link type="danger" class="maint-danger-toggle" data-testid="maint-danger-toggle"
+          @click="toggleDanger">{{ dangerOpen ? '收起' : '展开危险操作' }}</el-button>
+      </div>
+      <div v-show="dangerOpen" class="maint-danger-body" data-testid="maint-danger-body">
+        <div class="maint-task" data-testid="maint-task-danger-rescan">
+          <div class="maint-task-line">
+            <span class="maint-task-title">强制重扫全部内容</span>
+            <maint-scope v-model="allScope" disabled testid="danger-rescan" note="全部库根：范围不可缩小" />
+            <el-input v-model="dangerWord" class="maint-danger-input" placeholder="输入「确认」" clearable
+              data-testid="maint-danger-confirm-input" />
+            <el-button type="danger" icon="WarningFilled" :disabled="dangerWord !== '确认' || scanRunning"
+              v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-danger-rescan"
+              @click="runDangerRescan">开始</el-button>
+          </div>
+          <div class="maint-task-last" data-testid="maint-last-danger-rescan">上次：{{ lastText('danger-rescan') }}</div>
+          <p class="maint-hint">
+            重走全部库根并重建索引（后端 mode=scan，与诊断里的「重建索引」同一个任务，这里用更重的确认防止误点）。
+            不会删除媒体文件，但耗时与库大小成正比；期间所有维护 / 扫描按钮都被任务锁挡住。
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 自动分级弹窗：预览 / 执行 / 报告展示都在子组件里，面板只负责打开它 -->
+    <rating-classify-dialog v-model="ratingVisible" @applied="onRatingApplied" />
+    <!-- 标签规范化弹窗（P6.03）：预览 / 备份提示 / 执行 / 报告都在子组件里 -->
+    <tag-normalize-dialog v-model="tagNormalizeVisible" @applied="onTagNormalizeApplied" />
   </div>
 </template>
 
 <script setup name="MaintPanel">
-import { ref, computed, onMounted, watch, getCurrentInstance } from 'vue'
+import { ref, reactive, computed, onMounted, watch, getCurrentInstance } from 'vue'
 import fileSaver from 'file-saver'
 import { blobValidate } from '@/utils/ruoyi'
 import {
-  listExports, downloadExport, listRoots,
-  getWatchStatus, pauseWatch, resumeWatch, scanNow, updateWatchConfig
+  listExports, downloadExport,
+  getWatchStatus, pauseWatch, resumeWatch, updateWatchConfig,
+  trashStats, listTrash, purgeTrash,
+  listDuplicates, getDeriveStatus, listMissing, listScanJobs,
+  listRoots, getRootArtifacts
 } from '@/api/media'
 import { errText, errStatus, notReadyText } from './maint-error'
+import RatingClassifyDialog from './RatingClassifyDialog'
+import TagNormalizeDialog from './TagNormalizeDialog'
+import MaintScope from './MaintScope.vue'
+import {
+  loadHistory, saveHistory, recordEntry, formatHistoryEntry,
+  entryFromJob, entryFromLocal, mergeBackendJobs
+} from './maint-history'
 
 const props = defineProps({
-  /** 与工具栏共用的试跑条数 */
+  /** 维护任务的试跑条数（0=不限；父级在发起任务时按 mode 附加到 limit） */
   scanLimit: { type: Number, default: 0 },
   /** 与工具栏共用的运行锁：为 true 时所有按钮禁用 */
   scanRunning: { type: Boolean, default: false },
-  /** 任务结束后父级自增，用它触发「最近导出 / 库根」重新读一次 */
+  /** 任务结束后父级自增，用它触发「最近导出 / 回收站 / 派生用量 / 后端历史」重读 */
   refreshKey: { type: Number, default: 0 },
-  /** 视频列表当前勾选的 videoId（P5.10-B：「生成选中项」据此带 videoIds；空数组时按钮禁用） */
-  selectedVideoIds: { type: Array, default: () => [] }
+  /** 视频列表当前勾选的 videoId（「选中项」范围据此带 videoIds） */
+  selectedVideoIds: { type: Array, default: () => [] },
+  /** 视频页当前是否真的设置了筛选条件（「当前筛选结果」范围据此启用） */
+  filterActive: { type: Boolean, default: false },
+  /** 当前筛选结果条数（下拉文案与禁用判断） */
+  filteredCount: { type: Number, default: 0 },
+  /** 父级刚结束的后端任务（用于写「上次执行」；没有就不写） */
+  lastJob: { type: Object, default: null }
 })
 
-const emit = defineEmits(['update:scanLimit', 'run', 'gc'])
+const emit = defineEmits(['update:scanLimit', 'run', 'gc', 'rating-applied', 'trash-cleared', 'open-duplicates'])
 
 const { proxy } = getCurrentInstance()
 
-// 只在「先跑缩略图」之后才有意义，所以把前置条件也写进确认文案
+/* ---------------------------------------------------------------- 上次执行（本地 + 后端回填） */
+const history = ref(loadHistory())
+const pendingAction = ref('')
+/** 正在进行的前端内部动作（清空回收站 / 重复检查 / 一致性检查） */
+const clearingTrash = ref(false)
+const checkingDuplicates = ref(false)
+const checkingConsistency = ref(false)
+
+function lastText(key) {
+  return formatHistoryEntry(history.value[key])
+}
+
+function record(key, entry) {
+  if (!key || !entry) return
+  history.value = recordEntry(history.value, key, entry)
+}
+
+function seedFromBackend() {
+  listScanJobs(30).then(jobs => {
+    const merged = mergeBackendJobs(history.value, jobs)
+    history.value = merged
+    saveHistory(merged)
+  }).catch(() => {
+    /* 403/404：后端历史不可用，继续只用本地记录 */
+  })
+}
+
+/** 父级任务结束 → 归到触发它的按钮上 */
+watch(() => props.lastJob, (job) => {
+  if (!job || !job.id) return
+  const key = pendingAction.value
+  const entry = entryFromJob(job)
+  if (key && entry) {
+    record(key, entry)
+    pendingAction.value = ''
+  }
+})
+
+/* ---------------------------------------------------------------- 范围 / 派生选项 */
+const allScope = ref('all')
+const scopes = reactive({ thumb: 'all', sprite: 'all', preview: 'all', spritePreview: 'all' })
+const selectedIdCount = computed(() => (Array.isArray(props.selectedVideoIds) ? props.selectedVideoIds : [])
+  .map(id => (id == null ? '' : String(id)))
+  .filter(id => id !== '').length)
+
+const deriveForce = ref(false)
+const deriveNoFresh = ref(false)
+const albumMode = ref('dir')
+const exclude = ref('')
+
+const limitProxy = computed({
+  get: () => props.scanLimit,
+  set: (val) => emit('update:scanLimit', Number(val) || 0)
+})
+
+function deriveOptions() {
+  const options = {}
+  if (deriveForce.value) options.force = true
+  if (deriveNoFresh.value) options.noFresh = true
+  return options
+}
+
+function scanOptions() {
+  const options = { albumMode: albumMode.value }
+  const text = (exclude.value || '').trim()
+  if (text) options.exclude = text
+  return options
+}
+
+const SPRITE_PREVIEW_FORCE_CONFIRM = '强制重建会把全库精灵图 / 预览重新解码一遍：176 个视频约需 9–11 小时，'
+  + '期间同一时刻只能跑这一个任务。建议先把工具栏「试跑条数」设成 3 之类的数字，确认取帧效果符合预期后再去掉条数全量重建。'
+
 const FIX_POSTER_CONFIRM = '修复封面路径会把索引里失效的封面指向按磁盘实况纠正：不改媒体源、不重新解码。'
-  + '前提是缩略图已经生成——若还没跑过「重建缩略图」，先跑缩略图再修，否则修不到东西。确认执行？'
+  + '前提是缩略图已经生成——若还没跑过「生成缩略图」，先跑缩略图再修，否则修不到东西。确认执行？'
 
-/* ---------------------------------------------------------------- 自动扫描（监听） */
-/* 契约（P2-A）：GET /watch → { enabled, running, roots:[{id,path,registered,lastEventAt,lastScanAt,pending}], debounceSeconds }
-   未部署时给 NOT_READY_TEXT、只是没开启时给 DISABLED_TEXT：面板其余分组照常可用，不弹全局错误。
-   契约（P2-C）：GET 多出 { allowed, paused, quietMinutes, hint }；PUT /watch/config
-   body { enabled?, debounceSeconds?, quietMinutes? } 回同一结构，allowRuntimeToggle=false 时 403。 */
+const DANGER_RESCAN_CONFIRM = '强制重扫全部内容会重走全部库根并重建索引：不删除媒体文件，但会长时间占用任务锁。'
+  + '确认现在开始？'
 
+function scopeText(scope) {
+  if (scope === 'filter') return '当前筛选结果（' + props.filteredCount + ' 项）'
+  if (scope === 'selected') return '选中项（' + selectedIdCount.value + ' 项）'
+  return '全部'
+}
+
+/** 统一出口：父级负责二次确认 / 起任务 / 轮询；这里只记「这次是哪个按钮发起的」 */
+function emitRun(payload) {
+  if (props.scanRunning) {
+    proxy.$modal.msgWarning('已有任务在运行，请等待结束后再触发')
+    return
+  }
+  const item = payload || {}
+  pendingAction.value = item.actionKey || item.mode || ''
+  emit('run', item)
+}
+
+function runGenerate(key, mode, title) {
+  const scope = scopes[key] || 'all'
+  let confirm = title + '：范围 ' + scopeText(scope) + '。'
+  if (deriveForce.value) {
+    confirm += SPRITE_PREVIEW_FORCE_CONFIRM
+  }
+  confirm += '确认执行？'
+  emitRun({
+    mode: mode,
+    title: title,
+    scope: scope,
+    // 合并模式的内部 key 是 spritePreview（对应 scopes），历史记录按后端 mode 存 "sprite,preview"
+    actionKey: mode === 'sprite,preview' ? 'sprite,preview' : key,
+    options: deriveOptions(),
+    confirm: confirm
+  })
+}
+
+function runRescan() {
+  emitRun({
+    mode: 'scan',
+    title: '重建索引（诊断）',
+    scope: 'all',
+    actionKey: 'rescan',
+    options: scanOptions(),
+    confirm: '重建索引会重新扫描媒体根并刷新索引数据库：不会删除任何文件，会保留隐藏状态与人物归属。确认执行？'
+  })
+}
+
+function runBackfillHash() {
+  emitRun({
+    mode: 'backfill-hash',
+    title: '补内容哈希',
+    scope: 'all',
+    actionKey: 'backfill-hash',
+    options: {},
+    confirm: '补内容哈希会按文件内容计算哈希写回索引：幂等（已算过的不重算，只补空值），但视频多时耗时较久。确认执行？'
+  })
+}
+
+function runFixPoster() {
+  emitRun({
+    mode: 'fix-poster',
+    title: '修复封面路径',
+    scope: 'all',
+    actionKey: 'fix-poster',
+    options: {},
+    confirm: FIX_POSTER_CONFIRM
+  })
+}
+
+function runEnrich() {
+  emitRun({
+    mode: 'enrich',
+    title: '补元数据(ffprobe)',
+    scope: 'all',
+    actionKey: 'enrich',
+    options: {},
+    confirm: '补元数据会用 ffprobe 逐个读视频，补齐时长 / 分辨率 / 编码等字段：只补空值，不覆盖已有值，不改媒体源。'
+      + '想先试跑就把工具栏「试跑条数」设成 3 之类的小数字。确认执行？'
+  })
+}
+
+function runExport() {
+  emitRun({
+    mode: 'export',
+    title: '导出便携包',
+    scope: 'all',
+    actionKey: 'export',
+    options: {},
+    confirm: '导出便携包会在服务器上生成一个可搬迁的导出目录（含清单与索引快照），耗时取决于库大小。'
+      + '完成后在「最近导出」里按文件下载。确认执行？'
+  })
+}
+
+/** GC：确认框与执行在父级（那里有任务锁与轮询），这里只记按钮归属 */
+function startGc() {
+  if (props.scanRunning) {
+    proxy.$modal.msgWarning('已有任务在运行，请等待结束后再触发')
+    return
+  }
+  pendingAction.value = 'gc'
+  emit('gc')
+}
+
+/* ---------------------------------------------------------------- 危险段 */
+const dangerOpen = ref(false)
+const dangerWord = ref('')
+
+function toggleDanger() {
+  dangerOpen.value = !dangerOpen.value
+  if (!dangerOpen.value) dangerWord.value = ''
+}
+
+function runDangerRescan() {
+  if (dangerWord.value !== '确认') {
+    proxy.$modal.msgWarning('危险操作需要先输入「确认」')
+    return
+  }
+  if (props.scanRunning) {
+    proxy.$modal.msgWarning('已有任务在运行，请等待结束后再触发')
+    return
+  }
+  const payload = {
+    mode: 'scan',
+    title: '强制重扫全部内容',
+    scope: 'all',
+    actionKey: 'danger-rescan',
+    options: scanOptions(),
+    confirm: DANGER_RESCAN_CONFIRM
+  }
+  pendingAction.value = 'danger-rescan'
+  emit('run', payload)
+  dangerWord.value = ''
+}
+
+/* ---------------------------------------------------------------- 清理：回收站 / 重复文件 */
+const trash = ref({ count: 0, bytes: 0 })
+const trashCountText = computed(() => trash.value.count + ' 项 · ' + formatFileSize(trash.value.bytes))
+
+function loadTrash() {
+  trashStats().then(res => {
+    trash.value = { count: Number(res && res.count) || 0, bytes: Number(res && res.bytes) || 0 }
+  }).catch(() => {
+    trash.value = { count: 0, bytes: 0 }
+  })
+}
+
+function clearTrash() {
+  if (clearingTrash.value || !trash.value.count) return
+  const count = trash.value.count
+  proxy.$modal.confirm('确认清空回收站里的 ' + count + ' 项？会逐条彻底删除，删完不可恢复（不进备份）。',
+    '清空回收站', { confirmButtonText: '确认清空', type: 'error' }).then(async () => {
+    clearingTrash.value = true
+    let removed = 0
+    let failed = 0
+    try {
+      // 回收站对象数量级很小（上限 200/页）；按页循环，避免一次只清前 200 条
+      for (let guard = 0; guard < 50; guard++) {
+        const res = await listTrash({ pageNum: 1, pageSize: 200, kind: 'all' })
+        const rows = (res && res.rows) || []
+        if (!rows.length) break
+        for (const row of rows) {
+          try {
+            await purgeTrash(row.kind, row.id, row.trashRel)
+            removed += 1
+          } catch (err) {
+            failed += 1
+            if (errStatus(err) === 403) {
+              throw err
+            }
+          }
+        }
+        if (rows.length < 200) break
+      }
+      const entry = entryFromLocal('已清空 ' + removed + ' 项' + (failed ? ' · 失败 ' + failed + ' 项' : ''),
+        failed ? 'failed' : 'done')
+      record('trash', entry)
+      loadTrash()
+      emit('trash-cleared')
+      if (failed) {
+        proxy.$modal.msgWarning('清空回收站完成：成功 ' + removed + ' 项，失败 ' + failed + ' 项')
+      } else {
+        proxy.$modal.msgSuccess('回收站已清空：共 ' + removed + ' 项')
+      }
+    } catch (err) {
+      record('trash', entryFromLocal('清空失败：' + (errText(err) || '请求失败'), 'failed'))
+      proxy.$modal.notifyError({ title: '清空回收站失败', message: errText(err) || '请求失败，请查看后端日志', duration: 8000 })
+    } finally {
+      clearingTrash.value = false
+    }
+  }).catch(() => {})
+}
+
+function checkDuplicates() {
+  if (checkingDuplicates.value) return
+  checkingDuplicates.value = true
+  Promise.all([
+    listDuplicates({ kind: 'video', page: 1, size: 1 }),
+    listDuplicates({ kind: 'photo', page: 1, size: 1 })
+  ]).then(([video, photo]) => {
+    const videoTotal = Number(video && video.total) || 0
+    const photoTotal = Number(photo && photo.total) || 0
+    const total = videoTotal + photoTotal
+    record('duplicates', entryFromLocal('共 ' + total + ' 组（视频 ' + videoTotal + ' / 图片 ' + photoTotal + '）'))
+    proxy.$modal.msgSuccess(total ? '发现 ' + total + ' 组重复文件' : '没有发现重复文件')
+  }).catch(err => {
+    record('duplicates', entryFromLocal('检查失败：' + (errText(err) || '请求失败'), 'failed'))
+    proxy.$modal.notifyError({ title: '查找重复文件失败', message: errText(err) || '请求失败，请查看后端日志', duration: 8000 })
+  }).finally(() => {
+    checkingDuplicates.value = false
+  })
+}
+
+function openDuplicates() {
+  emit('open-duplicates')
+}
+
+/* ---------------------------------------------------------------- 清理：派生资源用量 */
+const gcUsedBytes = ref(null)
+const gcUsedText = computed(() => (gcUsedBytes.value == null ? '—' : formatFileSize(gcUsedBytes.value)))
+
+function loadGcUsage() {
+  listRoots(true).then(res => {
+    const list = Array.isArray(res) ? res : (res && (res.list || res.roots)) || []
+    const thumbs = list.find(row => row && row.kind === 'thumbs')
+    if (!thumbs) {
+      gcUsedBytes.value = null
+      return
+    }
+    getRootArtifacts(thumbs.id, false, true).then(art => {
+      const total = art && art.total
+      gcUsedBytes.value = total && total.bytes != null ? Number(total.bytes) : null
+    }).catch(() => {
+      gcUsedBytes.value = null
+    })
+  }).catch(() => {
+    gcUsedBytes.value = null
+  })
+}
+
+/* ---------------------------------------------------------------- 诊断：数据一致性检查 */
+function checkConsistency() {
+  if (checkingConsistency.value) return
+  checkingConsistency.value = true
+  const checks = []
+  Promise.all([
+    listMissing({ kind: 'photo', pageNum: 1, pageSize: 1 }),
+    listMissing({ kind: 'video', pageNum: 1, pageSize: 1 }),
+    getDeriveStatus({ page: 1, size: 10, kind: 'all' }),
+    listRoots(true)
+  ]).then(([photoMissing, videoMissing, derive, roots]) => {
+    const photoTotal = Number(photoMissing && photoMissing.total) || 0
+    const videoTotal = Number(videoMissing && videoMissing.total) || 0
+    checks.push({ label: '图片缺失', ok: photoTotal === 0, detail: photoTotal + ' 条' })
+    checks.push({ label: '视频缺失', ok: videoTotal === 0, detail: videoTotal + ' 条' })
+
+    const counts = (derive && derive.counts) || null
+    if (counts) {
+      const totalRows = Number(counts.totalRows) || 0
+      ;['thumb', 'sprite', 'preview'].forEach(kind => {
+        const bucket = counts[kind]
+        if (!bucket) return
+        const sum = ['ok', 'oldAlgo', 'stale', 'missing'].reduce((acc, k) => acc + (Number(bucket[k]) || 0), 0)
+        checks.push({ label: kind + ' 计数', ok: sum === totalRows, detail: sum + ' / ' + totalRows })
+      })
+    } else {
+      checks.push({ label: '派生资源计数', ok: false, detail: '接口未返回 counts' })
+    }
+
+    const list = Array.isArray(roots) ? roots : (roots && (roots.list || roots.roots)) || []
+    const missingRoots = list.filter(row => row && row.exists === false)
+    const unreadableRoots = list.filter(row => row && row.readable === false)
+    checks.push({ label: '库根存在', ok: missingRoots.length === 0, detail: list.length + ' 个 / 缺失 ' + missingRoots.length })
+    checks.push({ label: '库根可读', ok: unreadableRoots.length === 0, detail: list.length + ' 个 / 不可读 ' + unreadableRoots.length })
+
+    const failed = checks.filter(item => !item.ok)
+    if (failed.length) {
+      const text = '发现 ' + failed.length + ' 项：' + failed.map(item => item.label + '=' + item.detail).join('；')
+      record('consistency', entryFromLocal(text, 'failed'))
+      proxy.$modal.msgWarning(text)
+    } else {
+      const text = checks.length + ' 项检查通过'
+      record('consistency', entryFromLocal(text, 'done'))
+      proxy.$modal.msgSuccess(text)
+    }
+  }).catch(err => {
+    record('consistency', entryFromLocal('检查失败：' + (errText(err) || '请求失败'), 'failed'))
+    proxy.$modal.notifyError({ title: '数据一致性检查失败', message: errText(err) || '请求失败，请查看后端日志', duration: 8000 })
+  }).finally(() => {
+    checkingConsistency.value = false
+  })
+}
+
+/* ---------------------------------------------------------------- 文件监听（自动扫描） */
 const NOT_READY_TEXT = '自动扫描接口未就绪：后端部署后刷新页面即可'
 const DISABLED_TEXT = '自动扫描未开启：用上方开关在运行期打开即可（无需改配置或重启）'
-/** 夜间静默时段：HH:mm-HH:mm，空串 = 全天监听（与后端一致，后端只认这个形状） */
 const QUIET_RE = /^([01]\d|2[0-3]):[0-5]\d-([01]\d|2[0-3]):[0-5]\d$/
 
 const watchInfo = ref({ enabled: false, running: false, paused: false, allowed: true, debounceSeconds: 0, quietMinutes: '' })
@@ -348,16 +776,12 @@ const watchRoots = ref([])
 const watchLoading = ref(false)
 const watchError = ref('')
 const watchBusy = ref(false)
-const scanNowLoading = ref(false)
-/* P2-C 运行期开关：watchEnabled 是开关显示的本地态（PUT 期间先跟随点击，失败回滚），
-   watchDebounce / watchQuiet 是输入框编辑态（点「保存」才提交，不等同于已存值）。 */
 const watchEnabled = ref(false)
 const watchEnabledBusy = ref(false)
 const watchDebounce = ref(0)
 const watchQuiet = ref('')
 const watchCfgSaving = ref(false)
 
-/** 兼容两种返回形态：裸对象，或 AjaxResult{ code, msg, data } */
 function unwrapWatch(res) {
   if (res && typeof res === 'object' && !Array.isArray(res) && typeof res.code === 'number') {
     return res.data && typeof res.data === 'object' && !Array.isArray(res.data) ? res.data : {}
@@ -365,14 +789,12 @@ function unwrapWatch(res) {
   return res && typeof res === 'object' && !Array.isArray(res) ? res : {}
 }
 
-/** 返回体里带 roots 才算「可整体刷新」；没带就用一次 GET 补齐（旧后端 / 精简返回） */
 function hasWatchRoots(res) {
   return Array.isArray(unwrapWatch(res).roots)
 }
 
 function applyWatch(res) {
   const body = unwrapWatch(res)
-  // 先按旧基线判一次「输入框有未保存改动」：刷新状态不该把正在编辑的值冲掉
   const dirty = watchCfgDirty.value
   watchInfo.value = {
     enabled: !!body.enabled,
@@ -408,17 +830,14 @@ const watchQuietText = computed(() => {
   return text || '不静默'
 })
 
-/** allowed=false 只跟部署层开关走（403 之后也当成部署层禁止） */
 const watchAllowed = computed(() => watchInfo.value.allowed !== false)
 
-/** 输入框与已存值的差异，决定「保存」能不能点 */
 const watchCfgDirty = computed(() => {
   const savedDebounce = Number(watchInfo.value.debounceSeconds) || 0
   const savedQuiet = String(watchInfo.value.quietMinutes == null ? '' : watchInfo.value.quietMinutes).trim()
   return Number(watchDebounce.value) !== savedDebounce || String(watchQuiet.value || '').trim() !== savedQuiet
 })
 
-/** 监听没开时后端 pause/resume 直接 409，按钮就先置灰 */
 const watchPauseResumeDisabled = computed(() => watchBusy.value || !watchInfo.value.enabled)
 const watchActionTip = computed(() => {
   if (!watchInfo.value.enabled) {
@@ -427,7 +846,6 @@ const watchActionTip = computed(() => {
   return watchBusy.value ? '正在与后端同步监听状态…' : ''
 })
 
-/** 状态徽标：未启用 / 有任务排队 / 已暂停 / 监听中（顺序即优先级） */
 const watchBadge = computed(() => {
   if (!watchInfo.value.enabled) return { text: '未启用', type: 'info' }
   const pending = watchRoots.value.reduce((sum, r) => sum + (Number(r.pending) || 0), 0)
@@ -438,10 +856,9 @@ const watchBadge = computed(() => {
 
 const watchEmptyText = computed(() => {
   if (watchLoading.value) return '正在读取监听状态…'
-  return watchError.value ? NOT_READY_TEXT : '没有登记中的库根（先在下方「库根」里新增，再跑一次重建索引）'
+  return watchError.value ? NOT_READY_TEXT : '没有登记中的库根（先在「库根管理」页登记库根，再跑一次重建索引）'
 })
 
-/** 时间戳兼容秒 / 毫秒 / ISO 字符串；缺失显示破折号，绝不抛错 */
 function formatWatchTime(value) {
   if (value == null || value === '' || value === 0) return '—'
   let ms = NaN
@@ -469,7 +886,6 @@ function loadWatch() {
   watchError.value = ''
   getWatchStatus(true).then(res => {
     applyWatch(res)
-    // 「未启用」不是错误，但要给一次配置指引（否则看不懂为什么一行都没有）
     if (!watchInfo.value.enabled) {
       watchError.value = DISABLED_TEXT
     }
@@ -499,21 +915,6 @@ function toggleWatch(nextEnabled) {
   })
 }
 
-function doScanNow() {
-  if (scanNowLoading.value) return
-  scanNowLoading.value = true
-  watchError.value = ''
-  scanNow().then(() => {
-    proxy.$modal.msgSuccess('已触发一次扫描')
-    loadWatch()
-  }).catch(err => {
-    watchError.value = '立即扫描失败：' + (errText(err) || '请求失败，请查看后端日志')
-  }).finally(() => {
-    scanNowLoading.value = false
-  })
-}
-
-/** 开关：点下去先跟随手指，PUT 成功后按返回体刷新，失败回滚到点击前的值并把后端原文 toast 出来 */
 function onEnabledChange(next) {
   if (!watchAllowed.value || watchEnabledBusy.value) {
     watchEnabled.value = !next
@@ -525,24 +926,18 @@ function onEnabledChange(next) {
   updateWatchConfig({ enabled: next }).then(res => {
     applyWatch(res)
     proxy.$modal.msgSuccess(next ? '已开启自动扫描' : '已关闭自动扫描')
-    if (!hasWatchRoots(res)) {
-      loadWatch()
-    }
+    if (!hasWatchRoots(res)) loadWatch()
   }).catch(err => {
     watchEnabled.value = previous
     const text = errText(err) || '请求失败，请查看后端日志'
     proxy.$modal.msgError(text)
     watchError.value = (next ? '开启监听失败：' : '关闭监听失败：') + text
-    // 403 可能是部署层禁止运行期开关、也可能只是缺 media:admin:edit：重读一次，allowed 由后端说了算
-    if (errStatus(err) === 403) {
-      loadWatch()
-    }
+    if (errStatus(err) === 403) loadWatch()
   }).finally(() => {
     watchEnabledBusy.value = false
   })
 }
 
-/** 去抖 / 夜间静默：只在点「保存」时提交；校验不过就地提示，不发请求 */
 function saveWatchConfig() {
   if (watchCfgSaving.value || !watchAllowed.value) return
   const debounce = Number(watchDebounce.value)
@@ -560,86 +955,15 @@ function saveWatchConfig() {
   updateWatchConfig({ debounceSeconds: debounce, quietMinutes: quiet }).then(res => {
     applyWatch(res)
     proxy.$modal.msgSuccess('已保存扫描参数')
-    if (!hasWatchRoots(res)) {
-      loadWatch()
-    }
+    if (!hasWatchRoots(res)) loadWatch()
   }).catch(err => {
     const text = errText(err) || '请求失败，请查看后端日志'
     proxy.$modal.msgError(text)
     watchError.value = '保存扫描参数失败：' + text
-    if (errStatus(err) === 403) {
-      loadWatch()
-    }
+    if (errStatus(err) === 403) loadWatch()
   }).finally(() => {
     watchCfgSaving.value = false
   })
-}
-
-/* ---------------------------------------------------------------- 扫描 / 元数据 / 派生 选项 */
-const albumMode = ref('dir')
-const exclude = ref('')
-/** 派生资源的两个共用开关：缩略图与精灵图/预览同源同义，按钮各自按勾选值发 force / noFresh */
-const deriveForce = ref(false)
-const deriveNoFresh = ref(false)
-
-/** 勾了强制重建时精灵图/预览的确认文案：全库重跑是小时级，先小批量验证 */
-const SPRITE_PREVIEW_FORCE_CONFIRM = '强制重建会把全库精灵图 / 预览重新解码一遍：176 个视频约需 9–11 小时，'
-  + '期间同一时刻只能跑这一个任务。建议先把「试跑条数」设成 3 之类的数字，确认取帧效果符合预期后再去掉条数限制全量重建。'
-  + '确认现在就开始强制重建？'
-
-/** 派生资源按钮的公共请求参数：force / noFresh 只在勾选时才发（后端两种 mode 都认） */
-function deriveOptions() {
-  const options = {}
-  if (deriveForce.value) {
-    options.force = true
-  }
-  if (deriveNoFresh.value) {
-    options.noFresh = true
-  }
-  return options
-}
-
-/** 勾选的 videoId（全部归一成字符串，避免 id 类型不一致漏传） */
-const selectedIds = computed(() => (Array.isArray(props.selectedVideoIds) ? props.selectedVideoIds : [])
-  .map(id => (id == null ? '' : String(id)))
-  .filter(id => id !== ''))
-const selectedIdCount = computed(() => selectedIds.value.length)
-
-/** 只处理勾选项：沿用同一套派生资源选项，再补 videoIds；确认文案写清「只动这几个 id」 */
-function emitSelected(mode, title) {
-  if (!selectedIdCount.value) {
-    proxy.$modal.msgWarning('先在「视频」列表勾选要处理的视频')
-    return
-  }
-  const options = deriveOptions()
-  options.videoIds = selectedIds.value.slice()
-  const base = '只处理列表里勾选的 ' + selectedIdCount.value + ' 个视频（请求体带 videoIds，后端只对这些 id 生效）。'
-  const confirm = deriveForce.value ? base + SPRITE_PREVIEW_FORCE_CONFIRM : base + '确认执行「' + title + '」？'
-  emitRun({ mode: mode, options: options, confirm: confirm, title: title + '（选中项）' })
-}
-
-const limitProxy = computed({
-  get: () => props.scanLimit,
-  set: (val) => emit('update:scanLimit', Number(val) || 0)
-})
-
-/** 排除规则：原样透传给后端（逗号分隔），留空则不发该字段 */
-function scanOptions() {
-  const options = { albumMode: albumMode.value }
-  const excludeText = (exclude.value || '').trim()
-  if (excludeText) {
-    options.exclude = excludeText
-  }
-  return options
-}
-
-/** 统一出口：真正的执行（确认框 / 起任务 / 轮询）在父级复用既有 runScanTask */
-function emitRun(payload) {
-  if (props.scanRunning) {
-    proxy.$modal.msgWarning('已有任务在运行，请等待结束后再触发')
-    return
-  }
-  emit('run', payload || {})
 }
 
 /* ---------------------------------------------------------------- 导出包 */
@@ -660,7 +984,6 @@ function formatFileSize(bytes) {
   return (num / 1073741824).toFixed(1) + ' GB'
 }
 
-/** 导出列表接口未就绪（后端还是旧构建）时：就地提示，不弹全局错误、不阻塞面板 */
 function loadExports() {
   exportLoading.value = true
   exportError.value = ''
@@ -684,12 +1007,9 @@ function loadExports() {
 }
 
 function downloadFile(row) {
-  if (!row || !row.dir || !row.name || downloadingKey.value) {
-    return
-  }
+  if (!row || !row.dir || !row.name || downloadingKey.value) return
   downloadingKey.value = fileKey(row)
   downloadExport(row.dir, row.name).then(data => {
-    // 后端出错时会返回 JSON 而不是文件流：先判断再保存，避免存下一个错误页
     if (blobValidate(data)) {
       fileSaver.saveAs(new Blob([data]), row.name)
     } else {
@@ -698,7 +1018,7 @@ function downloadFile(row) {
         try {
           const parsed = JSON.parse(text)
           message = parsed.error || parsed.msg || text
-        } catch (e) { /* 非 JSON 就原样展示 */ }
+        } catch (e) { /* 非 JSON 原样展示 */ }
         proxy.$modal.notifyError({ title: '下载失败', message: message || '后端未返回文件', duration: 8000 })
       })
     }
@@ -709,42 +1029,33 @@ function downloadFile(row) {
   })
 }
 
-/* ---------------------------------------------------------------- 库根 */
-const roots = ref([])
-const rootsLoading = ref(false)
-const rootsError = ref('')
+/* ---------------------------------------------------------------- 弹窗（自动分级 / 标签规范化） */
+const tagNormalizeVisible = ref(false)
 
-
-function loadRoots() {
-  rootsLoading.value = true
-  rootsError.value = ''
-  listRoots(true).then(res => {
-    const list = Array.isArray(res) ? res : (res && (res.list || res.roots)) || []
-    roots.value = list
-  }).catch(err => {
-    roots.value = []
-    rootsError.value = notReadyText(err, '库根接口')
-  }).finally(() => {
-    rootsLoading.value = false
-  })
+function onTagNormalizeApplied() {
+  proxy.$modal.msgSuccess('标签已原子化重建，正在刷新维护状态')
+  loadExports()
 }
 
-/** 库根的增删改 / 预演 / 扫描都在「库根管理」页（P5.97 合并）：这里只跳过去，不再维护第二套表单 */
-function gotoRoots() {
-  proxy.$router.push('/media-roots')
+const ratingVisible = ref(false)
+
+function onRatingApplied(report) {
+  emit('rating-applied', report || null)
 }
 
-onMounted(() => {
+/* ---------------------------------------------------------------- 生命周期 */
+function loadAll() {
   loadWatch()
   loadExports()
-  loadRoots()
-})
+  loadTrash()
+  loadGcUsage()
+  seedFromBackend()
+}
 
-// 父级的任务刚结束（scanRunning 由 true 变 false 会让 refreshKey 自增）：把导出列表重读一遍
+onMounted(loadAll)
+
 watch(() => props.refreshKey, () => {
-  loadWatch()
-  loadExports()
-  loadRoots()
+  loadAll()
 })
 </script>
 
@@ -782,6 +1093,46 @@ watch(() => props.refreshKey, () => {
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
+.maint-subgroup {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--el-border-color-lighter);
+}
+.maint-subgroup-title {
+  font-size: 13px;
+  font-weight: 600;
+}
+.maint-task {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--el-fill-color-lighter);
+}
+.maint-task:last-child {
+  border-bottom: none;
+}
+.maint-task-line {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.maint-task-title {
+  min-width: 132px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+}
+.maint-task-last {
+  margin-top: 4px;
+  padding-left: 140px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.maint-options-row {
+  margin-bottom: 8px;
+}
+.maint-subrow {
+  margin-top: 8px;
+}
 .maint-row {
   display: flex;
   flex-wrap: wrap;
@@ -794,8 +1145,7 @@ watch(() => props.refreshKey, () => {
   font-size: 12.5px;
   color: var(--el-text-color-regular);
 }
-.maint-row :deep(.el-input),
-.maint-row :deep(.el-select) {
+.maint-row :deep(.el-input) {
   flex: 1;
   min-width: 220px;
 }
@@ -815,6 +1165,15 @@ watch(() => props.refreshKey, () => {
 }
 .maint-limit {
   width: 110px;
+}
+.maint-row :deep(.el-input.maint-limit) {
+  flex: 0 0 110px;
+  min-width: 0;
+  width: 110px;
+}
+.maint-info-icon {
+  color: var(--el-text-color-secondary);
+  cursor: help;
 }
 .maint-hint {
   margin: 8px 0 0;
@@ -852,12 +1211,37 @@ watch(() => props.refreshKey, () => {
 .watch-cfg-quiet {
   width: 220px;
 }
-/* 禁用的 el-button 不派发事件，包一层 span 才能让 tooltip 有东西可挂 */
 .watch-tip-wrap,
 .maint-tip-wrap {
   display: inline-flex;
 }
 .maint-table {
   margin-top: 8px;
+}
+.maint-danger {
+  border-color: var(--el-color-danger-light-5);
+}
+.maint-danger-toggle {
+  margin-left: auto;
+}
+.maint-danger-body {
+  margin-top: 8px;
+}
+.maint-danger-input {
+  width: 130px;
+}
+@media (max-width: 480px) {
+  .maint-task-title {
+    min-width: 100%;
+  }
+  .maint-task-last {
+    padding-left: 0;
+  }
+  .maint-label {
+    width: 100%;
+  }
+  .maint-danger-input {
+    width: 100%;
+  }
 }
 </style>

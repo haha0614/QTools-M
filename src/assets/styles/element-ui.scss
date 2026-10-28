@@ -54,6 +54,65 @@
   margin: 0 auto;
 }
 
+/* ------------------------------------------------------------------
+   P6.05 弹窗不溢出：弹窗整体限高在视口内，标题与底部按钮常驻，只有 body 滚。
+   原来 .el-dialog 的上偏移来自三处，矮视口（1280×720 及以下）下会把
+   footer 的确定/取消顶出视口点不到：
+     1) Element 默认 margin-top: 15vh；
+     2) ruoyi.scss 的 .el-dialog:not(.is-fullscreen){margin-top:6vh!important}；
+     3) 各页面 top="5vh"/"6vh"（选择用户、导入表、代码预览、已读用户）。
+   这里统一改成「上下 24px 留白 + max-height 限高」，用 flex 列布局把 header /
+   footer 钉住，body 自己滚 —— 无论原来 top 是多少都落在视口内。
+   ------------------------------------------------------------------ */
+.el-dialog:not(.is-fullscreen) {
+  margin: 24px auto !important;
+  max-height: calc(100vh - 48px);
+  /* 固定 width 的弹窗（600 / 760 / 800px）在 375 窄屏会横向越界，footer 的确定按钮
+     跑到视口外点不到；限宽后弹窗整体落在视口内，宽内容由 body 自己横向滚。 */
+  max-width: calc(100vw - 48px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+
+  > .el-dialog__header,
+  > .el-dialog__footer {
+    flex: 0 0 auto;
+  }
+
+  > .el-dialog__body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+}
+
+@media (max-width: 768px) {
+  .el-dialog:not(.is-fullscreen) {
+    margin: 12px auto !important;
+    max-height: calc(100vh - 24px);
+    max-width: calc(100vw - 24px);
+  }
+}
+
+/* 抽屉同策略：头部与底部按钮常驻，内容区整体滚动。
+   Element 的 .el-drawer 本身已是 flex 列 + .el-drawer__body{flex:1;overflow:auto}，
+   这里只补 header/footer 不被压缩、以及矮视口下的限高。 */
+.el-drawer {
+  max-height: 100vh;
+
+  > .el-drawer__header,
+  > .el-drawer__footer {
+    flex: 0 0 auto;
+  }
+
+  > .el-drawer__body {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+}
+
 // refine element ui upload
 .upload-container {
   .el-upload {

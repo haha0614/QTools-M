@@ -71,9 +71,9 @@
 .el-form .el-form-item__label {
   font-weight: 700;
 }
-.el-dialog:not(.is-fullscreen) {
-  margin-top: 6vh !important;
-}
+/* P6.05：原来这里写死 margin-top: 6vh !important，在 1280×720 这类矮视口下
+   会把长内容弹窗的 footer 顶出视口。弹窗的限高与留白统一交给
+   element-ui.scss 的 .el-dialog:not(.is-fullscreen) 规则（max-height + flex 列）。 */
 
 .el-dialog.scrollbar .el-dialog__body {
   overflow: auto;

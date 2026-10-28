@@ -59,7 +59,8 @@ import { getCurrentInstance, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { listRoots, createRoot, updateRoot, deleteRoot, setRootGuestVisible, getRootArtifacts, previewScanRoot, getRatingPolicy, setRatingPolicy } from '@/api/media'
 import { listWatchRoots, lastScanByRoot } from './rootsModel'
 import RootView from './RootView.vue'
-import ScanPage from '../scan/index.vue'
+// P6.04：独立「扫描入库」页已删除；执行器在 media/ingest/，这里只嵌入抽屉
+import ScanPage from '../ingest/index.vue'
 
 const { proxy } = getCurrentInstance()
 

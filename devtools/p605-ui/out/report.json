@@ -1,0 +1,2527 @@
+{
+  "passed": 73,
+  "failures": [],
+  "rows": [
+    {
+      "key": "maint-drawer",
+      "name": "维护（抽屉）",
+      "kind": "drawer",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "FAIL",
+      "before": {
+        "kind": "drawer",
+        "title": "维护",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 740,
+          "top": 0,
+          "right": 1600,
+          "bottom": 900,
+          "width": 860,
+          "height": 900
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 2248,
+          "clientH": 826,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 860,
+          "clientW": 860,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "会删除媒体文件，但耗时与库大小成正比；期间所有维护 / 扫描按钮都被任务锁挡住。",
+            "top": -1328,
+            "bottom": 879.5,
+            "height": 2207.5,
+            "fullyVisible": false,
+            "endReachable": true
+          }
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "after": {
+        "kind": "drawer",
+        "title": "维护",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 740,
+          "top": 0,
+          "right": 1600,
+          "bottom": 900,
+          "width": 860,
+          "height": 900
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 2248,
+          "clientH": 826,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 860,
+          "clientW": 860,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "会删除媒体文件，但耗时与库大小成正比；期间所有维护 / 扫描按钮都被任务锁挡住。",
+            "top": -1328,
+            "bottom": 879.5,
+            "height": 2207.5,
+            "fullyVisible": false,
+            "endReachable": true
+          }
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "shots": [
+        "M-maint-drawer-1600x900-after.png",
+        "M-maint-drawer-1600x900-before.png"
+      ]
+    },
+    {
+      "key": "rating-classify",
+      "name": "内容自动分级",
+      "kind": "dialog",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "内容自动分级",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 260,
+          "top": 54,
+          "right": 1340,
+          "bottom": 1307.2,
+          "width": 1080,
+          "height": 1253.2
+        },
+        "bottomOver": 407.2,
+        "topOver": -54,
+        "fits": false,
+        "body": {
+          "scrollH": 1129,
+          "clientH": 1129,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 1048,
+          "clientW": 1048
+        },
+        "footerBtn": {
+          "text": "确认执行（写库 0 条）",
+          "top": 1259.2,
+          "bottom": 1291.2,
+          "inViewport": false,
+          "hit": false,
+          "hitTag": null
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "内容自动分级",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 260,
+          "top": 24,
+          "right": 1340,
+          "bottom": 876,
+          "width": 1080,
+          "height": 852
+        },
+        "bottomOver": -24,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 1133,
+          "clientH": 732,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 1048,
+          "clientW": 1048,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "级general68 ms花小猪 · 图片/花小猪大众级general61 ms",
+            "top": 568.2,
+            "bottom": 808.2,
+            "height": 240,
+            "fullyVisible": true,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "确认执行（写库 0 条）",
+          "top": 828,
+          "bottom": 860,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-rating-classify-1600x900-after.png",
+        "M-rating-classify-1600x900-before.png"
+      ]
+    },
+    {
+      "key": "tag-normalize",
+      "name": "标签规范化",
+      "kind": "dialog",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "标签规范化（标签原子化重建）",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 240,
+          "top": 54,
+          "right": 1360,
+          "bottom": 1108.4,
+          "width": 1120,
+          "height": 1054.4
+        },
+        "bottomOver": 208.4,
+        "topOver": -54,
+        "fits": false,
+        "body": {
+          "scrollH": 942,
+          "clientH": 942,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 1088,
+          "clientW": 1088
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 1068.4,
+          "bottom": 1092.4,
+          "inViewport": false,
+          "hit": false,
+          "hitTag": null
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "标签规范化（标签原子化重建）",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 240,
+          "top": 24,
+          "right": 1360,
+          "bottom": 876,
+          "width": 1120,
+          "height": 852
+        },
+        "bottomOver": -24,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 942,
+          "clientH": 732,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 1088,
+          "clientW": 1088,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "p\\tag-normalize-6489638077244973113.json",
+            "top": 762.4,
+            "bottom": 812.4,
+            "height": 50,
+            "fullyVisible": true,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 828,
+          "bottom": 852,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-tag-normalize-1600x900-after.png",
+        "M-tag-normalize-1600x900-before.png"
+      ]
+    },
+    {
+      "key": "scan-drawer",
+      "name": "扫描 / 导入媒体库（抽屉）",
+      "kind": "drawer",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "FAIL",
+      "before": {
+        "kind": "drawer",
+        "title": "扫描 / 导入媒体库",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 680,
+          "top": 0,
+          "right": 1600,
+          "bottom": 900,
+          "width": 920,
+          "height": 900
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 826,
+          "clientH": 826,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 920,
+          "clientW": 920
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "after": {
+        "kind": "drawer",
+        "title": "扫描 / 导入媒体库",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 680,
+          "top": 0,
+          "right": 1600,
+          "bottom": 900,
+          "width": 920,
+          "height": 900
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 826,
+          "clientH": 826,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 920,
+          "clientW": 920
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "shots": [
+        "M-scan-drawer-1600x900-after.png",
+        "M-scan-drawer-1600x900-before.png"
+      ]
+    },
+    {
+      "key": "duplicates-drawer",
+      "name": "重复文件（抽屉）",
+      "kind": "drawer",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "FAIL",
+      "before": {
+        "kind": "drawer",
+        "title": "重复文件",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 420,
+          "top": 0,
+          "right": 1600,
+          "bottom": 900,
+          "width": 1180,
+          "height": 900
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 826,
+          "clientH": 826,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 1180,
+          "clientW": 1180
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "after": {
+        "kind": "drawer",
+        "title": "重复文件",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 420,
+          "top": 0,
+          "right": 1600,
+          "bottom": 900,
+          "width": 1180,
+          "height": 900
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 826,
+          "clientH": 826,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 1180,
+          "clientW": 1180
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "shots": [
+        "M-duplicates-drawer-1600x900-after.png",
+        "M-duplicates-drawer-1600x900-before.png"
+      ]
+    },
+    {
+      "key": "tag-manager",
+      "name": "标签管理",
+      "kind": "dialog",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "标签管理",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 420,
+          "top": 54,
+          "right": 1180,
+          "bottom": 1160,
+          "width": 760,
+          "height": 1106
+        },
+        "bottomOver": 260,
+        "topOver": -54,
+        "fits": false,
+        "body": {
+          "scrollH": 986,
+          "clientH": 986,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 728,
+          "clientW": 728
+        },
+        "footerBtn": {
+          "text": "关 闭",
+          "top": 1112,
+          "bottom": 1144,
+          "inViewport": false,
+          "hit": false,
+          "hitTag": null
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "标签管理",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 420,
+          "top": 24,
+          "right": 1180,
+          "bottom": 876,
+          "width": 760,
+          "height": 852
+        },
+        "bottomOver": -24,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 986,
+          "clientH": 732,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 728,
+          "clientW": 728,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "共 103 条20条/页 1 23456前往页",
+            "top": 780,
+            "bottom": 812,
+            "height": 32,
+            "fullyVisible": true,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "关 闭",
+          "top": 828,
+          "bottom": 860,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-tag-manager-1600x900-after.png",
+        "M-tag-manager-1600x900-before.png"
+      ]
+    },
+    {
+      "key": "edit-policy",
+      "name": "编辑策略（可见性）",
+      "kind": "dialog",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "编辑策略",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 500,
+          "top": 54,
+          "right": 1100,
+          "bottom": 475,
+          "width": 600,
+          "height": 421
+        },
+        "bottomOver": -425,
+        "topOver": -54,
+        "fits": true,
+        "body": {
+          "scrollH": 301,
+          "clientH": 301,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 568,
+          "clientW": 568
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 427,
+          "bottom": 459,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "编辑策略",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 500,
+          "top": 24,
+          "right": 1100,
+          "bottom": 445,
+          "width": 600,
+          "height": 421
+        },
+        "bottomOver": -455,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 301,
+          "clientH": 301,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 568,
+          "clientW": 568
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 397,
+          "bottom": 429,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-edit-policy-1600x900-after.png"
+      ]
+    },
+    {
+      "key": "user-detail-drawer",
+      "name": "用户详情（抽屉）",
+      "viewport": "1600x900",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".link-type\",\"timeout\":25000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "auth-role",
+      "name": "分配角色",
+      "viewport": "1600x900",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".el-table__body tbody tr\",\"timeout\":25000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "select-user",
+      "name": "选择用户（top=5vh）",
+      "viewport": "1600x900",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".el-dialog\",\"timeout\":20000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "menu-edit",
+      "name": "菜单新增（长表单）",
+      "kind": "dialog",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "添加菜单",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 460,
+          "top": 54,
+          "right": 1140,
+          "bottom": 476,
+          "width": 680,
+          "height": 422
+        },
+        "bottomOver": -424,
+        "topOver": -54,
+        "fits": true,
+        "body": {
+          "scrollH": 302,
+          "clientH": 302,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 648,
+          "clientW": 648
+        },
+        "footerBtn": {
+          "text": "确 定",
+          "top": 428,
+          "bottom": 460,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "添加菜单",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 460,
+          "top": 24,
+          "right": 1140,
+          "bottom": 446,
+          "width": 680,
+          "height": 422
+        },
+        "bottomOver": -454,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 302,
+          "clientH": 302,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 648,
+          "clientW": 648
+        },
+        "footerBtn": {
+          "text": "确 定",
+          "top": 398,
+          "bottom": 430,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-menu-edit-1600x900-after.png"
+      ]
+    },
+    {
+      "key": "dict-data",
+      "name": "字典数据",
+      "viewport": "1600x900",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".el-dialog\",\"timeout\":25000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "root-create",
+      "name": "新增库根",
+      "kind": "dialog",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "新增库根",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 520,
+          "top": 54,
+          "right": 1080,
+          "bottom": 671.5,
+          "width": 560,
+          "height": 617.5
+        },
+        "bottomOver": -228.5,
+        "topOver": -54,
+        "fits": true,
+        "body": {
+          "scrollH": 480,
+          "clientH": 480,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 528,
+          "clientW": 528
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 623.5,
+          "bottom": 655.5,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "新增库根",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 520,
+          "top": 24,
+          "right": 1080,
+          "bottom": 641.5,
+          "width": 560,
+          "height": 617.5
+        },
+        "bottomOver": -258.5,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 498,
+          "clientH": 498,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 528,
+          "clientW": 528
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 593.5,
+          "bottom": 625.5,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-root-create-1600x900-after.png"
+      ]
+    },
+    {
+      "key": "operlog-detail",
+      "name": "操作日志详情",
+      "viewport": "1600x900",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 找不到 button 含「详细」；候选=\n    at Object.click (<anonymous>:16:21)\n    at Object.step (<anonymous>:120:35)\n    at <anonymous>:1:8"
+    },
+    {
+      "key": "appuser-detail",
+      "name": "用户端用户详情",
+      "kind": "dialog",
+      "viewport": "1600x900",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "账号详情",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 440,
+          "top": 54,
+          "right": 1160,
+          "bottom": 674.8,
+          "width": 720,
+          "height": 620.8
+        },
+        "bottomOver": -225.2,
+        "topOver": -54,
+        "fits": true,
+        "body": {
+          "scrollH": 482,
+          "clientH": 482,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 688,
+          "clientW": 688
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 626.8,
+          "bottom": 658.8,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "账号详情",
+        "innerW": 1600,
+        "innerH": 900,
+        "rect": {
+          "left": 440,
+          "top": 24,
+          "right": 1160,
+          "bottom": 644.8,
+          "width": 720,
+          "height": 620.8
+        },
+        "bottomOver": -255.2,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 501,
+          "clientH": 501,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 688,
+          "clientW": 688
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 596.8,
+          "bottom": 628.8,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-appuser-detail-1600x900-after.png"
+      ]
+    },
+    {
+      "key": "maint-drawer",
+      "name": "维护（抽屉）",
+      "kind": "drawer",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "FAIL",
+      "before": {
+        "kind": "drawer",
+        "title": "维护",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 420,
+          "top": 0,
+          "right": 1280,
+          "bottom": 720,
+          "width": 860,
+          "height": 720
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 2248,
+          "clientH": 646,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 860,
+          "clientW": 860,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "会删除媒体文件，但耗时与库大小成正比；期间所有维护 / 扫描按钮都被任务锁挡住。",
+            "top": -1508,
+            "bottom": 699.5,
+            "height": 2207.5,
+            "fullyVisible": false,
+            "endReachable": true
+          }
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "after": {
+        "kind": "drawer",
+        "title": "维护",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 420,
+          "top": 0,
+          "right": 1280,
+          "bottom": 720,
+          "width": 860,
+          "height": 720
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 2248,
+          "clientH": 646,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 860,
+          "clientW": 860,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "会删除媒体文件，但耗时与库大小成正比；期间所有维护 / 扫描按钮都被任务锁挡住。",
+            "top": -1508,
+            "bottom": 699.5,
+            "height": 2207.5,
+            "fullyVisible": false,
+            "endReachable": true
+          }
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "shots": [
+        "M-maint-drawer-1280x720-after.png",
+        "M-maint-drawer-1280x720-before.png"
+      ]
+    },
+    {
+      "key": "rating-classify",
+      "name": "内容自动分级",
+      "kind": "dialog",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "内容自动分级",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 100,
+          "top": 43.2,
+          "right": 1180,
+          "bottom": 1296.4,
+          "width": 1080,
+          "height": 1253.2
+        },
+        "bottomOver": 576.4,
+        "topOver": -43.2,
+        "fits": false,
+        "body": {
+          "scrollH": 1129,
+          "clientH": 1129,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 1048,
+          "clientW": 1048
+        },
+        "footerBtn": {
+          "text": "确认执行（写库 0 条）",
+          "top": 1248.4,
+          "bottom": 1280.4,
+          "inViewport": false,
+          "hit": false,
+          "hitTag": null
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "内容自动分级",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 100,
+          "top": 24,
+          "right": 1180,
+          "bottom": 696,
+          "width": 1080,
+          "height": 672
+        },
+        "bottomOver": -24,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 1133,
+          "clientH": 552,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 1048,
+          "clientW": 1048,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "级general64 ms花小猪 · 图片/花小猪大众级general62 ms",
+            "top": 388.2,
+            "bottom": 628.2,
+            "height": 240,
+            "fullyVisible": true,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "确认执行（写库 0 条）",
+          "top": 648,
+          "bottom": 680,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-rating-classify-1280x720-after.png",
+        "M-rating-classify-1280x720-before.png"
+      ]
+    },
+    {
+      "key": "tag-normalize",
+      "name": "标签规范化",
+      "kind": "dialog",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "标签规范化（标签原子化重建）",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 80,
+          "top": 43.2,
+          "right": 1200,
+          "bottom": 1097.6,
+          "width": 1120,
+          "height": 1054.4
+        },
+        "bottomOver": 377.6,
+        "topOver": -43.2,
+        "fits": false,
+        "body": {
+          "scrollH": 942,
+          "clientH": 942,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 1088,
+          "clientW": 1088
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 1057.6,
+          "bottom": 1081.6,
+          "inViewport": false,
+          "hit": false,
+          "hitTag": null
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "标签规范化（标签原子化重建）",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 80,
+          "top": 24,
+          "right": 1200,
+          "bottom": 696,
+          "width": 1120,
+          "height": 672
+        },
+        "bottomOver": -24,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 942,
+          "clientH": 552,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 1088,
+          "clientW": 1088,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "p\\tag-normalize-7053659153868404173.json",
+            "top": 582.4,
+            "bottom": 632.4,
+            "height": 50,
+            "fullyVisible": true,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 648,
+          "bottom": 672,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-tag-normalize-1280x720-after.png",
+        "M-tag-normalize-1280x720-before.png"
+      ]
+    },
+    {
+      "key": "scan-drawer",
+      "name": "扫描 / 导入媒体库（抽屉）",
+      "kind": "drawer",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "FAIL",
+      "before": {
+        "kind": "drawer",
+        "title": "扫描 / 导入媒体库",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 360,
+          "top": 0,
+          "right": 1280,
+          "bottom": 720,
+          "width": 920,
+          "height": 720
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 646,
+          "clientH": 646,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 920,
+          "clientW": 920
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "after": {
+        "kind": "drawer",
+        "title": "扫描 / 导入媒体库",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 360,
+          "top": 0,
+          "right": 1280,
+          "bottom": 720,
+          "width": 920,
+          "height": 720
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 646,
+          "clientH": 646,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 920,
+          "clientW": 920
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "shots": [
+        "M-scan-drawer-1280x720-after.png",
+        "M-scan-drawer-1280x720-before.png"
+      ]
+    },
+    {
+      "key": "duplicates-drawer",
+      "name": "重复文件（抽屉）",
+      "kind": "drawer",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "FAIL",
+      "before": {
+        "kind": "drawer",
+        "title": "重复文件",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 100,
+          "top": 0,
+          "right": 1280,
+          "bottom": 720,
+          "width": 1180,
+          "height": 720
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 646,
+          "clientH": 646,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 1180,
+          "clientW": 1180
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "after": {
+        "kind": "drawer",
+        "title": "重复文件",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 100,
+          "top": 0,
+          "right": 1280,
+          "bottom": 720,
+          "width": 1180,
+          "height": 720
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 646,
+          "clientH": 646,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 1180,
+          "clientW": 1180
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "shots": [
+        "M-duplicates-drawer-1280x720-after.png",
+        "M-duplicates-drawer-1280x720-before.png"
+      ]
+    },
+    {
+      "key": "tag-manager",
+      "name": "标签管理",
+      "kind": "dialog",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "标签管理",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 260,
+          "top": 43.2,
+          "right": 1020,
+          "bottom": 1149.2,
+          "width": 760,
+          "height": 1106
+        },
+        "bottomOver": 429.2,
+        "topOver": -43.2,
+        "fits": false,
+        "body": {
+          "scrollH": 986,
+          "clientH": 986,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 728,
+          "clientW": 728
+        },
+        "footerBtn": {
+          "text": "关 闭",
+          "top": 1101.2,
+          "bottom": 1133.2,
+          "inViewport": false,
+          "hit": false,
+          "hitTag": null
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "标签管理",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 260,
+          "top": 24,
+          "right": 1020,
+          "bottom": 696,
+          "width": 760,
+          "height": 672
+        },
+        "bottomOver": -24,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 986,
+          "clientH": 552,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 728,
+          "clientW": 728,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "共 103 条20条/页 1 23456前往页",
+            "top": 600,
+            "bottom": 632,
+            "height": 32,
+            "fullyVisible": true,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "关 闭",
+          "top": 648,
+          "bottom": 680,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-tag-manager-1280x720-after.png",
+        "M-tag-manager-1280x720-before.png"
+      ]
+    },
+    {
+      "key": "edit-policy",
+      "name": "编辑策略（可见性）",
+      "kind": "dialog",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "编辑策略",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 340,
+          "top": 43.2,
+          "right": 940,
+          "bottom": 464.2,
+          "width": 600,
+          "height": 421
+        },
+        "bottomOver": -255.8,
+        "topOver": -43.2,
+        "fits": true,
+        "body": {
+          "scrollH": 301,
+          "clientH": 301,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 568,
+          "clientW": 568
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 416.2,
+          "bottom": 448.2,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "编辑策略",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 340,
+          "top": 24,
+          "right": 940,
+          "bottom": 445,
+          "width": 600,
+          "height": 421
+        },
+        "bottomOver": -275,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 301,
+          "clientH": 301,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 568,
+          "clientW": 568
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 397,
+          "bottom": 429,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-edit-policy-1280x720-after.png"
+      ]
+    },
+    {
+      "key": "user-detail-drawer",
+      "name": "用户详情（抽屉）",
+      "viewport": "1280x720",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".link-type\",\"timeout\":25000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "auth-role",
+      "name": "分配角色",
+      "viewport": "1280x720",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".el-table__body tbody tr\",\"timeout\":25000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "select-user",
+      "name": "选择用户（top=5vh）",
+      "viewport": "1280x720",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".el-dialog\",\"timeout\":20000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "menu-edit",
+      "name": "菜单新增（长表单）",
+      "kind": "dialog",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "添加菜单",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 300,
+          "top": 43.2,
+          "right": 980,
+          "bottom": 465.2,
+          "width": 680,
+          "height": 422
+        },
+        "bottomOver": -254.8,
+        "topOver": -43.2,
+        "fits": true,
+        "body": {
+          "scrollH": 302,
+          "clientH": 302,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 648,
+          "clientW": 648
+        },
+        "footerBtn": {
+          "text": "确 定",
+          "top": 417.2,
+          "bottom": 449.2,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "添加菜单",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 300,
+          "top": 24,
+          "right": 980,
+          "bottom": 446,
+          "width": 680,
+          "height": 422
+        },
+        "bottomOver": -274,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 302,
+          "clientH": 302,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 648,
+          "clientW": 648
+        },
+        "footerBtn": {
+          "text": "确 定",
+          "top": 398,
+          "bottom": 430,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-menu-edit-1280x720-after.png"
+      ]
+    },
+    {
+      "key": "dict-data",
+      "name": "字典数据",
+      "viewport": "1280x720",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".el-dialog\",\"timeout\":25000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "root-create",
+      "name": "新增库根",
+      "kind": "dialog",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "新增库根",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 360,
+          "top": 43.2,
+          "right": 920,
+          "bottom": 660.7,
+          "width": 560,
+          "height": 617.5
+        },
+        "bottomOver": -59.3,
+        "topOver": -43.2,
+        "fits": true,
+        "body": {
+          "scrollH": 480,
+          "clientH": 480,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 528,
+          "clientW": 528
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 612.7,
+          "bottom": 644.7,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "新增库根",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 360,
+          "top": 24,
+          "right": 920,
+          "bottom": 641.5,
+          "width": 560,
+          "height": 617.5
+        },
+        "bottomOver": -78.5,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 498,
+          "clientH": 498,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 528,
+          "clientW": 528
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 593.5,
+          "bottom": 625.5,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-root-create-1280x720-after.png"
+      ]
+    },
+    {
+      "key": "operlog-detail",
+      "name": "操作日志详情",
+      "viewport": "1280x720",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 找不到 button 含「详细」；候选=\n    at Object.click (<anonymous>:16:21)\n    at Object.step (<anonymous>:120:35)\n    at <anonymous>:1:8"
+    },
+    {
+      "key": "appuser-detail",
+      "name": "用户端用户详情",
+      "kind": "dialog",
+      "viewport": "1280x720",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "账号详情",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 280,
+          "top": 43.2,
+          "right": 1000,
+          "bottom": 664,
+          "width": 720,
+          "height": 620.8
+        },
+        "bottomOver": -56,
+        "topOver": -43.2,
+        "fits": true,
+        "body": {
+          "scrollH": 482,
+          "clientH": 482,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 688,
+          "clientW": 688
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 616,
+          "bottom": 648,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "账号详情",
+        "innerW": 1280,
+        "innerH": 720,
+        "rect": {
+          "left": 280,
+          "top": 24,
+          "right": 1000,
+          "bottom": 644.8,
+          "width": 720,
+          "height": 620.8
+        },
+        "bottomOver": -75.2,
+        "topOver": -24,
+        "fits": true,
+        "body": {
+          "scrollH": 501,
+          "clientH": 501,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 688,
+          "clientW": 688
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 596.8,
+          "bottom": 628.8,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-appuser-detail-1280x720-after.png"
+      ]
+    },
+    {
+      "key": "maint-drawer",
+      "name": "维护（抽屉）",
+      "kind": "drawer",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "FAIL",
+      "before": {
+        "kind": "drawer",
+        "title": "维护",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 15,
+          "top": 0,
+          "right": 375,
+          "bottom": 812,
+          "width": 360,
+          "height": 812
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 4140,
+          "clientH": 738,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 360,
+          "clientW": 360,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "会删除媒体文件，但耗时与库大小成正比；期间所有维护 / 扫描按钮都被任务锁挡住。",
+            "top": -3308,
+            "bottom": 792.3,
+            "height": 4100.3,
+            "fullyVisible": false,
+            "endReachable": true
+          }
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "after": {
+        "kind": "drawer",
+        "title": "维护",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 15,
+          "top": 0,
+          "right": 375,
+          "bottom": 812,
+          "width": 360,
+          "height": 812
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 4140,
+          "clientH": 738,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 360,
+          "clientW": 360,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "会删除媒体文件，但耗时与库大小成正比；期间所有维护 / 扫描按钮都被任务锁挡住。",
+            "top": -3308,
+            "bottom": 792.3,
+            "height": 4100.3,
+            "fullyVisible": false,
+            "endReachable": true
+          }
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "shots": [
+        "M-maint-drawer-375x812-after.png",
+        "M-maint-drawer-375x812-before.png"
+      ]
+    },
+    {
+      "key": "rating-classify",
+      "name": "内容自动分级",
+      "kind": "dialog",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "内容自动分级",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 48.7,
+          "right": 363,
+          "bottom": 1727.2,
+          "width": 351,
+          "height": 1678.5
+        },
+        "bottomOver": 915.2,
+        "topOver": -48.7,
+        "fits": false,
+        "body": {
+          "scrollH": 1554,
+          "clientH": 1554,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 319,
+          "clientW": 319
+        },
+        "footerBtn": {
+          "text": "确认执行（写库 0 条）",
+          "top": 1679.2,
+          "bottom": 1711.2,
+          "inViewport": false,
+          "hit": false,
+          "hitTag": null
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "内容自动分级",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 12,
+          "right": 363,
+          "bottom": 800,
+          "width": 351,
+          "height": 788
+        },
+        "bottomOver": -12,
+        "topOver": -12,
+        "fits": true,
+        "body": {
+          "scrollH": 1558,
+          "clientH": 668,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 319,
+          "clientW": 319,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "级general72 ms花小猪 · 图片/花小猪大众级general64 ms",
+            "top": 492.5,
+            "bottom": 732.5,
+            "height": 240,
+            "fullyVisible": true,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "确认执行（写库 0 条）",
+          "top": 752,
+          "bottom": 784,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-rating-classify-375x812-after.png",
+        "M-rating-classify-375x812-before.png"
+      ]
+    },
+    {
+      "key": "tag-normalize",
+      "name": "标签规范化",
+      "kind": "dialog",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "标签规范化（标签原子化重建）",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 48.7,
+          "right": 363,
+          "bottom": 2010.7,
+          "width": 351,
+          "height": 1961.9
+        },
+        "bottomOver": 1198.7,
+        "topOver": -48.7,
+        "fits": false,
+        "body": {
+          "scrollH": 1818,
+          "clientH": 1818,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 319,
+          "clientW": 319
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 1938.7,
+          "bottom": 1962.7,
+          "inViewport": false,
+          "hit": false,
+          "hitTag": null
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "标签规范化（标签原子化重建）",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 12,
+          "right": 363,
+          "bottom": 800,
+          "width": 351,
+          "height": 788
+        },
+        "bottomOver": -12,
+        "topOver": -12,
+        "fits": true,
+        "body": {
+          "scrollH": 1818,
+          "clientH": 644,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 319,
+          "clientW": 319,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "p\\tag-normalize-9217105538384110148.json",
+            "top": 661.9,
+            "bottom": 711.9,
+            "height": 50,
+            "fullyVisible": true,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 728,
+          "bottom": 752,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-tag-normalize-375x812-after.png",
+        "M-tag-normalize-375x812-before.png"
+      ]
+    },
+    {
+      "key": "scan-drawer",
+      "name": "扫描 / 导入媒体库（抽屉）",
+      "kind": "drawer",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "FAIL",
+      "before": {
+        "kind": "drawer",
+        "title": "扫描 / 导入媒体库",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 15,
+          "top": 0,
+          "right": 375,
+          "bottom": 812,
+          "width": 360,
+          "height": 812
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 738,
+          "clientH": 738,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 360,
+          "clientW": 360
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "after": {
+        "kind": "drawer",
+        "title": "扫描 / 导入媒体库",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 15,
+          "top": 0,
+          "right": 375,
+          "bottom": 812,
+          "width": 360,
+          "height": 812
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 738,
+          "clientH": 738,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 360,
+          "clientW": 360
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "shots": [
+        "M-scan-drawer-375x812-after.png",
+        "M-scan-drawer-375x812-before.png"
+      ]
+    },
+    {
+      "key": "duplicates-drawer",
+      "name": "重复文件（抽屉）",
+      "kind": "drawer",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "FAIL",
+      "before": {
+        "kind": "drawer",
+        "title": "重复文件",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 15,
+          "top": 0,
+          "right": 375,
+          "bottom": 812,
+          "width": 360,
+          "height": 812
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 738,
+          "clientH": 738,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 360,
+          "clientW": 360
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "after": {
+        "kind": "drawer",
+        "title": "重复文件",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 15,
+          "top": 0,
+          "right": 375,
+          "bottom": 812,
+          "width": 360,
+          "height": 812
+        },
+        "bottomOver": 0,
+        "topOver": 0,
+        "fits": true,
+        "body": {
+          "scrollH": 738,
+          "clientH": 738,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 360,
+          "clientW": 360
+        },
+        "footerBtn": null,
+        "pass": false
+      },
+      "shots": [
+        "M-duplicates-drawer-375x812-after.png",
+        "M-duplicates-drawer-375x812-before.png"
+      ]
+    },
+    {
+      "key": "tag-manager",
+      "name": "标签管理",
+      "kind": "dialog",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "标签管理",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 48.7,
+          "right": 363,
+          "bottom": 1238.7,
+          "width": 351,
+          "height": 1190
+        },
+        "bottomOver": 426.7,
+        "topOver": -48.7,
+        "fits": false,
+        "body": {
+          "scrollH": 1070,
+          "clientH": 1070,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 319,
+          "clientW": 319
+        },
+        "footerBtn": {
+          "text": "关 闭",
+          "top": 1190.7,
+          "bottom": 1222.7,
+          "inViewport": false,
+          "hit": false,
+          "hitTag": null
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "标签管理",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 12,
+          "right": 363,
+          "bottom": 800,
+          "width": 351,
+          "height": 788
+        },
+        "bottomOver": -12,
+        "topOver": -12,
+        "fits": true,
+        "body": {
+          "scrollH": 1070,
+          "clientH": 668,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 319,
+          "clientW": 319,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "共 103 条20条/页 1 2346前往页",
+            "top": 704,
+            "bottom": 736,
+            "height": 32,
+            "fullyVisible": true,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "关 闭",
+          "top": 752,
+          "bottom": 784,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-tag-manager-375x812-after.png",
+        "M-tag-manager-375x812-before.png"
+      ]
+    },
+    {
+      "key": "edit-policy",
+      "name": "编辑策略（可见性）",
+      "kind": "dialog",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "编辑策略",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 48.7,
+          "right": 363,
+          "bottom": 560.7,
+          "width": 351,
+          "height": 512
+        },
+        "bottomOver": -251.3,
+        "topOver": -48.7,
+        "fits": true,
+        "body": {
+          "scrollH": 392,
+          "clientH": 392,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 319,
+          "clientW": 319
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 512.7,
+          "bottom": 544.7,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "编辑策略",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 12,
+          "right": 363,
+          "bottom": 524,
+          "width": 351,
+          "height": 512
+        },
+        "bottomOver": -288,
+        "topOver": -12,
+        "fits": true,
+        "body": {
+          "scrollH": 392,
+          "clientH": 392,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 319,
+          "clientW": 319
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 476,
+          "bottom": 508,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-edit-policy-375x812-after.png"
+      ]
+    },
+    {
+      "key": "user-detail-drawer",
+      "name": "用户详情（抽屉）",
+      "viewport": "375x812",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".link-type\",\"timeout\":25000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "auth-role",
+      "name": "分配角色",
+      "viewport": "375x812",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".el-table__body tbody tr\",\"timeout\":25000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "select-user",
+      "name": "选择用户（top=5vh）",
+      "viewport": "375x812",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".el-dialog\",\"timeout\":20000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "menu-edit",
+      "name": "菜单新增（长表单）",
+      "kind": "dialog",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "添加菜单",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 48.7,
+          "right": 363,
+          "bottom": 566.7,
+          "width": 351,
+          "height": 518
+        },
+        "bottomOver": -245.3,
+        "topOver": -48.7,
+        "fits": true,
+        "body": {
+          "scrollH": 398,
+          "clientH": 398,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 340,
+          "clientW": 319
+        },
+        "footerBtn": {
+          "text": "确 定",
+          "top": 518.7,
+          "bottom": 550.7,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "添加菜单",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 12,
+          "right": 363,
+          "bottom": 530,
+          "width": 351,
+          "height": 518
+        },
+        "bottomOver": -282,
+        "topOver": -12,
+        "fits": true,
+        "body": {
+          "scrollH": 398,
+          "clientH": 398,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 340,
+          "clientW": 319
+        },
+        "footerBtn": {
+          "text": "确 定",
+          "top": 482,
+          "bottom": 514,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-menu-edit-375x812-after.png"
+      ]
+    },
+    {
+      "key": "dict-data",
+      "name": "字典数据",
+      "viewport": "375x812",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 等待超时: {\"wait\":{\"sel\":\".el-dialog\",\"timeout\":25000}}\n    at Object.step (<anonymous>:134:11)"
+    },
+    {
+      "key": "root-create",
+      "name": "新增库根",
+      "kind": "dialog",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "新增库根",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 48.7,
+          "right": 363,
+          "bottom": 782.6,
+          "width": 351,
+          "height": 733.8
+        },
+        "bottomOver": -29.4,
+        "topOver": -48.7,
+        "fits": true,
+        "body": {
+          "scrollH": 596,
+          "clientH": 596,
+          "needScroll": false,
+          "overflowY": "visible",
+          "scrollW": 319,
+          "clientW": 319
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 734.6,
+          "bottom": 766.6,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "新增库根",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 12,
+          "right": 363,
+          "bottom": 745.8,
+          "width": 351,
+          "height": 733.8
+        },
+        "bottomOver": -66.2,
+        "topOver": -12,
+        "fits": true,
+        "body": {
+          "scrollH": 614,
+          "clientH": 614,
+          "needScroll": false,
+          "overflowY": "auto",
+          "scrollW": 319,
+          "clientW": 319
+        },
+        "footerBtn": {
+          "text": "保 存",
+          "top": 697.8,
+          "bottom": 729.8,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-root-create-375x812-after.png"
+      ]
+    },
+    {
+      "key": "operlog-detail",
+      "name": "操作日志详情",
+      "viewport": "375x812",
+      "status": "SKIP",
+      "reason": "页面求值异常: Error: 找不到 button 含「详细」；候选=\n    at Object.click (<anonymous>:16:21)\n    at Object.step (<anonymous>:120:35)\n    at <anonymous>:1:8"
+    },
+    {
+      "key": "appuser-detail",
+      "name": "用户端用户详情",
+      "kind": "dialog",
+      "viewport": "375x812",
+      "theme": "dark",
+      "status": "PASS",
+      "before": {
+        "kind": "dialog",
+        "title": "账号详情",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 48.7,
+          "right": 363,
+          "bottom": 755.7,
+          "width": 351,
+          "height": 707
+        },
+        "bottomOver": -56.3,
+        "topOver": -48.7,
+        "fits": true,
+        "body": {
+          "scrollH": 771,
+          "clientH": 568,
+          "needScroll": true,
+          "overflowY": "visible",
+          "scrollW": 319,
+          "clientW": 319,
+          "reachedBottom": false,
+          "lastBlock": {
+            "text": "-10-27 14:28:25审核人 ID1数据统计收藏数0播放列表数1视频数—",
+            "top": 123.3,
+            "bottom": 894.5,
+            "height": 771.2,
+            "fullyVisible": false,
+            "endReachable": false
+          }
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 707.7,
+          "bottom": 739.7,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": false
+      },
+      "after": {
+        "kind": "dialog",
+        "title": "账号详情",
+        "innerW": 375,
+        "innerH": 812,
+        "rect": {
+          "left": 12,
+          "top": 12,
+          "right": 363,
+          "bottom": 700.4,
+          "width": 351,
+          "height": 688.4
+        },
+        "bottomOver": -111.6,
+        "topOver": -12,
+        "fits": true,
+        "body": {
+          "scrollH": 790,
+          "clientH": 568,
+          "needScroll": true,
+          "overflowY": "auto",
+          "scrollW": 319,
+          "clientW": 319,
+          "reachedBottom": true,
+          "lastBlock": {
+            "text": "-10-27 14:28:25审核人 ID1数据统计收藏数0播放列表数1视频数—",
+            "top": -135.4,
+            "bottom": 635.8,
+            "height": 771.2,
+            "fullyVisible": false,
+            "endReachable": true
+          }
+        },
+        "footerBtn": {
+          "text": "关闭",
+          "top": 652.4,
+          "bottom": 684.4,
+          "inViewport": true,
+          "hit": true,
+          "hitTag": "SPAN"
+        },
+        "pass": true
+      },
+      "shots": [
+        "M-appuser-detail-375x812-after.png",
+        "M-appuser-detail-375x812-before.png"
+      ]
+    }
+  ]
+}

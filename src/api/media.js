@@ -136,6 +136,18 @@ export function setRatingPolicy(payload) {
   })
 }
 
+// 自动分级（P6.02）：{dryRun, only, limit, useLlm, force} → 报告（每档计数 / 命中词 / 20 条样例 / 模型兜底）
+// dryRun 缺省 true：不传就是预览。超时给到 15 分钟 —— 开了模型兜底时后端要逐条问本地模型
+// （并发 2、单条 15s），默认 10s 的全局超时必然先断，用户看到的是「接口超时」而不是报告。
+export function classifyRating(payload) {
+  return request({
+    url: BASE + '/rating/classify',
+    method: 'post',
+    data: payload || {},
+    timeout: 900000
+  })
+}
+
 // 改相册人物归属（personId 传 null 表示未归类）
 export function setAlbumPerson(id, personId) {
   return request({
@@ -317,6 +329,29 @@ export function getScanLatest() {
   })
 }
 
+/* P6.04：维护抽屉的「上次执行」回填。
+   后端任务视图只有 type=full|thumb，没有 mode 列；这里拿最近 N 条日志尾部，
+   由前端按 START / enrich / EXPORT / poster / 回填 等标记识别能确定归属的那几条。
+   silent=true：缺少 media:admin:scan 权限（403）或旧后端（404）时静默降级到 localStorage。 */
+export function listScanJobs(limit) {
+  return request({
+    url: BASE + '/scan/list',
+    method: 'get',
+    params: { limit: limit || 30 },
+    silent: true
+  })
+}
+
+/* P6.04：数据一致性检查用的缺失清单（只读，total 就是缺失条数） */
+export function listMissing(query) {
+  return request({
+    url: BASE + '/missing',
+    method: 'get',
+    params: query,
+    silent: true
+  })
+}
+
 // 标签字典：[{id,name,color,useCount}]，按 useCount 降序
 export function listTags() {
   return request({
@@ -350,6 +385,18 @@ export function updateTag(id, data) {
     url: BASE + '/tags/' + id,
     method: 'patch',
     data: data || {}
+  })
+}
+
+// 标签规范化（P6.03）：body { dryRun }（缺省 true = 只预览不写库）
+// 后端跑 doc/media-import/normalize-tags.js，返回脚本统计：
+//   { mode, backup, before, changes, after, oldTags[], atomSet[], facetGroups{}, stdout }
+// dryRun=false 时脚本会先 mysqldump 备份 media_tag / media_video_tag 再单事务写库（幂等）
+export function normalizeTags(dryRun) {
+  return request({
+    url: BASE + '/tags/normalize',
+    method: 'post',
+    data: { dryRun: dryRun !== false }
   })
 }
 

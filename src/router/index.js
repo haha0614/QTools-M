@@ -47,6 +47,14 @@ export const constantRoutes = [
     component: () => import('@/views/register'),
     hidden: true
   },
+  // P6.04：旧「扫描入库」独立页已下线（菜单 2104 已物理删除）。保留旧链接可用：
+  // /media-scan 直接重定向到媒体库，历史书签不会落进 404。
+  // 放在 404 通配前面，否则会被通配先接住。
+  {
+    path: '/media-scan',
+    redirect: '/media',
+    hidden: true
+  },
   {
     path: "/:pathMatch(.*)*",
     component: () => import('@/views/error/404'),

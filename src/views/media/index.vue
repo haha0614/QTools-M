@@ -531,15 +531,17 @@
       </template>
     </el-dialog>
 
-    <!-- 维护面板：扫描 / 元数据 / 派生资源 / 备份 / 库根；执行仍复用页面上既有的任务锁与轮询 -->
     <!-- P5.97：扫描入库抽屉（与库根管理页共用同一个执行器组件） -->
     <el-drawer v-model="scanVisible" title="扫描 / 导入媒体库" size="min(920px, 96vw)" append-to-body destroy-on-close>
       <scan-page :auto-start="false" embedded @finished="handleScanFinished" />
     </el-drawer>
 
-    <el-drawer v-model="maintVisible" title="维护" size="min(860px, 96vw)" append-to-body destroy-on-close>
+    <!-- 维护面板（P6.04 四段式）：日常生成 / 清理 / 诊断 / 危险；执行仍复用页面上既有的任务锁与轮询 -->
+    <el-drawer v-model="maintVisible" title="维护" size="min(860px, 96vw)" append-to-body destroy-on-close class="maint-drawer">
       <maint-panel v-model:scanLimit="scanLimit" :scan-running="scanRunning" :refresh-key="maintRefreshKey"
-        :selected-video-ids="selectedVideoIds" @run="handleMaintRun" @gc="handleGc" />
+        :selected-video-ids="selectedVideoIds" :filter-active="videoFilterActive" :filtered-count="videoTotal"
+        :last-job="maintLastJob" @run="handleMaintRun" @gc="handleGc"
+        @rating-applied="handleRatingApplied" @trash-cleared="handleTrashCleared" @open-duplicates="openDuplicates" />
     </el-drawer>
 
     <!-- P5.10-B 生成结果清单：任务完成后按 job 日志的 ITEM / RESULT 行弹出「本次生成了哪些」 -->
@@ -557,9 +559,10 @@
 import { listVideos, listAlbums, listPhotos, getAlbumPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag, getEditPolicy, setEditPolicy } from '@/api/media'
 // 人物管理（P3-B）：独立 import 行，不改动上面那行既有导入
 import { listPersons, setVideoPersons, setAlbumPersons } from '@/api/media'
-// 维护面板（扫描 / 元数据 / 派生资源 / 备份 / 库根）：放在同目录子组件，主页面只做挂载与执行
+// 维护面板（P6.04 四段式：日常生成 / 清理 / 诊断 / 危险）：放在同目录子组件，主页面只做挂载与执行
 import MaintPanel from './MaintPanel'
-import ScanPage from './scan/index.vue'
+// P6.04：原「扫描入库」独立页目录已删除；可复用的执行器迁到 media/ingest/，只给抽屉与库根页嵌入
+import ScanPage from './ingest/index.vue'
 // 重复文件抽屉（P4-B）：独立子组件 + 独立 api 导出，不改动上面两行既有导入
 import DuplicatesPanel from './DuplicatesPanel'
 // 派生资源状态（P5.10-B）：徽标单元格 / 结果对话框 / 日志解析纯函数，三者都独立成文件，主页面只接线
@@ -700,7 +703,7 @@ const scanRunning = ref(false)
 const scanLimit = ref(0)
 let scanTimer = null
 
-/** 维护面板：抽屉开关；maintRefreshKey 在任务结束后自增，让面板重读导出列表 / 库根 */
+/** 维护面板：抽屉开关；maintRefreshKey 在任务结束后自增，让面板重读导出 / 回收站 / 派生用量 / 后端历史 */
 const maintVisible = ref(false)
 
 /** P5.97：扫描入库抽屉（工具栏「扫描 / 导入」） */
@@ -715,6 +718,24 @@ function handleScanFinished() {
   refreshAll()
 }
 const maintRefreshKey = ref(0)
+
+/** P6.04：最近一次结束的维护任务（原样传给面板写「上次执行」；只认面板自己发起的那个 actionKey） */
+const maintLastJob = ref(null)
+
+/** P6.04：视频页当前是否真的设置了筛选条件（维护抽屉的「当前筛选结果」范围据此启用） */
+const videoFilterActive = computed(() => {
+  if (activeTab.value !== 'video') return false
+  return !!((videoQuery.keyword || '').trim() || videoQuery.folder || videoQuery.vcodec
+    || (videoQuery.hidden && videoQuery.hidden !== 'all') || videoQuery.ids)
+})
+
+/** P6.04：清空回收站后刷新统计卡片与回收站页（面板只负责删，页面负责刷新） */
+function handleTrashCleared() {
+  loadStats()
+  if (activeTab.value === 'trash') {
+    loadTrash()
+  }
+}
 
 /** P4-B 重复文件抽屉：内容全在 DuplicatesPanel 里（自己拉数据、自己分页），页面只存开关 */
 const duplicatesVisible = ref(false)
@@ -1387,11 +1408,27 @@ function handleGc() {
   }).catch(() => {})
 }
 
+/**
+ * 自动分级写库之后（P6.02）：分级是列表里的列、也是索引 ratings[] 的数据源，
+ * 所以三处一起重读 —— 当前分页的列表、统计里的分级计数、以及别的筛选维度（分级筛选条）。
+ * 不整页刷新：用户可能已经设好筛选条件，刷新会把它清掉。
+ */
+function handleRatingApplied(report) {
+  const updated = report && report.applied ? report.applied.updated : 0
+  if (updated > 0) {
+    loadVideos()
+    loadAlbums()
+    loadStats()
+  }
+}
+
 function runScanTask(mode, options) {
   const title = scanTypeText(mode)
   // P5.10-B：记下本次请求的 videoIds —— 后端日志只给 RESULT 汇总时，用它把结果清单退化成「已处理列表」
   const requestIds = options && Array.isArray(options.videoIds) ? options.videoIds : []
   scanRequestIds = requestIds.map(id => String(id))
+  // P6.04：先清空上一次的结果，面板才能把「新的结束事件」准确归到本次按钮上
+  maintLastJob.value = null
   scanRunning.value = true
   startScan(mode, options).then(res => {
     proxy.$modal.msgSuccess('已开始' + title)
@@ -1432,6 +1469,8 @@ function pollScan(jobId) {
         loadVcodecOptions()
         if (activeTab.value === 'trash') { loadTrash() } else if (activeTab.value === 'album') { loadAlbums() } else { loadVideos() }
       }
+      // P6.04：把结束的任务原样交给维护面板写「上次执行」（面板只在自己发起时消费）
+      maintLastJob.value = res ? { ...res } : null
       notifyScanFinished(res)
       maybeOpenDeriveResult(res)
     }
@@ -1496,10 +1535,38 @@ const MAINT_CONFIRM = {
 const MAINT_LIMIT_MODES = ['thumb', 'sprite', 'preview', 'sprite,preview', 'enrich']
 
 /**
+ * P6.04：「当前筛选结果」范围 → 真实 videoId 列表。
+ * 复用主列表当前的筛选条件逐页取 id（pageSize=200），最多 200 条 —— 与后端 videoIds 上限一致。
+ * 不拿「当前页」冒充「筛选结果」：筛选跨页时也只会处理筛选命中的行。
+ */
+function collectFilteredVideoIds() {
+  const pageSize = 200
+  const ids = []
+  let pageNum = 1
+  let total = 0
+  const step = () => listVideos(buildParams({ ...videoQuery, pageNum: pageNum, pageSize: pageSize })).then(res => {
+    const rows = (res && res.rows) || []
+    total = Number(res && res.total) || rows.length
+    rows.forEach(row => {
+      if (row && row.id != null && ids.length < 200) {
+        ids.push(String(row.id))
+      }
+    })
+    if (rows.length && ids.length < Math.min(total, 200)) {
+      pageNum += 1
+      return step()
+    }
+    return ids
+  })
+  return step()
+}
+
+/**
  * 维护任务的唯一执行入口（P5.97 起工具栏不再有重复的扫描按钮）：确认文案由面板给出（它知道勾选项与
  * 前置条件），执行复用 runScanTask —— 任务锁、409 冲突处理、轮询与完成提示只此一套。
+ * P6.04：范围在确认前解析成 videoIds（只有 thumb / sprite / preview 会带）。
  */
-function handleMaintRun(payload) {
+async function handleMaintRun(payload) {
   const item = payload || {}
   if (!item.mode) {
     return
@@ -1511,6 +1578,25 @@ function handleMaintRun(payload) {
   const title = item.title || scanTypeText(item.mode)
   const options = { ...(item.options || {}) }
   delete options.confirm
+  const scope = item.scope || 'all'
+  if (scope !== 'all') {
+    let ids = []
+    try {
+      ids = scope === 'selected' ? selectedVideoIds.value.map(id => String(id)) : await collectFilteredVideoIds()
+    } catch (err) {
+      proxy.$modal.notifyError({
+        title: '解析处理范围失败',
+        message: errorText(err) || '请求视频列表失败，请稍后重试或改用「全部」',
+        duration: 8000
+      })
+      return
+    }
+    if (!ids.length) {
+      proxy.$modal.msgWarning(scope === 'selected' ? '当前没有勾选任何视频' : '当前筛选结果为空')
+      return
+    }
+    options.videoIds = ids
+  }
   const limit = Number(scanLimit.value) || 0
   if (limit > 0 && MAINT_LIMIT_MODES.indexOf(item.mode) > -1) {
     options.limit = limit
@@ -1522,7 +1608,7 @@ function handleMaintRun(payload) {
   }).catch(() => {})
 }
 
-// 任务结束后（scanRunning 由 true 变 false）让面板重读导出列表与库根：导出包只有在任务结束后才落盘
+// 任务结束后（scanRunning 由 true 变 false）让面板重读导出 / 回收站 / 派生用量 / 后端历史
 watch(scanRunning, (val, old) => {
   if (old && !val) {
     maintRefreshKey.value += 1
@@ -2197,6 +2283,16 @@ onBeforeUnmount(() => { stopScanPolling() })
 </script>
 
 <style scoped>
+/* P6.04：维护抽屉内容变长后整体滚动（375 窄屏时抽屉 = 96vw，近似全宽） */
+.maint-drawer :deep(.el-drawer__body) {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+@media (max-width: 480px) {
+  .maint-drawer :deep(.el-drawer__body) {
+    padding: 10px;
+  }
+}
 .media-stats {
   margin-bottom: 4px;
 }
