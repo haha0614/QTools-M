@@ -234,6 +234,9 @@
           <el-form-item>
             <el-button type="primary" icon="Search" @click="handleAlbumQuery">搜索</el-button>
             <el-button icon="Refresh" @click="resetAlbumQuery">重置筛选</el-button>
+            <!-- P6.52：允许无册 —— 不在任何册里的照片在这里处理 -->
+            <el-button icon="FolderRemove" data-testid="open-uncategorized"
+              v-hasPermi="['media:admin:list']" @click="openUncategorized">未归类…</el-button>
           </el-form-item>
         </el-form>
 
@@ -497,6 +500,33 @@
         </el-button>
       </template>
     </el-dialog>
+    <!-- P6.52：未归类照片（album_id 为空）—— 站端不展示，可逐张移进某本册 -->
+    <el-dialog v-model="uncatVisible" title="未归类照片" width="min(1120px, 96vw)" append-to-body>
+      <div class="uncat-bar">
+        <span class="uncat-count">共 {{ uncatTotal }} 张 · 站端不展示 · 以后可以再移进别的册</span>
+        <el-button size="small" :loading="uncatLoading" data-testid="uncat-refresh" @click="loadUncat">刷新</el-button>
+      </div>
+      <div v-loading="uncatLoading" class="uncat-grid">
+        <div v-for="p in uncatRows" :key="p.id" class="uncat-card">
+          <el-image class="uncat-thumb" fit="cover" :src="mediaSrc(p.thumbUrl)"
+            :preview-src-list="[mediaSrc(p.previewUrl || p.thumbUrl)]" :initial-index="0"
+            preview-teleported hide-on-click-modal>
+            <template #error><span class="uncat-ph">{{ photoFileName(p.relPath).slice(0, 1) }}</span></template>
+          </el-image>
+          <div class="uncat-name" :title="p.relPath">{{ photoFileName(p.relPath) }}</div>
+          <div class="uncat-actions">
+            <el-button link type="primary" size="small" v-hasPermi="['media:admin:edit']"
+              data-testid="uncat-move" @click="moveUncat(p)">移入另一册…</el-button>
+          </div>
+        </div>
+      </div>
+      <el-empty v-if="!uncatLoading && !uncatRows.length" description="没有未归类照片" />
+      <pagination v-show="uncatTotal > 0" :page-sizes="[24, 48, 96]" :total="uncatTotal"
+        v-model:page="uncatPage" v-model:limit="uncatPageSize" @pagination="loadUncat" />
+      <template #footer>
+        <el-button @click="uncatVisible = false">关闭</el-button>
+      </template>
+    </el-dialog>
     <!-- P6.46：视频页内播放（以前是新开标签） -->
     <el-dialog v-model="videoPlayVisible" :title="videoPlayTitle" width="min(1100px, 94vw)" append-to-body
       destroy-on-close class="video-dialog">
@@ -612,6 +642,8 @@
             <!-- P6.51：按图改归属（人工归属，重扫不再按目录拽回） -->
             <el-button size="small" plain data-testid="photo-move" @click="openPhotoRelocate('move')">移到另一册…</el-button>
             <el-button size="small" plain data-testid="photo-split" @click="openPhotoRelocate('split')">拆出新册…</el-button>
+            <!-- P6.52：移出本册，变成「未归类」（站端不展示，以后可以再移进别的册） -->
+            <el-button size="small" plain data-testid="photo-detach" @click="detachSelectedPhotos">移出相册（未归类）</el-button>
             <el-button size="small" link @click="photoSelected = []">清空</el-button>
             <el-button size="small" v-if="multiMode" @click="exitMultiMode">完成</el-button>
           </template>
@@ -902,7 +934,7 @@ import DeriveEmptyState from './DeriveEmptyState.vue'
 import { deriveMapOf, buildResultModel, DERIVE_FILTER_DEFAULT, filterVideoRows } from './deriveModel'
 import { getDeriveStatus } from '@/api/media'
 // 内容分级（P5.99）：行内下拉 / 批量设置用到的接口与值域常量
-import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove } from '@/api/media'
+import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos } from '@/api/media'
 import { RATING_OPTIONS, ratingOf } from './ratingOptions'
 
 const route = useRoute()
@@ -3031,6 +3063,66 @@ async function doAlbumMerge() {
   }
 }
 
+/* P6.52：未归类（album_id 为空）—— 列表 + 逐张移入某册 + 批量移出 */
+const uncatVisible = ref(false)
+const uncatLoading = ref(false)
+const uncatRows = ref([])
+const uncatTotal = ref(0)
+const uncatPage = ref(1)
+const uncatPageSize = ref(48)
+
+function openUncategorized() {
+  uncatVisible.value = true
+  uncatPage.value = 1
+  loadUncat()
+}
+
+async function loadUncat() {
+  uncatLoading.value = true
+  try {
+    const res = await listUncategorizedPhotos({ page: uncatPage.value, size: uncatPageSize.value })
+    uncatRows.value = (res && res.rows) || []
+    uncatTotal.value = (res && res.total) || 0
+  } catch (e) {
+    uncatRows.value = []
+    uncatTotal.value = 0
+    proxy.$modal.msgError('读取未归类照片失败：' + (errorText(e) || (e && e.message) || '请求失败'))
+  } finally {
+    uncatLoading.value = false
+  }
+}
+
+/** 未归类卡片 → 复用「移到另一册」弹层（它读的也是 photoSelected） */
+function moveUncat(p) {
+  if (!p || p.id == null) return
+  uncatVisible.value = false
+  photoSelected.value = [String(p.id)]
+  openPhotoRelocate('move')
+}
+
+/** 把相册里选中的几张移出本册，变成未归类 */
+async function detachSelectedPhotos() {
+  const ids = photoSelected.value.slice()
+  if (!ids.length) return
+  try {
+    await proxy.$modal.confirm('把选中的 ' + ids.length + ' 张移出本册、变成「未归类」？\n\n'
+      + '它们会从本册移走，站端不再展示；以后可以在「未归类…」里再移进别的册。\n'
+      + '（标记为人工归属，重扫不会按目录把它们拽回来）')
+  } catch (e) {
+    return
+  }
+  try {
+    const res = await detachAlbumPhotos(ids)
+    proxy.$modal.msgSuccess('已移出 ' + ((res && res.detached) || ids.length) + ' 张 → 未归类')
+    photoSelected.value = []
+    applyPhotoPage()
+    loadAlbums()
+    loadStats()
+  } catch (e) {
+    proxy.$modal.msgError('移出失败：' + (errorText(e) || (e && e.message) || '请求失败'))
+  }
+}
+
 /* P6.51：按图改归属 —— 移到另一册 / 拆出新册 */
 const photoRelocateVisible = ref(false)
 const photoRelocateMode = ref('move')
@@ -3268,6 +3360,19 @@ onBeforeUnmount(() => { stopScanPolling() })
 .album-merge-preview { margin: 10px 0 0; font-size: 13px; color: var(--el-text-color-regular); }
 .album-merge-dup { color: var(--el-color-warning); }
 .album-merge-tip { margin: 0 0 12px; font-size: 13px; line-height: 1.7; color: var(--el-text-color-regular); }
+/* P6.52：未归类网格 */
+.uncat-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.uncat-count { font-size: 13px; color: var(--el-text-color-secondary); }
+.uncat-grid { display: flex; flex-wrap: wrap; gap: 12px; min-height: 160px; }
+.uncat-card {
+  width: 150px; border: 1px solid var(--el-border-color-light); border-radius: 6px;
+  overflow: hidden; background: var(--el-bg-color);
+}
+.uncat-thumb { width: 100%; height: 110px; background: var(--el-fill-color-light); }
+.uncat-ph { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: var(--el-text-color-secondary); }
+.uncat-name { padding: 4px 6px 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.uncat-actions { padding: 2px 6px 6px; text-align: right; }
+
 /* P6.51：册下拉项 = 封面 + 标题 + 张数 */
 .album-opt { display: flex; align-items: center; gap: 8px; height: 34px; }
 .album-opt-cover {

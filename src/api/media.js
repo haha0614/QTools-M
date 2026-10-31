@@ -977,6 +977,18 @@ export function moveAlbumPhotos(photoIds, target, dupPolicy) {
     data: { photoIds, target, dupPolicy: dupPolicy || 'keep' }
   })
 }
+// P6.52：移出册 → 未归类（album_id 置空 + album_pinned=1，扫描不会按目录拽回）
+export function detachAlbumPhotos(photoIds) {
+  return request({
+    url: BASE + '/albums/photos/detach',
+    method: 'post',
+    data: { photoIds }
+  })
+}
+// P6.52：未归类照片列表（站端不展示）
+export function listUncategorizedPhotos(params) {
+  return request({ url: BASE + '/albums/photos/uncategorized', method: 'get', params })
+}
 // P6.51：搬入前预检 —— 目标册里有几张同内容、全库共几处
 export function previewPhotoMove(photoIds, target) {
   return request({
