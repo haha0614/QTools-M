@@ -259,10 +259,24 @@
 
     <!-- 本册图片：预览 + 单张/批量定级（就在审核页里做，不再跳转） -->
     <el-dialog v-model="pvVisible" :title="'预览 · ' + pvTitle" width="min(1180px, 96vw)" append-to-body>
+      <!-- P6.59：分级筛选 + 多选（与媒体库相册图片弹窗同口径） -->
+      <div class="pv-filter">
+        <span class="pv-filter-label">本册分级</span>
+        <b class="pv-rating-chip" :class="pvAlbum.rating || 'inherit'">{{ pvRatingLabel(pvAlbum.rating) }}</b>
+        <span class="pv-filter-gap" />
+        <span class="pv-filter-label">筛选</span>
+        <button v-for="opt in PV_RATING_FILTERS" :key="opt.value" type="button"
+          class="pv-filter-btn" :class="[{ on: pvRatingFilter === opt.value }, opt.value]"
+          :data-testid="'pv-filter-' + opt.value" @click="pvRatingFilter = opt.value">
+          {{ opt.label }} <b>{{ pvCountOf(opt.value) }}</b>
+        </button>
+      </div>
       <div class="pv-bar">
-        <span class="pv-count">共 {{ pvRows.length }} 张</span>
+        <span class="pv-count">共 {{ pvRows.length }} 张<span v-if="pvRatingFilter !== 'all'">（筛出 {{ pvFilteredRows.length }} 张）</span></span>
         <span class="pv-count" v-if="pvSelected.length">已选 {{ pvSelected.length }}</span>
-        <el-button size="small" @click="pvSelectAll">{{ pvSelected.length === pvRows.length && pvRows.length ? '取消全选' : '全选' }}</el-button>
+        <el-button size="small" @click="pvSelectAll">
+          {{ pvAllFilteredPicked ? '取消全选' : '全选' }}{{ pvRatingFilter === 'all' ? '' : '（筛出的 ' + pvFilteredRows.length + ' 张）' }}
+        </el-button>
         <el-button size="small" :disabled="!pvSelected.length" @click="pvSelected = []">清空选择</el-button>
         <span class="pv-spacer" />
         <el-button size="small" type="primary" plain @click="pvAutoVisible = true">自动分级</el-button>
@@ -274,7 +288,7 @@
         </template>
       </div>
       <div class="pv-grid" v-if="pvRows.length">
-        <div class="pv-item" v-for="p in pvRows" :key="p.id" :class="{ on: pvIsSelected(p.id) }">
+        <div class="pv-item" v-for="p in pvFilteredRows" :key="p.id" :class="{ on: pvIsSelected(p.id) }">
           <img :src="mediaSrc(p.thumb)" loading="lazy" alt="" :title="'第 ' + (Number(p.seq) + 1) + ' 张 · ' + pvRatingLabel(p.rating)"
             @click="openBig(p)" />
           <span class="pv-badge" :class="p.rating || 'inherit'">{{ pvRatingShort(p.rating) }}</span>
@@ -282,6 +296,7 @@
         </div>
       </div>
       <el-empty v-else description="没有图片" />
+      <el-empty v-if="pvRows.length && !pvFilteredRows.length" description="该分级下没有图片" />
     </el-dialog>
 
     <!-- 大图 + 单张定级 -->
@@ -684,6 +699,37 @@ const pvAutoVisible = ref(false)
 
 const pvTitle = computed(() => pvAlbum.value.title || pvAlbum.value.id)
 
+/* P6.59：分级筛选（与媒体库相册图片弹窗同口径：按「这张自己的分级」筛，缺省=继承） */
+const PV_RATING_FILTERS = [
+  { value: 'all', label: '全部' },
+  { value: 'inherit', label: '继承' },
+  { value: 'general', label: '大众' },
+  { value: 'guidance', label: '家长指导' },
+  { value: 'restricted', label: '限制' }
+]
+const pvRatingFilter = ref('all')
+
+/** 这张图的分级桶：没单独设过就是 'inherit' */
+function pvBucket(p) {
+  return p && p.rating ? p.rating : 'inherit'
+}
+
+const pvFilteredRows = computed(() => {
+  if (pvRatingFilter.value === 'all') return pvRows.value
+  return pvRows.value.filter((p) => pvBucket(p) === pvRatingFilter.value)
+})
+
+function pvCountOf(value) {
+  if (value === 'all') return pvRows.value.length
+  return pvRows.value.filter((p) => pvBucket(p) === value).length
+}
+
+/** 筛选后的那批是否已经全选中（全选按钮按筛选结果工作） */
+const pvAllFilteredPicked = computed(() => {
+  const rows = pvFilteredRows.value
+  return rows.length > 0 && rows.every((p) => pvIsSelected(p.id))
+})
+
 function pvRatingLabel(r) {
   return r === 'restricted' ? '限制级' : r === 'guidance' ? '家长指导级' : r === 'general' ? '大众级' : '继承相册'
 }
@@ -704,15 +750,22 @@ function togglePv(id) {
 }
 
 function pvSelectAll() {
-  pvSelected.value = pvSelected.value.length === pvRows.value.length
-    ? []
-    : pvRows.value.map((p) => String(p.id))
+  const rows = pvFilteredRows.value
+  if (!rows.length) return
+  const keys = rows.map((p) => String(p.id))
+  if (pvAllFilteredPicked.value) {
+    // 只取消「筛选出来的那批」，别把别的桶里的选择也清掉
+    pvSelected.value = pvSelected.value.filter((x) => !keys.includes(String(x)))
+  } else {
+    pvSelected.value = Array.from(new Set(pvSelected.value.concat(keys)))
+  }
 }
 
 async function openAlbumPhotos(row) {
   pvAlbum.value = { id: String(row.id), title: row.title || '', rating: row.contentRating || 'general' }
   pvRows.value = []
   pvSelected.value = []
+  pvRatingFilter.value = 'all'
   pvVisible.value = true
   try {
     const list = await getAlbumPhotos(row.id)
@@ -933,6 +986,21 @@ onMounted(() => {
 .rv-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
 .rv-sub { margin: 0 0 10px; font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.7; }
 .rv-mode { margin-bottom: 10px; }
+/* P6.59：预览弹窗的分级筛选条 */
+.pv-filter { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+.pv-filter-label { font-size: 12px; color: var(--el-text-color-secondary); }
+.pv-filter-gap { width: 12px; }
+.pv-rating-chip { font-size: 12px; font-weight: 600; }
+.pv-rating-chip.inherit { color: var(--el-text-color-secondary); }
+.pv-rating-chip.general { color: var(--el-color-success); }
+.pv-rating-chip.guidance { color: var(--el-color-warning); }
+.pv-rating-chip.restricted { color: var(--el-color-danger); }
+.pv-filter-btn {
+  border: 1px solid var(--el-border-color); background: transparent; cursor: pointer;
+  border-radius: 12px; padding: 2px 10px; font-size: 12px; color: var(--el-text-color-regular);
+}
+.pv-filter-btn.on { border-color: var(--el-color-primary); color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
+.pv-filter-btn b { font-weight: 600; margin-left: 2px; }
 .rv-suggest { margin-left: 8px; transform: scale(0.9); }
 .rv-cards { display: flex; gap: 12px; margin-bottom: 8px; }
 .rv-card {
