@@ -977,6 +977,18 @@ export function moveAlbumPhotos(photoIds, target, dupPolicy) {
     data: { photoIds, target, dupPolicy: dupPolicy || 'keep' }
   })
 }
+// P6.56：照片级审核队列（只列显式设了 review_state 的行；NULL=继承册不在此列）
+export function listReviewPhotos(params) {
+  return request({ url: '/api/media/admin/review/photos', method: 'get', params })
+}
+// P6.56：改照片级审核状态（state=inherit 恢复继承所属相册）
+export function setReviewPhotoState(ids, state) {
+  return request({
+    url: '/api/media/admin/review/photos/state',
+    method: 'post',
+    data: { ids, state }
+  })
+}
 // P6.55：入站队列的「通过并采纳」= 审核通过 + 采纳，一次点击站端可见
 export function approveInbound(ids) {
   return request({

@@ -9,9 +9,67 @@
       <el-radio-group v-model="mode" class="rv-mode" @change="onModeChange">
         <el-radio-button value="content">内容审核</el-radio-button>
         <el-radio-button value="inbound">入站队列</el-radio-button>
+        <el-radio-button value="photo">照片待审</el-radio-button>
         <el-radio-button value="rating">分级复核</el-radio-button>
       </el-radio-group>
     </div>
+
+    <!-- ============================== 照片待审（P6.56） ============================== -->
+    <template v-if="mode === 'photo'">
+      <p class="rv-sub">
+        只列<b>单独设了审核状态</b>的照片：册之外还能逐张判定。<b>NULL = 继承所属相册</b>（绝大多数照片），
+        不在这里刷屏。典型来源：把照片移入/并入一本已上站的册时，只把这几个置「待审」。
+      </p>
+      <el-radio-group v-model="photoState" size="small" class="rv-inbound-mode" @change="loadPhotos">
+        <el-radio-button value="pending">待审</el-radio-button>
+        <el-radio-button value="rejected">已驳回</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+      </el-radio-group>
+      <div class="rv-tools">
+        <el-input v-model="keyword" placeholder="搜索路径" clearable style="width: 220px"
+          @keyup.enter="loadPhotos" @clear="loadPhotos" />
+        <el-button @click="loadPhotos">搜索</el-button>
+        <span class="rv-spacer" />
+        <el-button type="success" :disabled="!photoSelection.length" data-testid="photo-batch-approve"
+          @click="setPhotoState(photoSelection.map((r) => r.id), 'approved')">通过选中（{{ photoSelection.length }}）</el-button>
+        <el-button type="danger" plain :disabled="!photoSelection.length"
+          @click="setPhotoState(photoSelection.map((r) => r.id), 'rejected')">驳回选中</el-button>
+      </div>
+      <el-table v-loading="photoLoading" :data="photoRows" class="rv-table" row-key="id"
+        @selection-change="(rows) => (photoSelection = rows)">
+        <el-table-column type="selection" width="44" align="center" />
+        <el-table-column label="缩略图" width="86" align="center">
+          <template #default="scope">
+            <img class="rv-thumb" :src="mediaSrc(photoThumb(scope.row))" loading="lazy" alt="" />
+          </template>
+        </el-table-column>
+        <el-table-column label="所属册" min-width="180">
+          <template #default="scope">
+            <span v-if="scope.row.albumTitle">{{ scope.row.albumTitle }}</span>
+            <el-tag v-else size="small" type="info">未归类</el-tag>
+            <span class="rv-seq">#{{ scope.row.seq }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="路径" prop="relPath" min-width="320" :show-overflow-tooltip="true" />
+        <el-table-column label="状态" width="100" align="center">
+          <template #default="scope">
+            <el-tag size="small" :type="scope.row.reviewState === 'pending' ? 'warning' : (scope.row.reviewState === 'rejected' ? 'danger' : 'success')">
+              {{ scope.row.reviewState === 'pending' ? '待审' : (scope.row.reviewState === 'rejected' ? '驳回' : '通过') }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="220" align="center">
+          <template #default="scope">
+            <el-button link type="success" size="small" @click="setPhotoState([scope.row.id], 'approved')">通过</el-button>
+            <el-button link type="danger" size="small" @click="setPhotoState([scope.row.id], 'rejected')">驳回</el-button>
+            <el-button link type="info" size="small" @click="setPhotoState([scope.row.id], 'inherit')">恢复继承</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!photoLoading && !photoRows.length" description="没有需要单独审核的照片" />
+      <pagination v-show="photoTotal > 0" :page-sizes="[20, 40, 80]" :total="photoTotal"
+        v-model:page="photoQuery.page" v-model:limit="photoQuery.size" @pagination="loadPhotos" />
+    </template>
 
     <!-- ============================== 入站队列（P6.55） ============================== -->
     <template v-if="mode === 'inbound'">
@@ -262,7 +320,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getReviewSummary, listReview, setReviewState, listRatingReview, decideRatingReview,
   listPeople, setAlbumRating, setVideoRating, setAlbumPersons, setVideoPersons, setRatingBatch, getAlbumPhotos,
-  approveInbound, detachAlbum, mergeAlbums, listAlbums
+  approveInbound, detachAlbum, mergeAlbums, listAlbums,
+  listReviewPhotos, setReviewPhotoState
 } from '@/api/media'
 import PhotoAutoRateDialog from './PhotoAutoRateDialog.vue'
 
@@ -279,6 +338,52 @@ const selection = ref([])
 const summary = ref({ album: {}, video: {} })
 const query = reactive({ page: 1, size: 20 })
 const people = ref([])
+
+/* P6.56：照片待审（照片级 review_state；NULL=继承册，不进这个列表） */
+const photoRows = ref([])
+const photoTotal = ref(0)
+const photoLoading = ref(false)
+const photoSelection = ref([])
+const photoState = ref('pending')
+const photoQuery = reactive({ page: 1, size: 40 })
+
+/** 缩略图：内容寻址优先（归档/换册都不会张冠李戴） */
+function photoThumb(row) {
+  return row && row.contentHash ? '/api/media/thumb/p/' + row.contentHash : ''
+}
+
+async function loadPhotos() {
+  photoLoading.value = true
+  try {
+    const res = await listReviewPhotos({
+      state: photoState.value,
+      keyword: keyword.value,
+      page: photoQuery.page,
+      size: photoQuery.size
+    })
+    photoRows.value = (res && res.rows) || []
+    photoTotal.value = (res && res.total) || 0
+  } catch (e) {
+    photoRows.value = []
+    photoTotal.value = 0
+    proxy.$modal.msgError('读取照片待审失败：' + errText(e))
+  } finally {
+    photoLoading.value = false
+  }
+}
+
+async function setPhotoState(ids, state) {
+  const list = (ids || []).filter(Boolean)
+  if (!list.length) return
+  try {
+    const res = await setReviewPhotoState(list, state)
+    proxy.$modal.msgSuccess('已处理 ' + ((res && res.updated) || list.length) + ' 张（'
+      + (state === 'inherit' ? '恢复继承相册' : (state === 'approved' ? '通过' : '驳回')) + '）')
+    loadPhotos()
+  } catch (e) {
+    proxy.$modal.msgError('操作失败：' + errText(e))
+  }
+}
 
 /* P6.55：入站队列（建议册 + 待审册，一行三个决定） */
 const inboundRows = ref([])
@@ -487,6 +592,7 @@ async function loadRating() {
 function onModeChange(value) {
   if (value === 'rating') loadRating()
   else if (value === 'inbound') loadInbound()
+  else if (value === 'photo') loadPhotos()
   else reload()
 }
 
