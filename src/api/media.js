@@ -977,6 +977,22 @@ export function moveAlbumPhotos(photoIds, target, dupPolicy) {
     data: { photoIds, target, dupPolicy: dupPolicy || 'keep' }
   })
 }
+// P6.55：入站队列的「通过并采纳」= 审核通过 + 采纳，一次点击站端可见
+export function approveInbound(ids) {
+  return request({
+    url: '/api/media/admin/review/inbound/approve',
+    method: 'post',
+    data: { ids }
+  })
+}
+// P6.55：整册打散为未归类（照片不删，只是不再属于任何册）
+export function detachAlbum(album) {
+  return request({
+    url: BASE + '/albums/photos/detach-album',
+    method: 'post',
+    data: { album }
+  })
+}
 // P6.54：采纳建议册（扫描按目录建出来的册默认未采纳，站端看不到）
 export function confirmAlbums(ids) {
   return request({
