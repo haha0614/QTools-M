@@ -272,6 +272,7 @@
         </button>
       </div>
       <div class="pv-bar">
+        <span class="pv-hint-keys">Shift+点击勾选可连选一段</span>
         <span class="pv-count">共 {{ pvRows.length }} 张<span v-if="pvRatingFilter !== 'all'">（筛出 {{ pvFilteredRows.length }} 张）</span></span>
         <span class="pv-count" v-if="pvSelected.length">已选 {{ pvSelected.length }}</span>
         <el-button size="small" @click="pvSelectAll">
@@ -280,6 +281,13 @@
         <el-button size="small" :disabled="!pvSelected.length" @click="pvSelected = []">清空选择</el-button>
         <span class="pv-spacer" />
         <el-button size="small" type="primary" plain @click="pvAutoVisible = true">自动分级</el-button>
+        <!-- P6.59：看完图直接定册，不用关掉弹窗再回行上点 -->
+        <el-button size="small" type="success" plain :disabled="pvBusy" data-testid="pv-approve-album"
+          @click="pvDecideAlbum('approved')">通过本册</el-button>
+        <el-button v-if="pvAlbum.confirmed === 0" size="small" type="success" :disabled="pvBusy"
+          data-testid="pv-adopt-album" @click="pvApproveAndAdopt">通过并采纳</el-button>
+        <el-button size="small" type="danger" plain :disabled="pvBusy" data-testid="pv-reject-album"
+          @click="pvDecideAlbum('rejected')">驳回本册</el-button>
         <template v-if="pvSelected.length">
           <el-button size="small" type="success" :disabled="pvBusy" @click="pvBatch('general')">设大众</el-button>
           <el-button size="small" type="warning" :disabled="pvBusy" @click="pvBatch('guidance')">设指导</el-button>
@@ -292,7 +300,9 @@
           <img :src="mediaSrc(p.thumb)" loading="lazy" alt="" :title="'第 ' + (Number(p.seq) + 1) + ' 张 · ' + pvRatingLabel(p.rating)"
             @click="openBig(p)" />
           <span class="pv-badge" :class="p.rating || 'inherit'">{{ pvRatingShort(p.rating) }}</span>
-          <span class="pv-check" @click.stop="togglePv(p.id)">{{ pvIsSelected(p.id) ? '✓' : '' }}</span>
+          <span class="pv-check" @click.stop="togglePv(p.id, $event)">{{ pvIsSelected(p.id) ? '✓' : '' }}</span>
+          <!-- P6.59：从上次点选的那张连选到这里（与媒体库相册弹窗同手感） -->
+          <span class="pv-range" title="从上次点选的那张，连选到这里" @click.stop="pvSelectToHere(p)">选到此</span>
         </div>
       </div>
       <el-empty v-else description="没有图片" />
@@ -306,7 +316,7 @@
         当前分级
         <b class="pv-big-rating" :class="pvBig.rating || 'inherit'">{{ pvRatingLabel(pvBig.rating) }}</b>
         <span class="pv-big-sub">册级：{{ pvRatingLabel(pvAlbum.rating) }}（没单独设过的图跟着册级走）</span>
-        <span class="pv-big-keys">← → 切换上下一张</span>
+        <span class="pv-big-keys">← → 切换 · 1/2/3 定级 · 0 继承 · X 勾选并下一张</span>
       </div>
       <div class="pv-big" v-if="pvBig">
         <img :src="mediaSrc(pvBig.big)" alt="" @error="onBigError" />
@@ -742,11 +752,49 @@ function pvIsSelected(id) {
   return pvSelected.value.some((x) => String(x) === String(id))
 }
 
-function togglePv(id) {
+/** 连选锚点：上一次「点勾选框」的位置（筛选后按可见顺序算区间） */
+const pvAnchorId = ref('')
+
+function pvIndexOf(id) {
+  return pvFilteredRows.value.findIndex((p) => String(p.id) === String(id))
+}
+
+/** 把 from→to 之间（含两端）全部选上 */
+function pvPickRange(fromId, toId) {
+  const from = pvIndexOf(fromId)
+  const to = pvIndexOf(toId)
+  if (from < 0 || to < 0) return false
+  const [a, b] = from <= to ? [from, to] : [to, from]
+  const keys = pvFilteredRows.value.slice(a, b + 1).map((p) => String(p.id))
+  pvSelected.value = Array.from(new Set(pvSelected.value.concat(keys)))
+  pvAnchorId.value = String(toId)
+  return true
+}
+
+function togglePv(id, event) {
   const key = String(id)
+  // Shift+点击：从锚点连选到这里（不再单点切换，否则区间里已选中的会被取消）
+  if (event && event.shiftKey && pvAnchorId.value && pvAnchorId.value !== key) {
+    // 锚点可能已经不在当前筛选里（切过分级）：连不上就退回单点切换
+    if (pvPickRange(pvAnchorId.value, key)) return
+  }
   pvSelected.value = pvIsSelected(id)
     ? pvSelected.value.filter((x) => String(x) !== key)
     : pvSelected.value.concat([key])
+  pvAnchorId.value = key
+}
+
+/** 「选到此」：逻辑与 Shift+点击相同，给触屏用 */
+function pvSelectToHere(p) {
+  if (!p) return
+  if (!pvAnchorId.value) {
+    pvAnchorId.value = String(p.id)
+    if (!pvIsSelected(p.id)) pvSelected.value = pvSelected.value.concat([String(p.id)])
+    return
+  }
+  if (!pvPickRange(pvAnchorId.value, p.id)) {
+    pvSelected.value = pvSelected.value.concat([String(p.id)])
+  }
 }
 
 function pvSelectAll() {
@@ -762,7 +810,13 @@ function pvSelectAll() {
 }
 
 async function openAlbumPhotos(row) {
-  pvAlbum.value = { id: String(row.id), title: row.title || '', rating: row.contentRating || 'general' }
+  pvAlbum.value = {
+    id: String(row.id),
+    title: row.title || '',
+    rating: row.contentRating || 'general',
+    confirmed: row.confirmed
+  }
+  pvAnchorId.value = ''
   pvRows.value = []
   pvSelected.value = []
   pvRatingFilter.value = 'all'
@@ -811,6 +865,16 @@ function onPreviewKeydown(e) {
   } else if (e.key === 'ArrowRight') {
     e.preventDefault()
     stepBig(1)
+  } else if (pvBig.value && (e.key === '1' || e.key === '2' || e.key === '3' || e.key === '0')) {
+    // P6.59：看大图时直接定级——1 大众 / 2 家长指导 / 3 限制 / 0 继承相册
+    e.preventDefault()
+    const map = { 1: 'general', 2: 'guidance', 3: 'restricted', 0: null }
+    pvSetRating([pvBig.value.id], map[e.key])
+  } else if (pvBig.value && (e.key === 'x' || e.key === 'X')) {
+    // P6.59：勾上这张并翻到下一张（快速挑出要单独处理的几张）
+    e.preventDefault()
+    if (!pvIsSelected(pvBig.value.id)) togglePv(pvBig.value.id)
+    stepBig(1)
   }
 }
 
@@ -856,6 +920,42 @@ async function pvSetRating(ids, rating) {
 
 function pvBatch(rating) {
   pvSetRating(pvSelected.value, rating)
+}
+
+/** P6.59：在预览弹窗里直接定整册的审核状态（看完图就定，不用回行上点） */
+async function pvDecideAlbum(state) {
+  const id = pvAlbum.value.id
+  if (!id) return
+  pvBusy.value = true
+  try {
+    await setReviewState({ type: 'album', ids: [id], state })
+    ElMessage.success(state === 'approved' ? '本册已通过' : '本册已驳回')
+    pvVisible.value = false
+    reload()
+    loadSummary()
+  } catch (e) {
+    ElMessage.error('操作失败：' + errText(e))
+  } finally {
+    pvBusy.value = false
+  }
+}
+
+/** P6.59：建议册一次搞定——通过 + 采纳（站端可见） */
+async function pvApproveAndAdopt() {
+  const id = pvAlbum.value.id
+  if (!id) return
+  pvBusy.value = true
+  try {
+    await approveInbound([String(id)])
+    ElMessage.success('已通过并采纳（站端可见）')
+    pvVisible.value = false
+    reload()
+    loadSummary()
+  } catch (e) {
+    ElMessage.error('操作失败：' + errText(e))
+  } finally {
+    pvBusy.value = false
+  }
 }
 
 /** 自动分级写完回填：重新拉一遍本册，保证缩略图上的分级是最新的 */
@@ -969,6 +1069,14 @@ onMounted(() => {
   cursor: pointer; user-select: none;
 }
 .pv-item.on .pv-check { background: var(--el-color-primary); }
+/* P6.59：Shift 连选 / 选到此 */
+.pv-hint-keys { font-size: 12px; color: var(--el-text-color-placeholder); }
+.pv-range {
+  position: absolute; right: 4px; bottom: 4px; padding: 0 6px; border-radius: 3px;
+  font-size: 12px; line-height: 18px; color: #fff; background: rgba(0, 0, 0, 0.55);
+  cursor: pointer; display: none; user-select: none;
+}
+.pv-item:hover .pv-range { display: inline-block; }
 .pv-big { position: relative; display: flex; justify-content: center; align-items: center; min-height: 320px; background: #000; border-radius: 4px; }
 .rv-video { width: 100%; max-height: 70vh; background: #000; }
 .pv-big-status { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
