@@ -19,6 +19,11 @@
         扫进来但还没被「采纳 + 通过」的册：<b>建议册</b>（扫描按目录给的）与<b>待审册</b>。
         每本册在这里定三件事之一：通过并采纳（站端可见）、并入另一册、打散为未归类。
       </p>
+      <el-radio-group v-model="inboundMode" size="small" class="rv-inbound-mode" @change="loadInbound">
+        <el-radio-button value="suggest">建议册（新到货）</el-radio-button>
+        <el-radio-button value="pending">未审正式册（积压）</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+      </el-radio-group>
       <div class="rv-tools">
         <el-input v-model="keyword" placeholder="搜索标题 / 目录" clearable style="width: 220px"
           @keyup.enter="loadInbound" @clear="loadInbound" />
@@ -281,6 +286,8 @@ const inboundTotal = ref(0)
 const inboundLoading = ref(false)
 const inboundSelection = ref([])
 const inboundQuery = reactive({ page: 1, size: 10 })
+/** 队列口径：suggest=只有建议册（默认，新到货）/ pending=未审正式册 / all=并集 */
+const inboundMode = ref('suggest')
 const inboundMergeVisible = ref(false)
 const inboundMergeSource = ref(null)
 const inboundMergeTarget = ref('')
@@ -308,7 +315,7 @@ async function loadInbound() {
   try {
     const res = await listReview({
       type: 'album',
-      inbound: true,
+      inbound: inboundMode.value,
       keyword: keyword.value,
       page: inboundQuery.page,
       size: inboundQuery.size
@@ -806,6 +813,7 @@ onMounted(() => {
 .rv-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
 .rv-sub { margin: 0 0 10px; font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.7; }
 .rv-mode { margin-bottom: 10px; }
+.rv-inbound-mode { margin-bottom: 8px; }
 .rv-cards { display: flex; gap: 12px; margin-bottom: 8px; }
 .rv-card {
   flex: 1; max-width: 320px; padding: 10px 14px; border: 1px solid var(--el-border-color);
