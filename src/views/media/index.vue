@@ -249,6 +249,9 @@
               data-testid="album-batch-rating" @click="openBatchRating('album')">批量设置分级</el-button>
           <el-button type="primary" size="small" icon="User" v-hasPermi="['media:admin:edit']"
             data-testid="album-batch-person" @click="openAlbumBatchPerson">设置人物</el-button>
+          <!-- P6.54：选中「建议册」后一键采纳（站端才可见） -->
+          <el-button type="success" size="small" icon="Select" v-hasPermi="['media:admin:edit']"
+            data-testid="album-batch-confirm" @click="confirmSelectedAlbums">采纳（可上站）</el-button>
           </span>
           <span v-else class="album-batch-hint">勾选多本相册可批量设置分级</span>
         </div>
@@ -261,7 +264,14 @@
                 alt="封面" title="点击放大" @click="openPhotos(scope.row)" />
             </template>
           </el-table-column>
-          <el-table-column label="标题" prop="title" min-width="200" :show-overflow-tooltip="true" />
+          <el-table-column label="标题" min-width="220">
+            <template #default="scope">
+              <span :title="scope.row.title">{{ scope.row.title }}</span>
+              <!-- P6.54：扫描按目录给的建议册，站端不可见，等人采纳或并入 -->
+              <el-tag v-if="scope.row.confirmed === 0" size="small" type="warning" class="album-suggest-tag"
+                data-testid="album-suggest-tag">建议册</el-tag>
+            </template>
+          </el-table-column>
           <el-table-column label="物理目录" prop="dir" min-width="180" :show-overflow-tooltip="true" />
           <el-table-column label="人物" width="120" align="center">
             <template #default="scope">{{ scope.row.person || '未归类' }}</template>
@@ -306,6 +316,8 @@
                       v-hasPermi="['media:admin:edit']">人物（多选）</el-dropdown-item>
                     <el-dropdown-item icon="Hide" @click="toggleHidden(scope.row, 'album')"
                       v-hasPermi="['media:admin:edit']">{{ scope.row.hidden ? '取消隐藏' : '隐藏' }}</el-dropdown-item>
+                    <el-dropdown-item icon="Select" @click="confirmOneAlbum(scope.row)" :disabled="scope.row.confirmed !== 0"
+                      v-hasPermi="['media:admin:edit']">采纳为正式册</el-dropdown-item>
                     <el-dropdown-item icon="Share" @click="openAlbumMerge(scope.row)"
                       v-hasPermi="['media:admin:edit']">并入另一册…</el-dropdown-item>
                   </el-dropdown-menu>
@@ -934,7 +946,7 @@ import DeriveEmptyState from './DeriveEmptyState.vue'
 import { deriveMapOf, buildResultModel, DERIVE_FILTER_DEFAULT, filterVideoRows } from './deriveModel'
 import { getDeriveStatus } from '@/api/media'
 // 内容分级（P5.99）：行内下拉 / 批量设置用到的接口与值域常量
-import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos } from '@/api/media'
+import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos, confirmAlbums as confirmAlbumsApi } from '@/api/media'
 import { RATING_OPTIONS, ratingOf } from './ratingOptions'
 
 const route = useRoute()
@@ -3003,6 +3015,30 @@ const albumMergeLoading = ref(false)
 const albumMergeBusy = ref(false)
 const albumMergePreview = ref({ moving: 0, duplicates: 0 })
 
+/* P6.54：采纳建议册 */
+async function confirmAlbumsByIds(ids) {
+  if (!ids || !ids.length) return
+  try {
+    const res = await confirmAlbumsApi(ids)
+    proxy.$modal.msgSuccess('已采纳 ' + ((res && res.confirmed) || ids.length) + ' 本册（站端可见）')
+    loadAlbums()
+    loadStats()
+  } catch (e) {
+    proxy.$modal.msgError('采纳失败：' + (errorText(e) || (e && e.message) || '请求失败'))
+  }
+}
+
+function confirmSelectedAlbums() {
+  const ids = selectedAlbums.value.map((a) => String(a.id))
+  if (!ids.length) return
+  confirmAlbumsByIds(ids)
+}
+
+function confirmOneAlbum(row) {
+  if (!row || row.id == null || row.confirmed !== 0) return
+  confirmAlbumsByIds([String(row.id)])
+}
+
 function openAlbumMerge(row) {
   albumMergeSource.value = row
   albumMergeTarget.value = ''
@@ -3360,6 +3396,9 @@ onBeforeUnmount(() => { stopScanPolling() })
 .album-merge-preview { margin: 10px 0 0; font-size: 13px; color: var(--el-text-color-regular); }
 .album-merge-dup { color: var(--el-color-warning); }
 .album-merge-tip { margin: 0 0 12px; font-size: 13px; line-height: 1.7; color: var(--el-text-color-regular); }
+/* P6.54：建议册徽标 */
+.album-suggest-tag { margin-left: 8px; transform: scale(0.9); }
+
 /* P6.52：未归类网格 */
 .uncat-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .uncat-count { font-size: 13px; color: var(--el-text-color-secondary); }

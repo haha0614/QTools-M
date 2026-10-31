@@ -977,6 +977,14 @@ export function moveAlbumPhotos(photoIds, target, dupPolicy) {
     data: { photoIds, target, dupPolicy: dupPolicy || 'keep' }
   })
 }
+// P6.54：采纳建议册（扫描按目录建出来的册默认未采纳，站端看不到）
+export function confirmAlbums(ids) {
+  return request({
+    url: BASE + '/albums/confirm',
+    method: 'post',
+    data: { ids }
+  })
+}
 // P6.52：移出册 → 未归类（album_id 置空 + album_pinned=1，扫描不会按目录拽回）
 export function detachAlbumPhotos(photoIds) {
   return request({
