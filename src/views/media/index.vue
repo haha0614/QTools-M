@@ -24,6 +24,10 @@
           <!-- P5.99：勾选后批量设置内容分级 -->
           <el-button type="primary" size="small" icon="PriceTag" v-hasPermi="['media:admin:edit']"
             data-testid="video-batch-rating" @click="openBatchRating('video')">批量设置分级</el-button>
+          <el-button type="primary" size="small" icon="User" v-hasPermi="['media:admin:edit']"
+            data-testid="video-batch-person" @click="openVideoBatchPerson">设置人物</el-button>
+          <el-button type="primary" size="small" icon="OfficeBuilding" v-hasPermi="['media:admin:edit']"
+            data-testid="video-batch-studio" @click="openVideoBatchStudio">设置工作室</el-button>
         </span>
         <el-button icon="Refresh" :loading="statsLoading" @click="refreshAll">刷新</el-button>
         <el-button icon="PriceTag" @click="openTagManager" v-hasPermi="['media:admin:list']">标签管理</el-button>
@@ -75,6 +79,12 @@
                 :value="item.codec" />
             </el-select>
           </el-form-item>
+          <el-form-item label="分级" prop="rating">
+            <!-- P6.07：管理端此前只能逐行看分级，不能筛（用户反馈） -->
+            <el-select v-model="videoQuery.rating" placeholder="全部分级" clearable style="width: 140px">
+              <el-option v-for="opt in RATING_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
+            </el-select>
+          </el-form-item>
           <el-form-item label="隐藏" prop="hidden">
             <el-select v-model="videoQuery.hidden" style="width: 120px">
               <el-option label="显示全部" value="all" />
@@ -120,6 +130,13 @@
           <el-table-column label="标题" prop="title" min-width="200" :show-overflow-tooltip="true" />
           <el-table-column label="路径" prop="relPath" min-width="220" :show-overflow-tooltip="true" />
           <el-table-column label="分类" prop="folder" width="110" align="center" />
+          <!-- P6.07：列表补上「人物 / 工作室」两列（后端子查询聚合，无 N+1） -->
+          <el-table-column label="人物" min-width="150" :show-overflow-tooltip="true">
+            <template #default="scope">{{ scope.row.personText || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="工作室" min-width="130" :show-overflow-tooltip="true">
+            <template #default="scope">{{ scope.row.studioText || '—' }}</template>
+          </el-table-column>
           <el-table-column label="清晰度" width="110" align="center">
             <template #default="scope">{{ resolution(scope.row) }}</template>
           </el-table-column>
@@ -134,12 +151,23 @@
             <template #default="scope">
               <!-- P5.99：行内下拉直接写库（PUT /video/{id}/rating），保存成功即反映到行对象；
                    失败保留原值并弹错误（不做乐观更新，避免「看着改了其实没改」） -->
-              <el-select :model-value="ratingOf(scope.row)" size="small" class="rating-select"
-                :disabled="ratingBusy['v:' + scope.row.id]" data-testid="video-rating-select"
-                v-hasPermi="['media:admin:edit']" @update:model-value="(v) => changeRating(scope.row, 'video', v)">
-                <el-option v-for="opt in RATING_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
-              </el-select>
+              <!-- P6.21：行内分级 = 标签 + 全表共用一个下拉（见页面底部 ratingMenuRef）。
+                   以前每行一个 el-select：一页 200 行 = 200 个下拉实例 / 200 个弹层，光是挂载就要 1 秒。 -->
+              <span class="rating-cell" :class="'rc-' + ratingOf(scope.row)" role="button" tabindex="0"
+                :title="'点击修改分级（当前：' + ratingLabelOf(ratingOf(scope.row)) + '）'"
+                data-testid="video-rating-select" v-hasPermi="['media:admin:edit']"
+                @click.stop="openRatingMenu($event, scope.row, 'video')"
+                @keydown.enter.prevent="openRatingMenu($event, scope.row, 'video')">{{ ratingLabelOf(ratingOf(scope.row)) }}</span>
               <div v-if="ratingError[scope.row.id]" class="rating-error">{{ ratingError[scope.row.id] }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="审核" width="94" align="center">
+            <template #default="scope">
+              <span class="review-cell" :class="'rs-' + (scope.row.reviewState || 'pending')" role="button" tabindex="0"
+                :title="'点击修改审核状态（当前：' + reviewLabelOf(scope.row.reviewState) + '）'"
+                v-hasPermi="['media:admin:edit']"
+                @click.stop="openReviewMenu($event, scope.row)"
+                @keydown.enter.prevent="openReviewMenu($event, scope.row)">{{ reviewLabelOf(scope.row.reviewState) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="86" align="center">
@@ -153,20 +181,22 @@
                 :algo-since="deriveMeta.algoSince" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="190" align="center" fixed="right" class-name="small-padding fixed-width">
+          <!-- P6.11：低频操作收进「更多」，行上只留预览 + 删除 -->
+          <el-table-column label="操作" width="120" align="center" fixed="right" class-name="small-padding fixed-width">
             <template #default="scope">
-              <el-tooltip content="预览" placement="top">
-                <el-button link type="primary" icon="View" @click="previewVideo(scope.row)" v-hasPermi="['media:admin:list']" />
-              </el-tooltip>
-              <el-tooltip content="人物（多选 + 角色）" placement="top">
-                <el-button link type="primary" icon="UserFilled" @click="openVideoPersons(scope.row)" v-hasPermi="['media:admin:edit']" />
-              </el-tooltip>
-              <el-tooltip :content="scope.row.hidden ? '取消隐藏' : '隐藏'" placement="top">
-                <el-button link type="primary" icon="Hide" @click="toggleHidden(scope.row, 'video')" v-hasPermi="['media:admin:edit']" />
-              </el-tooltip>
-              <el-tooltip content="软删" placement="top">
-                <el-button link type="danger" icon="Delete" @click="handleRemove(scope.row, 'video')" v-hasPermi="['media:admin:remove']" />
-              </el-tooltip>
+              <el-button link type="primary" icon="View" title="预览" @click="previewVideo(scope.row)" v-hasPermi="['media:admin:list']" />
+              <el-dropdown trigger="click" class="row-more">
+                <el-button link type="primary" icon="MoreFilled" data-testid="video-row-more" />
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item icon="UserFilled" @click="openVideoPersons(scope.row)"
+                      v-hasPermi="['media:admin:edit']">人物（多选 + 角色）</el-dropdown-item>
+                    <el-dropdown-item icon="Hide" @click="toggleHidden(scope.row, 'video')"
+                      v-hasPermi="['media:admin:edit']">{{ scope.row.hidden ? '取消隐藏' : '隐藏' }}</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-button link type="danger" icon="Delete" title="软删" @click="handleRemove(scope.row, 'video')" v-hasPermi="['media:admin:remove']" />
             </template>
           </el-table-column>
         </el-table>
@@ -182,6 +212,11 @@
           <el-form-item label="人物" prop="personId">
             <el-select v-model="albumQuery.personId" placeholder="全部人物" clearable style="width: 180px">
               <el-option v-for="item in peopleOptions" :key="item.id" :label="item.name + ' (' + item.albumCount + ')'" :value="item.id" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="分级" prop="rating">
+            <el-select v-model="albumQuery.rating" placeholder="全部分级" clearable style="width: 140px">
+              <el-option v-for="opt in RATING_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
             </el-select>
           </el-form-item>
           <el-form-item label="隐藏" prop="hidden">
@@ -209,6 +244,8 @@
             <el-button link type="primary" @click="clearAlbumSelection">清空</el-button>
             <el-button type="primary" size="small" icon="PriceTag" v-hasPermi="['media:admin:edit']"
               data-testid="album-batch-rating" @click="openBatchRating('album')">批量设置分级</el-button>
+          <el-button type="primary" size="small" icon="User" v-hasPermi="['media:admin:edit']"
+            data-testid="album-batch-person" @click="openAlbumBatchPerson">设置人物</el-button>
           </span>
           <span v-else class="album-batch-hint">勾选多本相册可批量设置分级</span>
         </div>
@@ -218,7 +255,7 @@
           <el-table-column label="封面" width="66" align="center">
             <template #default="scope">
               <img class="media-cover media-cover-square media-cover-click" :src="mediaSrc(albumThumb(scope.row))" loading="lazy"
-                alt="封面" title="点击放大" @click="openAlbumPreview(scope.row)" />
+                alt="封面" title="点击放大" @click="openPhotos(scope.row)" />
             </template>
           </el-table-column>
           <el-table-column label="标题" prop="title" min-width="200" :show-overflow-tooltip="true" />
@@ -232,12 +269,21 @@
           </el-table-column>
           <el-table-column label="分级" width="132" align="center" class-name="rating-col">
             <template #default="scope">
-              <el-select :model-value="ratingOf(scope.row)" size="small" class="rating-select"
-                :disabled="ratingBusy['a:' + scope.row.id]" data-testid="album-rating-select"
-                v-hasPermi="['media:admin:edit']" @update:model-value="(v) => changeRating(scope.row, 'album', v)">
-                <el-option v-for="opt in RATING_OPTIONS" :key="opt.value" :label="opt.label" :value="opt.value" />
-              </el-select>
+              <span class="rating-cell" :class="'rc-' + ratingOf(scope.row)" role="button" tabindex="0"
+                :title="'点击修改分级（当前：' + ratingLabelOf(ratingOf(scope.row)) + '）'"
+                data-testid="album-rating-select" v-hasPermi="['media:admin:edit']"
+                @click.stop="openRatingMenu($event, scope.row, 'album')"
+                @keydown.enter.prevent="openRatingMenu($event, scope.row, 'album')">{{ ratingLabelOf(ratingOf(scope.row)) }}</span>
               <div v-if="ratingError[scope.row.id]" class="rating-error">{{ ratingError[scope.row.id] }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="审核" width="94" align="center">
+            <template #default="scope">
+              <span class="review-cell" :class="'rs-' + (scope.row.reviewState || 'pending')" role="button" tabindex="0"
+                :title="'点击修改审核状态（当前：' + reviewLabelOf(scope.row.reviewState) + '）'"
+                v-hasPermi="['media:admin:edit']"
+                @click.stop="openReviewMenu($event, scope.row)"
+                @keydown.enter.prevent="openReviewMenu($event, scope.row)">{{ reviewLabelOf(scope.row.reviewState) }}</span>
             </template>
           </el-table-column>
           <el-table-column label="状态" width="86" align="center">
@@ -245,23 +291,24 @@
               <el-tag :type="scope.row.hidden ? 'info' : 'success'" size="small">{{ scope.row.hidden ? '隐藏' : '正常' }}</el-tag>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="230" align="center" fixed="right" class-name="small-padding fixed-width">
+          <!-- P6.11：低频操作收进「更多」；「改人物」与「人物（多选）」重复，只留多选那个 -->
+          <el-table-column label="操作" width="120" align="center" fixed="right" class-name="small-padding fixed-width">
             <template #default="scope">
-              <el-tooltip content="查看图片" placement="top">
-                <el-button link type="primary" icon="Picture" @click="openPhotos(scope.row)" v-hasPermi="['media:admin:list']" />
-              </el-tooltip>
-              <el-tooltip content="人物（多选）" placement="top">
-                <el-button link type="primary" icon="Avatar" @click="openAlbumPersons(scope.row)" v-hasPermi="['media:admin:edit']" />
-              </el-tooltip>
-              <el-tooltip content="改人物" placement="top">
-                <el-button link type="primary" icon="User" @click="openPerson(scope.row)" v-hasPermi="['media:admin:edit']" />
-              </el-tooltip>
-              <el-tooltip :content="scope.row.hidden ? '取消隐藏' : '隐藏'" placement="top">
-                <el-button link type="primary" icon="Hide" @click="toggleHidden(scope.row, 'album')" v-hasPermi="['media:admin:edit']" />
-              </el-tooltip>
-              <el-tooltip content="软删" placement="top">
-                <el-button link type="danger" icon="Delete" @click="handleRemove(scope.row, 'album')" v-hasPermi="['media:admin:remove']" />
-              </el-tooltip>
+              <el-button link type="primary" icon="Picture" title="查看图片" @click="openPhotos(scope.row)" v-hasPermi="['media:admin:list']" />
+              <el-dropdown trigger="click" class="row-more">
+                <el-button link type="primary" icon="MoreFilled" data-testid="album-row-more" />
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item icon="Avatar" @click="openAlbumPersons(scope.row)"
+                      v-hasPermi="['media:admin:edit']">人物（多选）</el-dropdown-item>
+                    <el-dropdown-item icon="Hide" @click="toggleHidden(scope.row, 'album')"
+                      v-hasPermi="['media:admin:edit']">{{ scope.row.hidden ? '取消隐藏' : '隐藏' }}</el-dropdown-item>
+                    <el-dropdown-item icon="Share" @click="openAlbumMerge(scope.row)"
+                      v-hasPermi="['media:admin:edit']">并入另一册…</el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-button link type="danger" icon="Delete" title="软删" @click="handleRemove(scope.row, 'album')" v-hasPermi="['media:admin:remove']" />
             </template>
           </el-table-column>
         </el-table>
@@ -295,6 +342,16 @@
         </el-form>
 
         <el-table v-loading="trashLoading" :data="trashList" class="media-table">
+          <el-table-column label="封面" width="76" align="center">
+            <template #default="scope">
+              <!-- 封面走内容寻址：文件已经进了回收站，缩略图/预览图仍在（按内容哈希落盘） -->
+              <el-image v-if="scope.row.thumbUrl" class="media-cover media-cover-square media-cover-click"
+                :src="mediaSrc(scope.row.thumbUrl)" fit="cover" loading="lazy"
+                :preview-src-list="[mediaSrc(scope.row.previewUrl || scope.row.thumbUrl)]"
+                :initial-index="0" preview-teleported hide-on-click-modal />
+              <span v-else class="trash-cover-ph" title="没有可用封面">—</span>
+            </template>
+          </el-table-column>
           <el-table-column label="类型" width="86" align="center">
             <template #default="scope">
               <el-tag :type="trashTagType(scope.row.kind)" size="small">{{ trashKindText(scope.row.kind) }}</el-tag>
@@ -313,9 +370,9 @@
           <el-table-column label="删除时间" prop="deletedAt" width="160" align="center" />
           <el-table-column label="操作" width="150" align="center" fixed="right" class-name="small-padding fixed-width">
             <template #default="scope">
-              <el-tooltip :content="scope.row.orphan ? '原记录已丢失，无法恢复' : '恢复'" placement="top">
-                <el-button link type="primary" icon="RefreshLeft" :disabled="scope.row.orphan" @click="handleTrashRestore(scope.row)"
-                  v-hasPermi="['media:admin:edit']" />
+              <el-tooltip :content="scope.row.originalRel ? '恢复到原路径（重名自动加后缀）' : '原记录已丢失，无法恢复'" placement="top">
+                <el-button link type="primary" icon="RefreshLeft" :disabled="!scope.row.originalRel"
+                  @click="handleTrashRestore(scope.row)" v-hasPermi="['media:admin:edit']" />
               </el-tooltip>
               <el-tooltip content="彻底删除（不可恢复）" placement="top">
                 <el-button link type="danger" icon="Delete" @click="handleTrashPurge(scope.row)" v-hasPermi="['media:admin:remove']" />
@@ -329,22 +386,278 @@
       </el-tab-pane>
     </el-tabs>
 
+    <!-- P6.21：行内分级 = 标签 + 全表共用一个下拉。
+         以前每行一个 el-select（每行 1 个弹层 + 4 个 option），一页 200 行 = 200 个下拉实例；
+         共用后整个页面只有 1 个 dropdown，虚拟触发对准刚点的那一格。 -->
+    <el-dropdown ref="ratingMenuRef" trigger="click" virtual-triggering :virtual-ref="ratingMenuAnchor"
+      @command="onRatingMenuCommand">
+      <span class="rating-menu-anchor" aria-hidden="true"></span>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item v-for="opt in RATING_OPTIONS" :key="opt.value" :command="opt.value">{{ opt.label }}</el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+
+
+    <!-- P6.38：审核状态也是「一格一点」——复用同一个共用下拉思路，全页只 1 个实例 -->
+    <el-dropdown ref="reviewMenuRef" trigger="click" virtual-triggering :virtual-ref="reviewMenuAnchor"
+      @command="onReviewMenuCommand">
+      <span class="rating-menu-anchor" aria-hidden="true"></span>
+      <template #dropdown>
+        <el-dropdown-menu>
+          <el-dropdown-item command="pending">待审核</el-dropdown-item>
+          <el-dropdown-item command="approved">已通过</el-dropdown-item>
+          <el-dropdown-item command="rejected">已驳回</el-dropdown-item>
+        </el-dropdown-menu>
+      </template>
+    </el-dropdown>
+
+    <!-- P6.48：册并入 —— 把子目录/重复册并回目标册 -->
+    <el-dialog v-model="albumMergeVisible" title="并入另一册" width="min(560px, 92vw)" append-to-body>
+      <p class="album-merge-tip">
+        把「{{ albumMergeSource && albumMergeSource.title }}」整本并到目标册：照片改挂目标册，
+        目录会登记别名，<b>以后扫描不会再单独建册</b>。
+      </p>
+      <el-select v-model="albumMergeTarget" filterable remote clearable placeholder="搜索目标相册（标题/目录）"
+        :remote-method="searchMergeTargets" :loading="albumMergeLoading" style="width: 100%"
+        @change="onMergeTargetChange">
+        <el-option v-for="a in albumMergeOptions" :key="a.id" :label="(a.title || a.id) + '（' + (a.photoCount || 0) + ' 张）'"
+          :value="a.id">
+          <div class="album-opt">
+            <img class="album-opt-cover" :src="mediaSrc(albumThumb(a))" loading="lazy" alt=""
+              @error="hideBrokenCover" />
+            <span class="album-opt-title">{{ a.title || a.id }}</span>
+            <span class="album-opt-count">{{ a.photoCount || 0 }} 张</span>
+          </div>
+        </el-option>
+      </el-select>
+      <p class="album-merge-preview" v-if="albumMergeTarget && albumMergePreview.moving">
+        将并入 <b>{{ albumMergePreview.moving }}</b> 张
+        <span v-if="albumMergePreview.duplicates" class="album-merge-dup">
+          ，其中 <b>{{ albumMergePreview.duplicates }}</b> 张与目标册内容重复（不会自动删，去「重复文件」处理）
+        </span>
+      </p>
+      <template #footer>
+        <el-button @click="albumMergeVisible = false">取消</el-button>
+        <el-button type="primary" :loading="albumMergeBusy" :disabled="!albumMergeTarget" @click="doAlbumMerge">确认并入</el-button>
+      </template>
+    </el-dialog>
+    <!-- P6.51：按图改归属 —— 移到另一本册 / 从当前册拆出一本新册；文件不动，只改归属并打 album_pinned -->
+    <el-dialog v-model="photoRelocateVisible" :title="photoRelocateMode === 'split' ? '拆出新册' : '移到另一册'"
+      width="min(560px, 92vw)" append-to-body>
+      <p class="album-merge-tip">
+        把选中的 {{ photoSelected.length }} 张改成<b>人工归属</b>：只改库里的归属，
+        不动磁盘文件，<b>以后扫描不会再按目录把它们拽回去</b>。
+      </p>
+      <el-input v-if="photoRelocateMode === 'split'" v-model="photoRelocateTitle" maxlength="300" show-word-limit
+        placeholder="新册标题（例如：马吉 · 精选）" data-testid="photo-split-title" />
+      <el-select v-else v-model="photoRelocateTarget" filterable remote clearable placeholder="搜索目标相册（标题/目录）"
+        :remote-method="searchRelocateTargets" :loading="photoRelocateLoading" style="width: 100%"
+        data-testid="photo-move-target" @change="onRelocateTargetChange">
+        <el-option v-for="a in photoRelocateOptions" :key="a.id"
+          :label="(a.title || a.id) + '（' + (a.photoCount || 0) + ' 张）'" :value="a.id">
+          <!-- P6.51：下拉项带封面，光看标题选不出册 -->
+          <div class="album-opt">
+            <img class="album-opt-cover" :src="mediaSrc(albumThumb(a))" loading="lazy" alt=""
+              @error="hideBrokenCover" />
+            <span class="album-opt-title">{{ a.title || a.id }}</span>
+            <span class="album-opt-count">{{ a.photoCount || 0 }} 张</span>
+          </div>
+        </el-option>
+      </el-select>
+      <!-- P6.51：目标册已有同内容时先报数，再让用户选「跳过 / 同时存在 / 只保留一份」 -->
+      <div v-if="photoRelocateMode === 'move' && relocatePreview.duplicates" class="relocate-dup">
+        <el-alert type="warning" :closable="false" show-icon
+          :title="'目标册已有同内容：选中的 ' + relocatePreview.moving + ' 张里有 '
+            + relocatePreview.duplicates + ' 张重复'">
+          <template #default>
+            <p>
+              全库共 {{ relocatePreview.globalCopies }} 处同内容。一张照片只属于一个系列，
+              所以同一本册里出现两份相同的图就是重复文件。
+            </p>
+          </template>
+        </el-alert>
+        <el-radio-group v-model="relocateDupPolicy" class="relocate-dup-group">
+          <el-radio value="skip">跳过重复（重复的那几张不搬）</el-radio>
+          <el-radio value="keep">同时存在（都留着，之后在重复文件页处理）</el-radio>
+          <el-radio value="replace">只保留一份（目标册里旧的那份文件移入回收站）</el-radio>
+        </el-radio-group>
+      </div>
+      <p class="album-merge-preview" v-if="photoRelocateMode === 'split'">
+        新册没有目录（不进目录册体系），扫描不会认领也不会当空壳清理；
+        封面留空，审核状态默认「待审核」，要上站请先在审核页通过。
+      </p>
+      <template #footer>
+        <el-button @click="photoRelocateVisible = false">取消</el-button>
+        <el-button type="primary" :loading="photoRelocateBusy"
+          :disabled="photoRelocateMode === 'split' ? !photoRelocateTitle.trim() : !photoRelocateTarget"
+          data-testid="photo-relocate-submit" @click="doPhotoRelocate">
+          {{ photoRelocateMode === 'split' ? '确认拆出' : '确认移动' }}
+        </el-button>
+      </template>
+    </el-dialog>
+    <!-- P6.46：视频页内播放（以前是新开标签） -->
+    <el-dialog v-model="videoPlayVisible" :title="videoPlayTitle" width="min(1100px, 94vw)" append-to-body
+      destroy-on-close class="video-dialog">
+      <video v-if="videoPlaySrc" :src="videoPlaySrc" controls autoplay class="video-player"></video>
+    </el-dialog>
     <!-- 图片浏览：用库数据（GET /album/{id}/photos）渲染，每格 = 缩略图 + seq + 文件名（relPath 末段），
          按 seq 升序；接口 404 时回退到旧的磁盘列举（photoSource='disk'），这时会在顶部提示一行 -->
-    <el-dialog v-model="photosVisible" :title="photosTitle" width="min(680px, 92vw)" append-to-body>
+    <el-dialog v-model="photosVisible" :title="photosTitle" width="min(1120px, 94vw)" class="photos-dialog" append-to-body>
+      <template #header>
+        <div class="photos-head">
+          <span class="photos-head-title">{{ photosTitle }}</span>
+          <span class="photos-head-picked" v-if="photoSelected.length">已选 {{ photoSelected.length }} 张</span>
+          <span class="photos-head-tip">Shift+点击 / 触屏长按拖动 可连选</span>
+          <el-button v-if="photoList.length" link type="primary" size="small" class="photos-head-all"
+            data-testid="photo-select-all" @click="toggleSelectAll">
+            {{ allPicked ? '取消全选本页' : '全选本页（' + photoList.length + '）' }}
+          </el-button>
+        </div>
+      </template>
       <p class="photo-notice" v-if="photoNotice">{{ photoNotice }}</p>
-      <div class="photo-grid" v-loading="photosLoading">
-        <div class="photo-item" v-for="photo in photoList" :key="photoKey(photo)" @click="openPhotoPreview(photo)">
+      <!-- P6.22：按分级筛选（用筛选条而不是 tab）：
+           ① 不叠第二层导航，和「已选 N 张 / 批量设分级」在同一张网格里；
+           ② 每个档位带数量，「还剩多少张是继承」一眼可见；
+           ③ 只在已加载的全册数据上做前端切片，点一下不发请求。 -->
+      <div class="photo-filter" v-if="photoSource !== 'disk' && photoRowsAll.length" data-testid="photo-rating-filter">
+        <span class="photo-filter-label">本册分级
+          <b class="photo-album-rating" :class="'ar-' + albumPhotoRating">{{ albumPhotoRatingLabel }}</b>
+        </span>
+        <span class="photo-filter-divider"></span>
+        <span class="photo-filter-label">筛选</span>
+        <button v-for="opt in PHOTO_RATING_FILTERS" :key="opt.value" type="button"
+          class="photo-filter-chip" :class="{ on: photoRatingFilter === opt.value, empty: !photoRatingCounts[opt.value] }"
+          :title="photoFilterTitle(opt)"
+          @click="setPhotoRatingFilter(opt.value)">
+          <i class="photo-filter-dot" :class="'dot-' + opt.value"></i>{{ opt.label }}<b>{{ photoRatingCounts[opt.value] }}</b>
+        </button>
+        <!-- P6.24：本册图片的内容自动分级（服务端 NSFW 模型逐张判露点，先预览后写库） -->
+        <el-button size="small" type="primary" plain icon="MagicStick" class="photo-auto-rate"
+          v-hasPermi="['media:admin:edit']" @click="autoRateVisible = true">自动分级</el-button>
+      </div>
+      <div
+        class="photo-grid"
+        :class="{ 'range-on': multiMode }"
+        v-loading="photosLoading"
+        @pointermove="onGridPointerMove($event)"
+        @pointerup="onGridPointerUp($event)"
+        @pointercancel="onGridPointerUp($event)"
+      >
+        <div
+          class="photo-item"
+          :class="{ picked: photoSelected.includes(String(photo.id)) }"
+          :data-id="String(photo.id)"
+          v-for="photo in photoList"
+          :key="photoKey(photo)"
+          @click="onPhotoClick(photo)"
+          @pointerdown="onCardPointerDown(photo, $event)"
+        >
+          <!-- P6.17：自绘勾选框（el-checkbox 的 change 拿不到 shiftKey），支持 Shift 连选 -->
+          <span
+            class="photo-pick"
+            :class="{ on: photoSelected.includes(String(photo.id)) }"
+            role="checkbox"
+            :aria-checked="photoSelected.includes(String(photo.id))"
+            title="勾选；按住 Shift 点击可连选一段"
+            @click.stop="onPickClick(photo, $event)"
+          ></span>
           <div class="photo-thumb">
             <img :src="mediaSrc(photo.thumbUrl)" loading="lazy" :alt="'第 ' + photo.seq + ' 张'" />
             <span class="photo-seq">{{ photo.seq }}</span>
+            <!-- P6.20：悬停出现「选到此」——从上一张点过的图连选到这里（触屏上直接点这个按钮也可以） -->
+            <span class="photo-range" title="从上次点选的那张，连选到这里" @click.stop="selectToHere(photo)">选到此</span>
+            <!-- P6.09 原子级分级：点角标展开 4 个选项（继承/大众/家长指导/限制），一次点到位 -->
+            <el-dropdown
+              trigger="click"
+              class="photo-rating-dd"
+              placement="bottom-end"
+              @command="(v) => setPhotoRating(photo, v)"
+              @click.stop
+            >
+              <span
+                class="photo-rating"
+                :class="['pr-' + (photo.contentRating || 'inherit'), { wider: photoIsWider(photo) }]"
+                :title="'这张图的分级：' + photoRatingLabel(photo) + (photoIsWider(photo) ? '（比本册更宽，访客能单独看到这张）' : '')"
+                @click.stop
+              >{{ photoRatingShort(photo) }}</span>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <el-dropdown-item command="inherit">继承相册（{{ albumPhotoRatingLabel }}）</el-dropdown-item>
+                  <el-dropdown-item command="general">大众级</el-dropdown-item>
+                  <el-dropdown-item command="guidance">家长指导级</el-dropdown-item>
+                  <el-dropdown-item command="restricted">限制级</el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
           </div>
           <span class="photo-name" :title="photo.relPath || photoFileName(photo.relPath)">{{ photoFileName(photo.relPath) }}</span>
         </div>
       </div>
-      <el-empty description="暂无图片" v-if="!photosLoading && !photoList.length" />
-      <pagination v-show="photoTotal > 0" :page-sizes="[24, 48, 96]" :total="photoTotal" v-model:page="photoQuery.pageNum"
+      <el-empty :description="photoRatingFilter === 'all' ? '暂无图片' : '该分级下没有图片'" v-if="!photosLoading && !photoList.length" />
+      <pagination v-show="photoFilteredTotal > 0" :page-sizes="[48, 96, 192]" :total="photoFilteredTotal" v-model:page="photoQuery.pageNum"
         v-model:limit="photoQuery.pageSize" @pagination="handlePhotoPage" />
+      <!-- P6.14：批量条放 footer（固定可见），勾选后立刻能操作；之前它跟在长网格后面，滚到看不见 -->
+      <template #footer>
+        <div class="photo-batch" data-testid="photo-batch-bar">
+          <!-- P6.15：批量条只在真的勾选之后出现；没事时底部只有一个关闭 -->
+          <template v-if="photoSelected.length">
+            <span class="photo-batch-count">已选 {{ photoSelected.length }} 张</span>
+            <el-button size="small" :title="'设为继承相册（实际生效：' + albumPhotoRatingLabel + '）'"
+              @click="applyPhotoRating(null)">继承相册</el-button>
+            <el-button size="small" type="primary" plain @click="applyPhotoRating('general')">大众</el-button>
+            <el-button size="small" type="warning" plain @click="applyPhotoRating('guidance')">家长指导</el-button>
+            <el-button size="small" type="danger" plain @click="applyPhotoRating('restricted')">限制</el-button>
+            <!-- P6.51：按图改归属（人工归属，重扫不再按目录拽回） -->
+            <el-button size="small" plain data-testid="photo-move" @click="openPhotoRelocate('move')">移到另一册…</el-button>
+            <el-button size="small" plain data-testid="photo-split" @click="openPhotoRelocate('split')">拆出新册…</el-button>
+            <el-button size="small" link @click="photoSelected = []">清空</el-button>
+            <el-button size="small" v-if="multiMode" @click="exitMultiMode">完成</el-button>
+          </template>
+          <el-button size="small" @click="photosVisible = false">关闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <!-- P6.24：图片内容自动分级（服务端 NSFW 模型逐张判露点，先预览、确认后写库） -->
+    <PhotoAutoRateDialog v-model="autoRateVisible"
+      :album-id="String((currentAlbum && currentAlbum.id) || photoQuery.albumId || '')"
+      :album-title="(currentAlbum && currentAlbum.title) || ''" :items="autoRateItems"
+      @applied="onAutoRateApplied" />
+
+    <!-- P6.10 批量设置人物 / 工作室 -->
+    <el-dialog v-model="videoBatchPersonVisible" title="批量设置人物" width="min(460px, 92vw)" append-to-body>
+      <p class="batch-lead">将替换选中 {{ selectedVideos.length }} 个视频的人物归属；留空 = 清空（回到「素人」兜底）。</p>
+      <el-select v-model="videoBatchPersonIds" multiple filterable placeholder="选择人物（可多选）" style="width: 100%">
+        <el-option v-for="item in peopleOptions" :key="item.id" :label="item.name + ' (' + item.videoCount + ')'" :value="item.id" />
+      </el-select>
+      <template #footer>
+        <el-button @click="videoBatchPersonVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchSaving" data-testid="video-batch-person-submit" @click="submitVideoBatchPerson">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="videoBatchStudioVisible" title="批量设置工作室" width="min(460px, 92vw)" append-to-body>
+      <p class="batch-lead">将替换选中 {{ selectedVideos.length }} 个视频的工作室；留空 = 清空。</p>
+      <el-select v-model="videoBatchStudioIds" multiple filterable placeholder="选择工作室（可多选）" style="width: 100%">
+        <el-option v-for="item in studioOptions" :key="item.id" :label="item.name" :value="item.id" />
+      </el-select>
+      <template #footer>
+        <el-button @click="videoBatchStudioVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchSaving" data-testid="video-batch-studio-submit" @click="submitVideoBatchStudio">保存</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="albumBatchPersonVisible" title="批量设置相册人物" width="min(460px, 92vw)" append-to-body>
+      <p class="batch-lead">将把选中 {{ selectedAlbums.length }} 本相册归到同一人物（相册是单人物字段）；留空 = 未归类。</p>
+      <el-select v-model="albumBatchPersonId" filterable clearable placeholder="选择人物" style="width: 100%">
+        <el-option v-for="item in peopleOptions" :key="item.id" :label="item.name + ' (' + item.albumCount + ')'" :value="item.id" />
+      </el-select>
+      <template #footer>
+        <el-button @click="albumBatchPersonVisible = false">取消</el-button>
+        <el-button type="primary" :loading="batchSaving" data-testid="album-batch-person-submit" @click="submitAlbumBatchPerson">保存</el-button>
+      </template>
     </el-dialog>
 
     <!-- 改人物归属 -->
@@ -550,32 +863,49 @@
 
     <!-- P4-B 重复文件抽屉：kind 切换 / 列表 / 展开副本 / 分页 / 两处二次确认都在子组件里 -->
     <el-drawer v-model="duplicatesVisible" title="重复文件" size="min(1180px, 96vw)" append-to-body destroy-on-close>
-      <duplicates-panel />
+      <!-- P6.51：两个口径分 tab —— 主行同内容（新口径，默认）与副本路径（原有别名表） -->
+      <el-tabs v-model="dupTab" class="dup-tabs">
+        <el-tab-pane label="同内容多份（按内容哈希）" name="main">
+          <duplicate-main-panel v-if="dupTab === 'main'" />
+        </el-tab-pane>
+        <el-tab-pane label="副本路径（同目录第二份）" name="alias">
+          <duplicates-panel v-if="dupTab === 'alias'" />
+        </el-tab-pane>
+      </el-tabs>
     </el-drawer>
   </div>
 </template>
 
 <script setup name="Media">
-import { listVideos, listAlbums, listPhotos, getAlbumPhotos, setHidden, removeMedia, restoreMedia, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag, getEditPolicy, setEditPolicy } from '@/api/media'
+import { useRoute } from 'vue-router'
+import { listVideos, listAlbums, listPhotos, getAlbumPhotos, setHidden, removeMedia, restoreMedia, restoreTrash, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag, getEditPolicy, setEditPolicy } from '@/api/media'
 // 人物管理（P3-B）：独立 import 行，不改动上面那行既有导入
 import { listPersons, setVideoPersons, setAlbumPersons } from '@/api/media'
+// P6.10：批量人物 / 工作室归属
+import { batchPerson, batchStudio, listStudios } from '@/api/media'
 // 维护面板（P6.04 四段式：日常生成 / 清理 / 诊断 / 危险）：放在同目录子组件，主页面只做挂载与执行
 import MaintPanel from './MaintPanel'
 // P6.04：原「扫描入库」独立页目录已删除；可复用的执行器迁到 media/ingest/，只给抽屉与库根页嵌入
 import ScanPage from './ingest/index.vue'
 // 重复文件抽屉（P4-B）：独立子组件 + 独立 api 导出，不改动上面两行既有导入
 import DuplicatesPanel from './DuplicatesPanel'
+// P6.51：同内容多份（主行维度）—— 一张照片只属于一个系列，跨册同 hash 也是重复
+import DuplicateMainPanel from './DuplicateMainPanel'
 // 派生资源状态（P5.10-B）：徽标单元格 / 结果对话框 / 日志解析纯函数，三者都独立成文件，主页面只接线
 import DeriveBadges from './DeriveBadges.vue'
 import DeriveResultDialog from './DeriveResultDialog.vue'
+// P6.24：图片内容自动分级（服务端 NSFW 模型，先预览后写库）
+import PhotoAutoRateDialog from './PhotoAutoRateDialog.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
 import { deriveMapOf, buildResultModel, DERIVE_FILTER_DEFAULT, filterVideoRows } from './deriveModel'
 import { getDeriveStatus } from '@/api/media'
 // 内容分级（P5.99）：行内下拉 / 批量设置用到的接口与值域常量
-import { setVideoRating, setAlbumRating, setRatingBatch } from '@/api/media'
+import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove } from '@/api/media'
 import { RATING_OPTIONS, ratingOf } from './ratingOptions'
+
+const route = useRoute()
 
 const { proxy } = getCurrentInstance()
 
@@ -605,18 +935,21 @@ const activeTab = ref('video')
 // 筛选记忆：只持久化「用户选择」的字段，页码与总数不入库（刷新回到第 1 页更符合预期）
 const FILTER_STORAGE = { video: 'media.filter.video', album: 'media.filter.album' }
 const FILTER_KEYS = {
-  video: ['keyword', 'folder', 'vcodec', 'hidden', 'sort', 'pageSize', 'ids'],
-  album: ['keyword', 'personId', 'hidden', 'sort', 'pageSize']
+  // P6.21：pageSize 不进筛选记忆——它一旦被记住（比如选过 1000 条/页）就会让表格一次渲染上百行，
+  // 首屏和切 tab 都要重排这些行（实测 169 行的相册表 = 1.9 万个 DOM 节点 / 414 个弹层 / 切一次 500ms+）。
+  // 每页条数属于「临时查看姿势」，刷新回默认 10 行。
+  video: ['keyword', 'folder', 'vcodec', 'hidden', 'sort', 'ids'],
+  album: ['keyword', 'personId', 'hidden', 'sort']
 }
 const TRASH_PAGE_MAX = 200 // 与后端 /trash 的 pageSize 上限一致
 
-const videoQuery = reactive({ pageNum: 1, pageSize: 10, keyword: '', folder: '', vcodec: '', hidden: 'all', sort: 'mtime-desc', ids: '' })
+const videoQuery = reactive({ pageNum: 1, pageSize: 10, keyword: '', folder: '', vcodec: '', hidden: 'all', sort: 'mtime-desc', ids: '', rating: '' })
 const videoList = ref([])
 const videoTotal = ref(0)
 const videoLoading = ref(false)
 const vcodecOptions = ref([])
 
-const albumQuery = reactive({ pageNum: 1, pageSize: 10, keyword: '', personId: null, hidden: 'all', sort: 'photoCount-desc' })
+const albumQuery = reactive({ pageNum: 1, pageSize: 10, keyword: '', personId: null, hidden: 'all', sort: 'photoCount-desc', rating: '' })
 const albumList = ref([])
 const albumTotal = ref(0)
 const albumLoading = ref(false)
@@ -630,7 +963,7 @@ const photosVisible = ref(false)
 const photosLoading = ref(false)
 const photoList = ref([])
 const photoTotal = ref(0)
-const photoQuery = reactive({ pageNum: 1, pageSize: 24, albumId: '' })
+const photoQuery = reactive({ pageNum: 1, pageSize: 96, albumId: '' })
 const currentAlbum = ref({})
 /* 图片预览弹窗的数据源（P2-D）：
    db   = GET /api/media/admin/album/{id}/photos（只读库，库里有几行就画几格）——一次取全册，前端分页；
@@ -638,6 +971,8 @@ const currentAlbum = ref({})
 const photoSource = ref('db')
 const photoRowsAll = ref([])
 const photoNotice = ref('')
+// P6.24：图片内容自动分级弹窗
+const autoRateVisible = ref(false)
 
 const personVisible = ref(false)
 const personSubmitting = ref(false)
@@ -737,6 +1072,8 @@ function handleTrashCleared() {
   }
 }
 
+/** P6.51：重复文件抽屉的两个口径 tab，默认落在「同内容多份」 */
+const dupTab = ref('main')
 /** P4-B 重复文件抽屉：内容全在 DuplicatesPanel 里（自己拉数据、自己分页），页面只存开关 */
 const duplicatesVisible = ref(false)
 
@@ -846,6 +1183,11 @@ function albumThumb(row) {
   return '/api/media/thumb/p/' + row.id + '/' + albumCoverSeq(row)
 }
 
+/** 册下拉项的封面 404 时别显示破图：把图藏掉，标题与张数照常显示 */
+function hideBrokenCover(e) {
+  if (e && e.target) e.target.style.visibility = 'hidden'
+}
+
 // ------------------------------------------------------------------ 筛选记忆
 
 /** 从 localStorage 恢复视频/相册的筛选条件（只恢复用户选过的字段） */
@@ -938,6 +1280,7 @@ function loadPeople() {
 // ------------------------------------------------------------------ 视频
 
 function loadVideos() {
+  tabLoaded.video = true
   videoLoading.value = true
   persistFilters('video', videoQuery)
   const params = buildParams(videoQuery)
@@ -979,19 +1322,32 @@ function resetVideoQuery() {
   videoQuery.folder = ''
   videoQuery.vcodec = ''
   videoQuery.hidden = 'all'
+  videoQuery.rating = ''
   videoQuery.sort = 'mtime-desc'
-  videoQuery.pageSize = 10
+  // P6.21：每页条数是显示偏好，不跟筛选一起重置（用户选了 50/页，清条件后应该还是 50/页）
   clearFilters('video')
   loadVideos()
 }
 
+const videoPlayVisible = ref(false)
+const videoPlaySrc = ref('')
+const videoPlayTitle = ref('')
+
+/** P6.46：视频预览改成页内播放（之前是新开标签，来回切很烦） */
 function previewVideo(row) {
-  window.open(mediaSrc('/api/media/file?p=' + encodeURIComponent(row.relPath)), '_blank')
+  if (!row || !row.relPath) {
+    proxy.$modal.msgWarning('这条视频没有文件路径')
+    return
+  }
+  videoPlayTitle.value = row.title || row.id
+  videoPlaySrc.value = mediaSrc('/api/media/file?p=' + encodeURIComponent(row.relPath))
+  videoPlayVisible.value = true
 }
 
 // ------------------------------------------------------------------ 相册
 
 function loadAlbums() {
+  tabLoaded.album = true
   albumLoading.value = true
   persistFilters('album', albumQuery)
   const params = buildParams(albumQuery)
@@ -1011,8 +1367,9 @@ function resetAlbumQuery() {
   albumQuery.keyword = ''
   albumQuery.personId = null
   albumQuery.hidden = 'all'
+  albumQuery.rating = ''
   albumQuery.sort = 'photoCount-desc'
-  albumQuery.pageSize = 10
+  // P6.21：每页条数是显示偏好，不跟筛选一起重置
   clearFilters('album')
   loadAlbums()
 }
@@ -1027,6 +1384,10 @@ function openPhotos(row) {
   photoTotal.value = 0
   photoNotice.value = ''
   photoSource.value = 'db'
+  // P6.17：换一本册就清空勾选与锚点，避免把上一本的选中带过来
+  photoSelected.value = []
+  photoRatingFilter.value = 'all'
+  pickAnchor = null
   loadPhotos()
 }
 
@@ -1073,11 +1434,82 @@ function loadPhotosFromDisk() {
 
 /** 库数据一次取全册，翻页在前端切（页码越界时夹回最后一页） */
 function applyPhotoPage() {
+  // P6.17：换页就把锚点清掉，避免跨页的「看不见的范围选择」
+  pickAnchor = null
   const size = Number(photoQuery.pageSize) || 24
-  const pages = Math.max(1, Math.ceil(photoRowsAll.value.length / size))
+  const rows = photoSource.value === 'disk' ? photoRowsAll.value : photoFilteredRows.value
+  const pages = Math.max(1, Math.ceil(rows.length / size))
   if (photoQuery.pageNum > pages) photoQuery.pageNum = pages
   const start = (photoQuery.pageNum - 1) * size
-  photoList.value = photoRowsAll.value.slice(start, start + size)
+  photoList.value = rows.slice(start, start + size)
+}
+
+/** P6.24：自动分级弹窗的输入——只带 id/seq/缩略图，用于把模型命中的 id 映射回预览图 */
+const autoRateItems = computed(() => photoRowsAll.value.map(p => ({
+  id: p.id,
+  seq: p.seq,
+  thumb: mediaSrc(p.thumbUrl),
+  // P6.46：大图用原图（预览产物不一定生成过，缩略图只有 400px）
+  big: p.relPath ? mediaSrc('/api/media/file?p=' + encodeURIComponent(p.relPath)) : mediaSrc(p.previewUrl || p.thumbUrl)
+})))
+
+/** P6.24：自动分级写完库 → 就地更新内存里的分级、切到「限制」筛选让用户复核 */
+function onAutoRateApplied({ byRating }) {
+  // P6.31：后端只回「收紧」的判定，按 分级 → id 列表 回写
+  const map = new Map()
+  for (const [rating, list] of Object.entries(byRating || {})) {
+    for (const id of list || []) map.set(String(id), rating)
+  }
+  for (const p of photoRowsAll.value) {
+    const rating = map.get(String(p.id))
+    if (rating) p.contentRating = rating
+  }
+  photoRatingFilter.value = 'restricted'
+  photoQuery.pageNum = 1
+  applyPhotoPage()
+  proxy.$modal.msgSuccess('自动分级完成：已收紧 ' + map.size + ' 张')
+}
+
+/* P6.22：图片弹窗的分级筛选条。
+   为什么用筛选条而不是 tab：
+   - tab 会再叠一层导航，还会把「已选 N 张 + 批量设分级」和网格割裂开；
+   - 筛选条可以带计数，「这册还剩多少张是继承」一眼就有数；
+   - 数据本来就已经全册加载了，筛选只是前端切片，点一下零请求。 */
+const PHOTO_RATING_FILTERS = [
+  { value: 'all', label: '全部' },
+  { value: 'inherit', label: '继承' },
+  { value: 'general', label: '大众' },
+  { value: 'guidance', label: '家长指导' },
+  { value: 'restricted', label: '限制' }
+]
+const photoRatingFilter = ref('all')
+const photoRatingCounts = computed(() => {
+  const counts = { all: 0, inherit: 0, general: 0, guidance: 0, restricted: 0 }
+  for (const p of photoRowsAll.value) {
+    counts.all += 1
+    const key = (p && p.contentRating) || 'inherit'
+    counts[key] = (counts[key] || 0) + 1
+  }
+  return counts
+})
+const photoFilteredRows = computed(() => {
+  if (photoRatingFilter.value === 'all') return photoRowsAll.value
+  return photoRowsAll.value.filter(p => ((p && p.contentRating) || 'inherit') === photoRatingFilter.value)
+})
+const photoFilteredTotal = computed(() => (photoSource.value === 'disk' ? photoTotal.value : photoFilteredRows.value.length))
+
+function setPhotoRatingFilter(value) {
+  if (photoRatingFilter.value === value) return
+  photoRatingFilter.value = value
+  photoQuery.pageNum = 1
+  applyPhotoPage()
+}
+
+/** 筛选条的 tooltip：继承那档要说清「继承的是哪一档」 */
+function photoFilterTitle(opt) {
+  const n = photoRatingCounts.value[opt.value] || 0
+  const name = opt.value === 'inherit' ? '继承相册（' + albumPhotoRatingLabel.value + '）' : opt.label
+  return name + '：' + n + ' 张'
 }
 
 /** 分页回调：库里是前端切片，磁盘态才需要重新请求 */
@@ -1100,12 +1532,307 @@ function normalizePhotoRow(row) {
     relPath: (row && row.relPath) || '',
     bytes: (row && row.bytes) || 0,
     isBig: !!(row && row.isBig),
-    thumbUrl: (row && row.thumbUrl) || photoThumbUrl(photoQuery.albumId, seq)
+    thumbUrl: (row && row.thumbUrl) || photoThumbUrl(photoQuery.albumId, seq),
+    // P6.22：这三个字段后端 albumPhotos 都返回了，之前这里没带 —— 后果是弹窗里每张图都读到
+    // contentRating === undefined → 角标永远显示「继承相册」，单独设过的分级关掉再打开就"变回继承"。
+    contentRating: (row && row.contentRating) || null,
+    missing: !!(row && row.missing),
+    hidden: !!(row && row.hidden)
   }
 }
 
 function photoKey(photo) {
   return photo.id
+}
+
+/** P6.23：图片自身分级（null = 继承相册）→ 角标短标签 / 全称
+ *  只显示「继」是没有信息量的：图片的实际可见档 = max(相册档, 图自身档)，
+ *  所以继承态直接把相册那一档带出来（继大 / 继指 / 继限），一眼能看出这张实际是什么档。 */
+const PHOTO_RATING_SHORT = { general: '大', guidance: '指', restricted: '限' }
+const albumPhotoRating = computed(() => ratingOf(currentAlbum.value))
+const albumPhotoRatingLabel = computed(() => {
+  const hit = RATING_OPTIONS.find((o) => o.value === albumPhotoRating.value)
+  return hit ? hit.label : '大众级'
+})
+
+function photoRatingShort(photo) {
+  const v = photo && photo.contentRating
+  if (v) return PHOTO_RATING_SHORT[v] || '大'
+  return '继' + (PHOTO_RATING_SHORT[albumPhotoRating.value] || '大')
+}
+
+const RATING_RANK = { general: 0, guidance: 1, restricted: 2 }
+/** P6.25：这张图自己设的档比册级更宽（图级优先后，访客能单独看到它） */
+function photoIsWider(photo) {
+  const own = photo && photo.contentRating
+  if (!own) return false
+  return (RATING_RANK[own] || 0) < (RATING_RANK[albumPhotoRating.value] || 0)
+}
+
+function photoRatingLabel(photo) {
+  const v = photo && photo.contentRating
+  const hit = RATING_OPTIONS.find((o) => o.value === v)
+  if (hit) return hit.label
+  return '继承相册（' + albumPhotoRatingLabel.value + '）'
+}
+
+/** P6.09：图片弹窗里勾选多张 → 批量设分级（ids 是 media_photo.id） */
+const photoSelected = ref([])
+
+/**
+ * 勾选一张（P6.17）
+ *
+ * <p>普通点击 = 切换这一张，并把它记成「锚点」；
+ * 按住 Shift 点击 = 从锚点到这张之间的**本页所有图片**一起选中/取消（和资源管理器一致）。
+ * 锚点跨页失效（翻页时清空），避免「从第 3 页选到第 1 页」这种看不见的范围。</p>
+ */
+let pickAnchor = null
+
+/* ---------------------------------------------------------------- 触屏：长按进入多选 → 滑动连选 */
+/** 多选态（长按触发）：此时点卡片=勾选/取消，而不是打开大图 */
+const multiMode = ref(false)
+let longPressTimer = null
+let dragAnchorId = null
+let dragSelecting = false
+let suppressClick = false
+
+function onCardPointerDown(photo, event) {
+  if (!photo || photo.id == null) return
+  suppressClick = false
+  // 鼠标沿用 Shift + 勾选框，不做长按（长按鼠标很反直觉）
+  if (event && event.pointerType === 'mouse') return
+  dragAnchorId = String(photo.id)
+  clearTimeout(longPressTimer)
+  longPressTimer = setTimeout(() => {
+    multiMode.value = true
+    dragSelecting = true
+    suppressClick = true
+    const set = new Set(photoSelected.value)
+    set.add(dragAnchorId)
+    photoSelected.value = Array.from(set)
+    if (navigator.vibrate) {
+      try { navigator.vibrate(12) } catch { /* 忽略 */ }
+    }
+  }, 420)
+}
+
+/** 手指滑动：把「锚点 → 当前手指下的卡片」整段设为选中（覆盖式，符合大多数相册 App 的手感） */
+function onGridPointerMove(event) {
+  if (!dragSelecting) return
+  const el = document.elementFromPoint(event.clientX, event.clientY)
+  const card = el && el.closest ? el.closest('.photo-item') : null
+  if (!card) return
+  const id = card.getAttribute('data-id')
+  if (!id) return
+  const rows = photoList.value || []
+  const a = rows.findIndex((p) => p && String(p.id) === dragAnchorId)
+  const b = rows.findIndex((p) => p && String(p.id) === id)
+  if (a < 0 || b < 0) return
+  const from = Math.min(a, b)
+  const to = Math.max(a, b)
+  photoSelected.value = rows.slice(from, to + 1).map((p) => String(p.id))
+  if (event.cancelable) event.preventDefault()
+  suppressClick = true
+}
+
+function onGridPointerUp() {
+  clearTimeout(longPressTimer)
+  if (dragSelecting) {
+    dragSelecting = false
+    suppressClick = true
+    // 滑动结束后吞掉紧随其后的 click，避免顺手打开大图
+    setTimeout(() => { suppressClick = false }, 60)
+  }
+}
+
+/** 点卡片：多选态下 = 切换勾选；否则 = 打开预览 */
+function onPhotoClick(photo) {
+  if (suppressClick) return
+  if (multiMode.value) {
+    const id = String(photo.id)
+    const set = new Set(photoSelected.value)
+    if (set.has(id)) set.delete(id)
+    else set.add(id)
+    photoSelected.value = Array.from(set)
+    pickAnchor = id
+    return
+  }
+  // P6.30：预览不算「选中」，不更新锚点 —— 否则「选了 1 → 预览 3 → 点 7 的选到此」
+  // 会从 3 开始连选，得到 1,3,4,5,6,7（缺 2）这种断档结果。
+  openPhotoPreview(photo)
+}
+
+/** 「选到此」：从锚点（上次点过的那张）连选到这张；没有锚点就先把它设为锚点并选中 */
+function selectToHere(photo) {
+  if (!photo || photo.id == null) return
+  const rows = photoList.value || []
+  const id = String(photo.id)
+  const toIdx = rows.findIndex((p) => p && String(p.id) === id)
+  const fromIdx = pickAnchor == null ? -1 : rows.findIndex((p) => p && String(p.id) === pickAnchor)
+  if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) {
+    const set = new Set(photoSelected.value)
+    set.add(id)
+    photoSelected.value = Array.from(set)
+    pickAnchor = id
+    return
+  }
+  const from = Math.min(fromIdx, toIdx)
+  const to = Math.max(fromIdx, toIdx)
+  const set = new Set(photoSelected.value)
+  rows.slice(from, to + 1).forEach((p) => set.add(String(p.id)))
+  photoSelected.value = Array.from(set)
+}
+
+function exitMultiMode() {
+  multiMode.value = false
+  photoSelected.value = []
+  pickAnchor = null
+}
+
+function onPickClick(photo, event) {
+  if (!photo || photo.id == null) return
+  const rows = photoList.value || []
+  const id = String(photo.id)
+  const idx = rows.findIndex((p) => p && String(p.id) === id)
+  const anchorIdx = pickAnchor == null ? -1 : rows.findIndex((p) => p && String(p.id) === pickAnchor)
+  if (event && event.shiftKey && anchorIdx >= 0 && idx >= 0) {
+    const from = Math.min(anchorIdx, idx)
+    const to = Math.max(anchorIdx, idx)
+    const rangeIds = rows.slice(from, to + 1).map((p) => String(p.id))
+    const set = new Set(photoSelected.value)
+    const allOn = rangeIds.every((x) => set.has(x))
+    rangeIds.forEach((x) => (allOn ? set.delete(x) : set.add(x)))
+    photoSelected.value = Array.from(set)
+    return   // 锚点保持不动，方便接着往另一个方向扩选
+  }
+  const set = new Set(photoSelected.value)
+  if (set.has(id)) set.delete(id)
+  else set.add(id)
+  photoSelected.value = Array.from(set)
+  pickAnchor = id
+}
+
+function applyPhotoRating(rating) {
+  if (!photoSelected.value.length) return
+  const ids = photoSelected.value.slice()
+  setRatingBatch({ type: 'photo', ids, rating: rating || 'inherit' }).then(() => {
+    for (const p of photoList.value) {
+      if (ids.includes(String(p.id))) p.contentRating = rating
+    }
+    // P6.22：当前正在按分级筛选时，改完的图会进出筛选结果，重新切一次页
+    applyPhotoPage()
+    proxy.$modal.msgSuccess('已把 ' + ids.length + ' 张设为' + (rating ? photoRatingLabel({ contentRating: rating }) : '继承相册'))
+    photoSelected.value = []
+  }).catch((err) => {
+    proxy.$modal.notifyError({ title: '批量设置图片分级失败', message: (err && err.message) || '请求失败', duration: 6000 })
+  })
+}
+
+/* ---------------------------------------------------------------- P6.10 批量人物 / 工作室 */
+const videoBatchPersonVisible = ref(false)
+const videoBatchPersonIds = ref([])
+const videoBatchStudioVisible = ref(false)
+const videoBatchStudioIds = ref([])
+const studioOptions = ref([])
+let studioLoaded = false
+const albumBatchPersonVisible = ref(false)
+const albumBatchPersonId = ref(null)
+const batchSaving = ref(false)
+
+function openVideoBatchPerson() {
+  videoBatchPersonIds.value = []
+  videoBatchPersonVisible.value = true
+}
+
+function openVideoBatchStudio() {
+  if (!studioLoaded) {
+    studioLoaded = true
+    listStudios({ pageNum: 1, pageSize: 200 }).then((res) => {
+      studioOptions.value = (res && (res.rows || res)) || []
+    }).catch(() => { studioLoaded = false })
+  }
+  videoBatchStudioIds.value = []
+  videoBatchStudioVisible.value = true
+}
+
+function openAlbumBatchPerson() {
+  albumBatchPersonId.value = null
+  albumBatchPersonVisible.value = true
+}
+
+function submitVideoBatchPerson() {
+  const ids = selectedVideos.value.map((v) => String(v.id))
+  if (!ids.length) return
+  batchSaving.value = true
+  batchPerson({ type: 'video', ids, personIds: videoBatchPersonIds.value }).then(() => {
+    proxy.$modal.msgSuccess('已更新 ' + ids.length + ' 个视频的人物归属')
+    videoBatchPersonVisible.value = false
+    loadVideos()
+  }).catch((err) => {
+    proxy.$modal.notifyError({ title: '批量设置人物失败', message: (err && err.message) || '请求失败', duration: 6000 })
+  }).finally(() => { batchSaving.value = false })
+}
+
+function submitVideoBatchStudio() {
+  const ids = selectedVideos.value.map((v) => String(v.id))
+  if (!ids.length) return
+  batchSaving.value = true
+  batchStudio({ ids, studioIds: videoBatchStudioIds.value }).then(() => {
+    proxy.$modal.msgSuccess('已更新 ' + ids.length + ' 个视频的工作室')
+    videoBatchStudioVisible.value = false
+    loadVideos()
+  }).catch((err) => {
+    proxy.$modal.notifyError({ title: '批量设置工作室失败', message: (err && err.message) || '请求失败', duration: 6000 })
+  }).finally(() => { batchSaving.value = false })
+}
+
+function submitAlbumBatchPerson() {
+  const ids = selectedAlbums.value.map((a) => String(a.id))
+  if (!ids.length) return
+  batchSaving.value = true
+  const personIds = albumBatchPersonId.value == null ? [] : [albumBatchPersonId.value]
+  batchPerson({ type: 'album', ids, personIds }).then(() => {
+    proxy.$modal.msgSuccess('已更新 ' + ids.length + ' 本相册的人物')
+    albumBatchPersonVisible.value = false
+    loadAlbums()
+  }).catch((err) => {
+    proxy.$modal.notifyError({ title: '批量设置相册人物失败', message: (err && err.message) || '请求失败', duration: 6000 })
+  }).finally(() => { batchSaving.value = false })
+}
+
+/** 本页是否已经全选（全选按钮的文案与行为都看它） */
+const allPicked = computed(() => {
+  const rows = photoList.value || []
+  if (!rows.length) return false
+  return rows.every((p) => p && p.id != null && photoSelected.value.includes(String(p.id)))
+})
+
+/** 全选/取消全选：只作用于当前页（1166 张一次性选中会让批量操作失去意义，也超出后端 2000 上限的余量） */
+function toggleSelectAll() {
+  const rows = photoList.value || []
+  if (!rows.length) return
+  const ids = rows.map((p) => String(p.id))
+  if (allPicked.value) {
+    photoSelected.value = photoSelected.value.filter((id) => !ids.includes(id))
+  } else {
+    const set = new Set(photoSelected.value)
+    ids.forEach((id) => set.add(id))
+    photoSelected.value = Array.from(set)
+  }
+}
+
+/** 角标下拉选了某一档：只改这一张（inherit = 回到跟随相册） */
+function setPhotoRating(photo, value) {
+  if (!photo || photo.id == null) return
+  const next = value && value !== 'inherit' ? value : null
+  setRatingBatch({ type: 'photo', ids: [String(photo.id)], rating: next || 'inherit' }).then(() => {
+    photo.contentRating = next
+    // P6.22：筛选态下这张可能不再属于当前档位，重新切页让网格与计数同步
+    applyPhotoPage()
+    proxy.$modal.msgSuccess('第 ' + (Number(photo.seq) + 1) + ' 张 → ' + (next ? photoRatingLabel(photo) : '继承相册'))
+  }).catch((err) => {
+    proxy.$modal.notifyError({ title: '设置图片分级失败', message: (err && err.message) || '请求失败', duration: 6000 })
+  })
 }
 
 /** 文件名 = relPath 的最后一段（库里的 relPath 可能用 / 也可能用 \） */
@@ -1114,13 +1841,25 @@ function photoFileName(relPath) {
   return parts[parts.length - 1] || ''
 }
 
+/**
+ * 点相册里的一张图 → 用站内预览弹窗（P6.13）
+ *
+ * <p>以前这里是 window.open 新开标签页，用户明确要求复用已有的预览框组件。
+ * 取图口径不变：is_big 才有 pv 大图，其余走原图接口，库数据没 relPath 时退缩略图；
+ * 大图 404 时 onPreviewError 会自动降级到缩略图。</p>
+ */
 function openPhotoPreview(photo) {
-  // 与用户端 photo.js 同一规则：只有 is_big 的照片才生成了 pv 预览图（thumbs/pv 仅 555/9628），
-  // 其余直接用原图接口，否则点开必然 404；库数据没有 relPath 时退到缩略图
+  if (!photo) return
   const url = photo.isBig
     ? '/api/media/preview/p/' + photoQuery.albumId + '/' + photo.seq
     : (photo.relPath ? '/api/media/file?p=' + encodeURIComponent(photo.relPath) : photo.thumbUrl)
-  window.open(mediaSrc(url), '_blank')
+  previewTitle.value = '第 ' + (Number(photo.seq) + 1) + ' 张 · ' + photoFileName(photo.relPath)
+  previewFallback.value = photo.thumbUrl ? mediaSrc(photo.thumbUrl) : ''
+  previewSrc.value = mediaSrc(url)
+  previewMeta.value = [photo.relPath, photo.bytes ? formatSize(photo.bytes) : '',
+    photo.w && photo.h ? photo.w + '×' + photo.h : ''].filter(Boolean).join(' · ')
+  previewNatural.value = ''
+  previewVisible.value = true
 }
 
 function openPerson(row) {
@@ -1175,9 +1914,68 @@ function changeRating(row, kind, value) {
   })
 }
 
+/* P6.38：审核状态 —— 单元格 + 全页共用一个下拉（与分级同一套做法） */
+const reviewMenuRef = ref(null)
+const reviewMenuAnchor = ref(null)
+const reviewMenuTarget = ref(null)
+
+function reviewLabelOf(state) {
+  return state === 'approved' ? '已通过' : state === 'rejected' ? '已驳回' : '待审核'
+}
+
+function openReviewMenu(event, row) {
+  if (!row || row.id == null) return
+  reviewMenuTarget.value = { row: row }
+  reviewMenuAnchor.value = event && event.currentTarget ? event.currentTarget : null
+  nextTick(() => {
+    const menu = reviewMenuRef.value
+    if (menu && typeof menu.handleOpen === 'function') menu.handleOpen()
+  })
+}
+
+async function onReviewMenuCommand(state) {
+  const target = reviewMenuTarget.value
+  reviewMenuTarget.value = null
+  if (!target || !state) return
+  const row = target.row
+  const kind = activeTab.value === 'video' ? 'video' : 'album'
+  try {
+    await setReviewState({ type: kind, ids: [row.id], state: state })
+    row.reviewState = state
+    proxy.$modal.msgSuccess('审核状态已改为「' + reviewLabelOf(state) + '」')
+  } catch (e) {
+    proxy.$modal.msgError('修改失败：' + ((e && e.message) || '请求失败'))
+  }
+}
 function ratingLabelOf(value) {
   const hit = RATING_OPTIONS.find(o => o.value === value)
   return hit ? hit.label : value
+}
+
+/* P6.21：分级单元格的共用下拉。
+   全页面只有 1 个 el-dropdown 实例，点哪一格就把虚拟触发点挪到哪一格再 handleOpen()——
+   替代原来「每行一个 el-select」（200 行 = 200 个下拉实例 + 200 个弹层）。 */
+const ratingMenuRef = ref(null)
+const ratingMenuAnchor = ref(null)
+const ratingMenuTarget = ref(null)
+
+function openRatingMenu(event, row, kind) {
+  if (!row || row.id == null) return
+  const busyKey = (kind === 'video' ? 'v:' : 'a:') + row.id
+  if (ratingBusy[busyKey]) return
+  ratingMenuTarget.value = { row: row, kind: kind }
+  ratingMenuAnchor.value = event && event.currentTarget ? event.currentTarget : null
+  nextTick(() => {
+    const menu = ratingMenuRef.value
+    if (menu && typeof menu.handleOpen === 'function') menu.handleOpen()
+  })
+}
+
+function onRatingMenuCommand(value) {
+  const target = ratingMenuTarget.value
+  ratingMenuTarget.value = null
+  if (!target) return
+  changeRating(target.row, target.kind, value)
 }
 
 // ---- 批量设置分级：视频用顶部工具栏，相册用相册页签里的勾选条 ----
@@ -1289,6 +2087,7 @@ function trashTagType(kind) {
  * 这样「旧→新」才是全量真实排序，而不是只反转当前页。
  */
 function loadTrash() {
+  tabLoaded.trash = true
   trashLoading.value = true
   listTrash(buildParams({ ...trashQuery, sort: undefined, pageNum: 1, pageSize: TRASH_PAGE_MAX })).then(res => {
     const rows = ((res && res.rows) || []).slice()
@@ -1336,8 +2135,11 @@ function resetTrashQuery() {
 }
 
 function handleTrashRestore(row) {
-  restoreMedia(row.kind, row.id).then(() => {
-    proxy.$modal.msgSuccess('已恢复到原路径')
+  // trashRel 一起带上：同 id 多份时能精确指定，行已被删除时后端按条目旁注恢复
+  restoreTrash(row.kind, row.id, row.trashRel).then((res) => {
+    proxy.$modal.msgSuccess((res && res.orphan)
+      ? '已搬回原路径（记录已不存在，下次扫描会重新入库）'
+      : '已恢复到原路径')
     loadTrash()
     loadStats()
     if (row.kind === 'album') { loadAlbums() } else { loadVideos() }
@@ -1903,7 +2705,7 @@ function isServerDeriveFilter() {
   return !!(f.state && f.state !== 'all')
 }
 let deriveFilterSeq = 0
-const DERIVE_PAGE_SIZES = [10, 20, 50, 100, 200, 500, 1000]
+const DERIVE_PAGE_SIZES = [10, 20, 50, 100, 200]
 /** 服务端全局筛选：先取全量过滤后的 ids，再让主列表按 ids 分页 */
 function applyDeriveFilter() {
   const f = deriveFilter.value || {}
@@ -2041,7 +2843,13 @@ function maybeOpenDeriveResult(job) {
 
 // ------------------------------------------------------------------ 生命周期
 
+/** 每个 tab 是否已经取过数据：切来切去不再重复请求，也不再闪 loading */
+const tabLoaded = reactive({ video: false, album: false, trash: false })
+
 function handleTabChange(name) {
+  // P6.19：切换 tab 只做「第一次进这个 tab 才拉数据」，其余情况直接显示已有结果；
+  // 要刷新有「刷新」按钮 / 搜索 / 重置，不必每次切换都打一次后端。
+  if (tabLoaded[name]) return
   if (name === 'trash') { loadTrash() } else if (name === 'album') { loadAlbums() } else { loadVideos() }
 }
 
@@ -2152,6 +2960,168 @@ function submitVideoPersons() {
       duration: 8000
     })
   }).finally(() => { videoPersonSaving.value = false })
+}
+
+/* P6.48：册并入 */
+const albumMergeVisible = ref(false)
+const albumMergeSource = ref(null)
+const albumMergeTarget = ref('')
+const albumMergeOptions = ref([])
+const albumMergeLoading = ref(false)
+const albumMergeBusy = ref(false)
+const albumMergePreview = ref({ moving: 0, duplicates: 0 })
+
+function openAlbumMerge(row) {
+  albumMergeSource.value = row
+  albumMergeTarget.value = ''
+  albumMergeOptions.value = []
+  albumMergeVisible.value = true
+  albumMergePreview.value = { moving: 0, duplicates: 0 }
+  searchMergeTargets('')
+}
+
+async function searchMergeTargets(keyword) {
+  albumMergeLoading.value = true
+  try {
+    const res = await listAlbums({ keyword: keyword || '', pageNum: 1, pageSize: 30, hidden: 'all' })
+    const selfId = albumMergeSource.value && albumMergeSource.value.id
+    albumMergeOptions.value = ((res && res.rows) || []).filter((a) => a.id !== selfId)
+  } catch (e) {
+    albumMergeOptions.value = []
+  } finally {
+    albumMergeLoading.value = false
+  }
+}
+
+async function onMergeTargetChange(target) {
+  albumMergePreview.value = { moving: 0, duplicates: 0 }
+  if (!target || !albumMergeSource.value) return
+  try {
+    const res = await previewAlbumMerge(albumMergeSource.value.id, target)
+    albumMergePreview.value = {
+      moving: (res && res.moving) || 0,
+      duplicates: (res && res.duplicates) || 0
+    }
+  } catch (e) {
+    albumMergePreview.value = { moving: 0, duplicates: 0 }
+  }
+}
+
+async function doAlbumMerge() {
+  if (!albumMergeSource.value || !albumMergeTarget.value) return
+  if (albumMergePreview.value.duplicates > 0) {
+    try {
+      await proxy.$modal.confirm('有 ' + albumMergePreview.value.duplicates
+        + ' 张图与目标册内容重复，并入后会并排保留（不会自动删）。继续？')
+    } catch (e) {
+      return
+    }
+  }
+  albumMergeBusy.value = true
+  try {
+    const res = await mergeAlbums(albumMergeSource.value.id, albumMergeTarget.value)
+    proxy.$modal.msgSuccess('已并入：移动 ' + ((res && res.moved) || 0) + ' 张')
+    albumMergeVisible.value = false
+    loadAlbums()
+    loadStats()
+  } catch (e) {
+    proxy.$modal.msgError('并入失败：' + ((e && e.message) || '请求失败'))
+  } finally {
+    albumMergeBusy.value = false
+  }
+}
+
+/* P6.51：按图改归属 —— 移到另一册 / 拆出新册 */
+const photoRelocateVisible = ref(false)
+const photoRelocateMode = ref('move')
+const photoRelocateTarget = ref('')
+const photoRelocateTitle = ref('')
+const photoRelocateOptions = ref([])
+const photoRelocateLoading = ref(false)
+const photoRelocateBusy = ref(false)
+/** P6.51：搬入前的重复预检结果 + 冲突策略（keep 同时存在 / skip 跳过重复 / replace 只保留一份） */
+const relocatePreview = ref({ moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 })
+const relocateDupPolicy = ref('keep')
+
+function openPhotoRelocate(mode) {
+  if (!photoSelected.value.length) return
+  photoRelocateMode.value = mode
+  photoRelocateTarget.value = ''
+  photoRelocateTitle.value = ''
+  photoRelocateOptions.value = []
+  relocatePreview.value = { moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 }
+  relocateDupPolicy.value = 'keep'
+  photoRelocateVisible.value = true
+  if (mode === 'move') searchRelocateTargets('')
+}
+
+/** 选中目标册后立刻预检：目标册里有几张同内容（决定要不要弹三选一） */
+async function onRelocateTargetChange(target) {
+  relocatePreview.value = { moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 }
+  if (!target || !photoSelected.value.length) return
+  try {
+    const res = await previewPhotoMove(photoSelected.value.slice(), target)
+    relocatePreview.value = {
+      moving: (res && res.moving) || 0,
+      duplicates: (res && res.duplicates) || 0,
+      globalCopies: (res && res.globalCopies) || 0,
+      targetCopies: (res && res.targetCopies) || 0
+    }
+  } catch (e) {
+    relocatePreview.value = { moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 }
+  }
+}
+
+async function searchRelocateTargets(keyword) {
+  photoRelocateLoading.value = true
+  try {
+    const res = await listAlbums({ keyword: keyword || '', pageNum: 1, pageSize: 30, hidden: 'all' })
+    const selfId = (currentAlbum.value && currentAlbum.value.id) || photoQuery.albumId
+    photoRelocateOptions.value = ((res && res.rows) || []).filter((a) => a.id !== selfId)
+  } catch (e) {
+    photoRelocateOptions.value = []
+  } finally {
+    photoRelocateLoading.value = false
+  }
+}
+
+async function doPhotoRelocate() {
+  const ids = photoSelected.value.slice()
+  if (!ids.length) return
+  photoRelocateBusy.value = true
+  try {
+    const res = photoRelocateMode.value === 'split'
+      ? await splitAlbumPhotos(ids, photoRelocateTitle.value.trim())
+      : await moveAlbumPhotos(ids, photoRelocateTarget.value, relocateDupPolicy.value)
+    const moved = (res && res.moved) || 0
+    const skipped = (res && res.skipped) || 0
+    const replaced = (res && res.replaced) || 0
+    const total = ids.length
+    // 数字必须自洽：选中 N 张 = 搬移 moved + 跳过 skipped，用户一眼能对上
+    let msg
+    if (photoRelocateMode.value === 'split') {
+      msg = '已拆出新册：搬入 ' + moved + ' 张（人工归属，重扫不会再拽回）'
+    } else if (moved === 0 && skipped > 0) {
+      // 「跳过重复」把选中的全跳过了：策略生效，不是失败
+      msg = '没有搬动：选中 ' + total + ' 张，' + skipped + ' 张在目标册里都有同内容，已按「跳过重复」跳过'
+    } else if (skipped > 0) {
+      msg = '选中 ' + total + ' 张：搬移 ' + moved + ' 张、跳过重复 ' + skipped + ' 张'
+        + '（跳过的是目标册里已有同内容的）'
+    } else {
+      msg = '已移动：' + moved + ' 张（人工归属，重扫不会再拽回）'
+    }
+    if (replaced > 0) msg += '；目标册里旧的那份已进回收站 ' + replaced + ' 份'
+    proxy.$modal.msgSuccess(msg)
+    photoRelocateVisible.value = false
+    photoSelected.value = []
+    applyPhotoPage()
+    loadAlbums()
+    loadStats()
+  } catch (e) {
+    proxy.$modal.msgError('改归属失败：' + (errorText(e) || (e && e.message) || '请求失败'))
+  } finally {
+    photoRelocateBusy.value = false
+  }
 }
 
 function openAlbumPersons(row) {
@@ -2268,8 +3238,20 @@ onMounted(() => {
   restoreFilters('album', albumQuery)
   loadStats()
   loadPeople()
-  loadVcodecOptions()
   loadVideos()
+  // P6.19：vcodec 下拉的选项要拉 200 行视频来统计，没必要挡住首屏，空闲时再补
+  setTimeout(() => loadVcodecOptions(), 400)
+
+  // P6.40：从「内容审核」点预览跳过来时，直接打开这本册的图片弹窗
+  // （复用的就是媒体库自己的弹窗：预览大图 / 改单张分级 / 批量设分级 / 自动分级都在）
+  const openAlbumId = route.query.openAlbum
+  if (openAlbumId) {
+    openPhotos({ id: String(openAlbumId), title: String(route.query.openAlbumTitle || '') })
+  }
+  // P6.20：相册 / 回收站后台预取。之前「刷新后第一次点相册」要等首个查询走完冷缓存，
+  // 现在首屏就把这两张表拉好，点 tab 直接出数据（tabLoaded 已置位，不会再重复请求）
+  setTimeout(() => { if (!tabLoaded.album) loadAlbums() }, 600)
+  setTimeout(() => { if (!tabLoaded.trash) loadTrash() }, 1200)
   getScanLatest().then(res => {
     if (res && res.id && res.status === 'running') {
       attachScanJob(res.id, res.type)
@@ -2283,6 +3265,24 @@ onBeforeUnmount(() => { stopScanPolling() })
 </script>
 
 <style scoped>
+.album-merge-preview { margin: 10px 0 0; font-size: 13px; color: var(--el-text-color-regular); }
+.album-merge-dup { color: var(--el-color-warning); }
+.album-merge-tip { margin: 0 0 12px; font-size: 13px; line-height: 1.7; color: var(--el-text-color-regular); }
+/* P6.51：册下拉项 = 封面 + 标题 + 张数 */
+.album-opt { display: flex; align-items: center; gap: 8px; height: 34px; }
+.album-opt-cover {
+  width: 26px; height: 26px; object-fit: cover; border-radius: 3px; flex: none;
+  background: var(--el-fill-color-light);
+}
+.album-opt-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.album-opt-count { flex: none; font-size: 12px; color: var(--el-text-color-secondary); }
+
+/* P6.51：搬入前的重复冲突三选一 */
+.relocate-dup { margin: 12px 0 0; }
+.relocate-dup p { margin: 6px 0 0; line-height: 1.7; font-size: 13px; }
+.relocate-dup-group { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.dup-tabs :deep(.el-tabs__content) { overflow: visible; }
+.video-player { width: 100%; max-height: 70vh; background: #000; }
 /* P6.04：维护抽屉内容变长后整体滚动（375 窄屏时抽屉 = 96vw，近似全宽） */
 .maint-drawer :deep(.el-drawer__body) {
   overflow-y: auto;
@@ -2450,13 +3450,102 @@ onBeforeUnmount(() => { stopScanPolling() })
   color: var(--el-text-color-secondary);
   word-break: break-all;
 }
+/* P6.22：图片弹窗顶部的分级筛选条——sticky，滚 96 格时一直在 */.photo-filter {
+  position: sticky;
+  top: -12px;
+  z-index: 4;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 8px;
+  padding: 8px 0 6px;
+  background: var(--el-bg-color);
+}
+.photo-filter-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-right: 2px;
+}
+.photo-filter-divider {
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: var(--el-border-color-lighter);
+}
+/* P6.24：自动分级按钮贴右，和筛选 chip 分开 */
+.photo-auto-rate {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+.photo-album-rating {
+  font-weight: 600;
+}
+.photo-album-rating.ar-general {
+  color: var(--el-color-success);
+}
+.photo-album-rating.ar-guidance {
+  color: var(--el-color-warning);
+}
+.photo-album-rating.ar-restricted {
+  color: var(--el-color-danger);
+}
+.photo-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 10px 2px 8px;
+  font-size: 12px;
+  line-height: 20px;
+  color: var(--el-text-color-regular);
+  background: var(--el-fill-color-light);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.photo-filter-chip:hover {
+  background: var(--el-fill-color);
+}
+.photo-filter-chip b {
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+}
+.photo-filter-chip.on {
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+  border-color: var(--el-color-primary-light-7);
+}
+.photo-filter-chip.on b {
+  color: var(--el-color-primary);
+}
+.photo-filter-chip.empty {
+  opacity: 0.45;
+}
+.photo-filter-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--el-text-color-placeholder);
+}
+.photo-filter-dot.dot-general {
+  background: var(--el-color-success);
+}
+.photo-filter-dot.dot-guidance {
+  background: var(--el-color-warning);
+}
+.photo-filter-dot.dot-restricted {
+  background: var(--el-color-danger);
+}
 .photo-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
+  align-items: stretch;
   gap: 8px;
   min-height: 40px;
 }
 .photo-item {
+  position: relative;   /* P6.15：勾选框/角标都相对卡片定位；缺这行会让它们全叠到弹窗左上角 */
   display: flex;
   flex-direction: column;
   gap: 3px;
@@ -2467,12 +3556,115 @@ onBeforeUnmount(() => { stopScanPolling() })
   position: relative;
   line-height: 0;
 }
+/* P6.14：固定卡片大小——所有格子同一个高度，图片按原比例居中放进去（不裁剪、不撑高） */
 .photo-item img {
+  display: block;
   width: 100%;
-  height: 84px;
-  object-fit: cover;
+  height: 150px;
+  object-fit: contain;
+  object-position: center center;
   border-radius: 4px;
   background: var(--el-fill-color-light);
+}
+/* P6.15：自定义标题头——完全不依赖 el-dialog 默认标题（它会被裁） */
+:deep(.photos-dialog .el-dialog__header) {
+  padding: 0;
+  margin: 0;
+}
+.photos-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  /* P6.16：与下面的缩略图网格左对齐（网格 padding 12px），标题不再往右缩进 */
+  padding: 14px 48px 10px 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  box-sizing: border-box;
+  width: 100%;
+}
+.photos-head-all {
+  margin-left: auto;
+}
+.photos-head-title {
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.6;
+  color: var(--el-text-color-primary);
+  word-break: break-all;
+}
+.photos-head-picked {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--el-color-primary);
+}
+/* P6.14：弹窗顶部留白 + 不裁切（标题已换成自定义 header，见上） */
+:deep(.photos-dialog) {
+  margin-top: 4vh !important;
+  overflow: visible;
+}
+/* 勾选后的卡片高亮：光有一个左上角小勾太不明显 */
+/* P6.19：Shift 连选时禁止浏览器选中文字（之前整片变蓝，看着像全选了）。
+   弹窗被 append-to-body 挪到 body 下，必须用 :deep 才能命中 Element Plus 内部节点 */
+:deep(.photos-dialog),
+:deep(.photos-dialog *) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* P6.18：触屏长按拖动选图——禁止长按选中文字/弹出系统菜单，滑动时不要滚动页面 */
+.photo-grid {
+  touch-action: pan-y;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+/* P6.20：悬停出现的「选到此」按钮（触屏没有 hover，所以它本身是个可点的按钮） */
+.photo-range {
+  position: absolute;
+  left: 50%;
+  bottom: 6px;
+  transform: translateX(-50%);
+  z-index: 3;
+  padding: 3px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.62);
+  border-radius: 10px;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+  white-space: nowrap;
+}
+.photo-item:hover .photo-range,
+/* 触屏没有 hover：进入多选或已勾选时全部显形，否则手机上根本点不到 */
+.photo-grid.range-on .photo-range {
+  opacity: 1;
+  pointer-events: auto;
+}
+.photo-range:hover {
+  background: var(--el-color-primary);
+}
+/* P6.20：选中态只框住缩略图（之前整格 outline 会和相邻格挤在一起） */
+.photo-item.picked .photo-thumb {
+  outline: 2px solid var(--el-color-primary);
+  outline-offset: -2px;
+  border-radius: 5px;
+}
+/* P6.30：旧选中态已删除——之前和 .photo-thumb 的描边同时生效，选中时是双层蓝框 */
+/* 批量条固定在弹窗底部 */
+.photo-batch {
+  justify-content: flex-end;
+}
+/* P6.13：图片多时弹窗不要撑出屏幕，主体限高内部滚动 */
+:deep(.photos-dialog .el-dialog__body) {
+  padding: 12px;
+  max-height: 62vh;
+  overflow: auto;
+}
+/* P6.13：分页的「N 条/页」下拉在窄容器里会被截成「4 条/页」，给足宽度。
+   目标在子组件 Pagination 内部，必须用 :deep() 才能命中。 */
+:deep(.el-pagination__sizes .el-select) {
+  width: 118px;
 }
 .photo-name {
   font-size: 11px;
@@ -2494,6 +3686,82 @@ onBeforeUnmount(() => { stopScanPolling() })
   border-radius: 3px;
   padding: 2px 4px;
 }
+.row-more {
+  margin: 0 2px;
+  vertical-align: middle;
+}
+/* P6.17：自绘勾选框：16px 方块，勾上后主色填充 + 白勾 */
+.photo-pick {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.9);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+.photo-pick.on {
+  background: var(--el-color-primary);
+  border-color: var(--el-color-primary);
+}
+.photo-pick.on::after {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.photos-head-tip {
+  font-size: 11.5px;
+  color: var(--el-text-color-secondary);
+  white-space: nowrap;
+}
+.photo-batch {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 4px;
+  padding: 8px 10px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 6px;
+}
+.photo-batch-count {
+  font-size: 12.5px;
+  color: var(--el-text-color-regular);
+}
+/* P6.09 图片级分级角标：点一下循环切换；颜色沿用三档语义 */
+.photo-rating-dd {
+  position: absolute;
+  right: 4px;
+  top: 4px;
+  z-index: 2;
+}
+.photo-rating {
+  min-width: 18px;
+  text-align: center;
+  font-size: 11px;
+  line-height: 1;
+  color: #fff;
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: 3px;
+  padding: 2px 4px;
+  cursor: pointer;
+  user-select: none;
+}
+.photo-rating.pr-general { background: rgba(64, 158, 255, 0.85); }
+.photo-rating.pr-guidance { background: rgba(230, 162, 60, 0.9); }
+.photo-rating.pr-restricted { background: rgba(245, 108, 108, 0.9); }
+/* P6.25：比册级更宽的图（图级优先后会单独可见）——白虚线描一圈，和「继承」区分开 */
+.photo-rating.wider { outline: 1px dashed #fff; outline-offset: -2px; box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.9); }
 .photo-notice {
   margin: 0 0 8px;
   font-size: 12px;
@@ -2503,6 +3771,7 @@ onBeforeUnmount(() => { stopScanPolling() })
 .person-album {
   word-break: break-all;
 }
+.trash-cover-ph { color: var(--el-text-color-placeholder); }
 .trash-orphan {
   font-size: 12px;
   color: var(--el-text-color-secondary);
@@ -2666,6 +3935,57 @@ onBeforeUnmount(() => { stopScanPolling() })
   padding-left: 6px;
   padding-right: 6px;
 }
+/* P6.21：分级单元格的标签（替代行内 el-select）——纯 span，无弹层、无子组件 */
+.review-cell {
+  display: inline-block;
+  padding: 0 8px;
+  font-size: 12px;
+  line-height: 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-regular);
+}
+.review-cell.rs-pending { color: var(--el-color-warning); }
+.review-cell.rs-approved { color: var(--el-color-success); }
+.review-cell.rs-rejected { color: var(--el-color-danger); }
+.rating-cell {
+  display: inline-block;
+  min-width: 62px;
+  padding: 1px 8px;
+  font-size: 12px;
+  line-height: 20px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  user-select: none;
+  transition: filter 0.12s;
+}
+.rating-cell:hover {
+  filter: brightness(0.95);
+}
+.rating-cell.rc-general {
+  color: var(--el-color-success);
+  background: var(--el-color-success-light-9);
+  border-color: var(--el-color-success-light-7);
+}
+.rating-cell.rc-guidance {
+  color: var(--el-color-warning);
+  background: var(--el-color-warning-light-9);
+  border-color: var(--el-color-warning-light-7);
+}
+.rating-cell.rc-restricted {
+  color: var(--el-color-danger);
+  background: var(--el-color-danger-light-9);
+  border-color: var(--el-color-danger-light-7);
+}
+/* 虚拟触发用的锚点：virtual-triggering 下不会真的渲染，留个空节点给插槽即可 */
+.rating-menu-anchor {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
 .rating-error {
   margin-top: 2px;
   font-size: 11px;
@@ -2702,3 +4022,21 @@ onBeforeUnmount(() => { stopScanPolling() })
   align-items: flex-start;
 }
 </style>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

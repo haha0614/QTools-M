@@ -63,6 +63,15 @@ export function restoreMedia(kind, id) {
   })
 }
 
+// P6.51：回收站恢复（带 trashRel 可精确指定条目；行已被删除时按条目旁注的原路径搬回去）
+export function restoreTrash(kind, id, trashRel) {
+  return request({
+    url: '/api/media/admin/trash/restore',
+    method: 'post',
+    data: { kind, id, trashRel }
+  })
+}
+
 // 回收站分页列表（以磁盘为准；同 id 多份软删各占一行）
 export function listTrash(query) {
   return request({
@@ -344,6 +353,24 @@ export function listScanJobs(limit) {
   })
 }
 
+/* 库健康体检（只读）：{generatedAt, ok, problems, checks:[{key,label,count,ok,detail,fix}]} */
+export function getHealth() {
+  return request({
+    url: BASE + '/health',
+    method: 'get',
+    silent: true
+  })
+}
+
+/* 库健康修复：kind = albumCounters（按 media_photo 重算计数）/ emptyAlbums（删 0 图且目录已不存在的相册） */
+export function fixHealth(kind) {
+  return request({
+    url: BASE + '/health/fix',
+    method: 'post',
+    data: { kind }
+  })
+}
+
 /* P6.04：数据一致性检查用的缺失清单（只读，total 就是缺失条数） */
 export function listMissing(query) {
   return request({
@@ -351,6 +378,17 @@ export function listMissing(query) {
     method: 'get',
     params: query,
     silent: true
+  })
+}
+
+/* 清理缺失记录（硬删索引行，SQL 恒带 missing=1，扫描找回文件的行删不掉）。
+   入参：{ kind: 'photo'|'video'|'all', all: true } 或 { kind, ids: [...] }。
+   返回：{ deleted, kind, all, photos, videos } */
+export function pruneMissing(data) {
+  return request({
+    url: BASE + '/missing/prune',
+    method: 'post',
+    data
   })
 }
 
@@ -624,6 +662,24 @@ export function setAlbumPersons(id, personIds) {
    不弹全局提示、不抛异常（与 /persons、/duplicates 等未就绪接口同一套处理）。 */
 
 // 工作室分页列表：q 匹配名称（后端决定），page 从 1 开始
+/* P6.10 批量设置人物：{type:'video'|'album', ids:[], personIds:[]}（personIds 空 = 清空归属） */
+export function batchPerson(data) {
+  return request({
+    url: BASE + '/batch-person',
+    method: 'post',
+    data
+  })
+}
+
+/* P6.10 批量设置工作室（只对视频）：{ids:[], studioIds:[]} */
+export function batchStudio(data) {
+  return request({
+    url: BASE + '/batch-studio',
+    method: 'post',
+    data
+  })
+}
+
 export function listStudios(query) {
   return request({
     url: BASE + '/studios',
@@ -868,5 +924,96 @@ export function retryScanIngestPhase(jobId, phase) {
     method: 'post',
     params: { phase: phase },
     silent: true
+  })
+}
+
+// 图片内容自动分级（P6.24）：把一册的缩略图交本机 NSFW 模型判「露点」，一次一批（offset/limit）
+export function classifyPhotos(payload) {
+  return request({
+    url: BASE + '/rating/classify-photos',
+    method: 'post',
+    data: payload,
+    timeout: 180000
+  })
+}
+// ---- P6.35 内容审核 ----
+// 汇总：{album:{pending,approved,rejected}, video:{...}}
+export function getReviewSummary() {
+  return request({ url: '/api/media/admin/review/summary', method: 'get' })
+}
+
+// 队列：type=album|video，state=pending|approved|rejected（空=全部）
+export function listReview(params) {
+  return request({ url: '/api/media/admin/review/list', method: 'get', params })
+}
+
+// 批量改状态：{type, ids:[...], state}
+export function setReviewState(data) {
+  return request({ url: '/api/media/admin/review/state', method: 'post', data })
+}
+// 分级复核：模型判不了（auto_rating=review）的照片
+export function listRatingReview(params) {
+  return request({ url: '/api/media/admin/review/rating/list', method: 'get', params })
+}
+
+// 人工定档（会同时写 content_rating 和 auto_rating，这张从复核队列消失）
+export function decideRatingReview(data) {
+  return request({ url: '/api/media/admin/review/rating/decide', method: 'post', data })
+}
+// P6.48：把一本册整体并入另一本（照片改挂目标册 + 登记目录别名 + 删源册）
+export function mergeAlbums(source, target) {
+  return request({
+    url: BASE + '/albums/merge',
+    method: 'post',
+    data: { source, target }
+  })
+}
+// P6.51：按图改归属 —— 移到另一本已有册（target 必填），会打上 album_pinned=1
+// dupPolicy：keep=同时存在（默认）/ skip=跳过重复 / replace=只保留一份（旧的那份进回收站）
+export function moveAlbumPhotos(photoIds, target, dupPolicy) {
+  return request({
+    url: BASE + '/albums/photos/move',
+    method: 'post',
+    data: { photoIds, target, dupPolicy: dupPolicy || 'keep' }
+  })
+}
+// P6.51：搬入前预检 —— 目标册里有几张同内容、全库共几处
+export function previewPhotoMove(photoIds, target) {
+  return request({
+    url: BASE + '/albums/photos/move/preview',
+    method: 'post',
+    data: { photoIds, target }
+  })
+}
+// P6.51：同内容多份（主行维度）—— 一张照片只属于一个系列，跨册同 hash 也算重复
+export function listMainDuplicates(params) {
+  return request({ url: '/api/media/admin/duplicates/main/groups', method: 'get', params })
+}
+// P6.51：清理其中一份（文件移入回收站 + 删行 + 重算所属册）
+export function removeMainDuplicate(memberId) {
+  return request({ url: '/api/media/admin/duplicates/main/remove', method: 'post', data: { memberId } })
+}
+// P6.51：保留这一份，其余全部清理
+export function keepMainDuplicate(contentHash, keepMemberId) {
+  return request({
+    url: '/api/media/admin/duplicates/main/keep',
+    method: 'post',
+    data: { contentHash, keepMemberId }
+  })
+}
+// P6.51：从当前册拆出一本新册（title 必填），新册 dir_key 为空、source='manual'
+export function splitAlbumPhotos(photoIds, title) {
+  return request({
+    url: BASE + '/albums/photos/split',
+    method: 'post',
+    data: { photoIds, title }
+  })
+}
+// P6.49：并入前预检（会搬多少张 / 多少张内容重复）
+export function previewAlbumMerge(source, target) {
+  return request({
+    url: BASE + '/albums/merge/preview',
+    method: 'post',
+    data: { source, target }
   })
 }
