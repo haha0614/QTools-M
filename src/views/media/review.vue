@@ -74,14 +74,10 @@
     <!-- ============================== 入站队列（P6.55） ============================== -->
     <template v-if="mode === 'inbound'">
       <p class="rv-sub rv-inbound-tip">
-        扫进来但还没被「采纳 + 通过」的册：<b>建议册</b>（扫描按目录给的）与<b>待审册</b>。
-        每本册在这里定三件事之一：通过并采纳（站端可见）、并入另一册、打散为未归类。
+        扫描按目录给出来的<b>建议册</b>（还没被采纳）：在这里定三件事之一——
+        通过并采纳（站端可见）、并入另一册、打散为未归类。
+        已经存在但只是<b>没过审</b>的册不在这里，它们在「内容审核」页（那里每行也能直接采纳）。
       </p>
-      <el-radio-group v-model="inboundMode" size="small" class="rv-inbound-mode" @change="loadInbound">
-        <el-radio-button value="suggest">建议册（新到货）</el-radio-button>
-        <el-radio-button value="pending">未审正式册（积压）</el-radio-button>
-        <el-radio-button value="all">全部</el-radio-button>
-      </el-radio-group>
       <div class="rv-tools">
         <el-input v-model="keyword" placeholder="搜索标题 / 目录" clearable style="width: 220px"
           @keyup.enter="loadInbound" @clear="loadInbound" />
@@ -177,7 +173,11 @@
         </el-table-column>
         <el-table-column label="标题 / 目录" min-width="210">
           <template #default="{ row }">
-            <div class="rv-title-cell rv-link" @click="openPreview(row)">{{ row.title || row.id }}</div>
+            <div class="rv-title-cell rv-link" @click="openPreview(row)">
+              {{ row.title || row.id }}
+              <!-- P6.58：扫描给的册还没被采纳；采纳入口就在这一行，审核完顺手采纳，不用再跑去入站队列 -->
+              <el-tag v-if="type === 'album' && row.confirmed === 0" size="small" type="warning" class="rv-suggest">建议册</el-tag>
+            </div>
             <div class="rv-dir">{{ row.dir }}</div>
           </template>
         </el-table-column>
@@ -215,6 +215,8 @@
             <el-button v-if="row.reviewState !== 'approved'" link type="success" @click="setOne(row, 'approved')">通过</el-button>
             <el-button v-if="row.reviewState !== 'rejected'" link type="danger" @click="setOne(row, 'rejected')">驳回</el-button>
             <el-button v-if="row.reviewState !== 'pending'" link @click="setOne(row, 'pending')">退回</el-button>
+            <el-button v-if="type === 'album' && row.confirmed === 0" link type="warning"
+              data-testid="review-adopt" @click="adoptOne(row)">采纳</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -320,7 +322,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getReviewSummary, listReview, setReviewState, listRatingReview, decideRatingReview,
   listPeople, setAlbumRating, setVideoRating, setAlbumPersons, setVideoPersons, setRatingBatch, getAlbumPhotos,
-  approveInbound, detachAlbum, mergeAlbums, listAlbums,
+  approveInbound, detachAlbum, mergeAlbums, listAlbums, confirmAlbums,
   listReviewPhotos, setReviewPhotoState
 } from '@/api/media'
 import PhotoAutoRateDialog from './PhotoAutoRateDialog.vue'
@@ -391,7 +393,7 @@ const inboundTotal = ref(0)
 const inboundLoading = ref(false)
 const inboundSelection = ref([])
 const inboundQuery = reactive({ page: 1, size: 10 })
-/** 队列口径：suggest=只有建议册（默认，新到货）/ pending=未审正式册 / all=并集 */
+/** P6.58：入站队列只列建议册（confirmed=0）；未审的正式册归「内容审核」页，避免两处重复 */
 const inboundMode = ref('suggest')
 const inboundMergeVisible = ref(false)
 const inboundMergeSource = ref(null)
@@ -447,6 +449,18 @@ async function approveInboundIds(ids) {
     loadSummary()
   } catch (e) {
     proxy.$modal.msgError('操作失败：' + errText(e))
+  }
+}
+
+/** 内容审核页里顺手采纳（confirmed=0 → 1），审核与策展在同一行完成 */
+async function adoptOne(row) {
+  if (!row || !row.id || row.confirmed !== 0) return
+  try {
+    const res = await confirmAlbums([String(row.id)])
+    proxy.$modal.msgSuccess('已采纳（' + ((res && res.confirmed) || 1) + ' 本册，站端可见需审核通过）')
+    reload()
+  } catch (e) {
+    proxy.$modal.msgError('采纳失败：' + errText(e))
   }
 }
 
@@ -919,7 +933,7 @@ onMounted(() => {
 .rv-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
 .rv-sub { margin: 0 0 10px; font-size: 12px; color: var(--el-text-color-secondary); line-height: 1.7; }
 .rv-mode { margin-bottom: 10px; }
-.rv-inbound-mode { margin-bottom: 8px; }
+.rv-suggest { margin-left: 8px; transform: scale(0.9); }
 .rv-cards { display: flex; gap: 12px; margin-bottom: 8px; }
 .rv-card {
   flex: 1; max-width: 320px; padding: 10px 14px; border: 1px solid var(--el-border-color);
