@@ -977,6 +977,14 @@ export function moveAlbumPhotos(photoIds, target, dupPolicy) {
     data: { photoIds, target, dupPolicy: dupPolicy || 'keep' }
   })
 }
+// P6.57：册内人工排序（按给定顺序重写 seq，只动这几张）
+export function reorderAlbumPhotos(album, photoIds, startSeq) {
+  return request({
+    url: BASE + '/albums/photos/reorder',
+    method: 'post',
+    data: { album, photoIds, startSeq }
+  })
+}
 // P6.56：照片级审核队列（只列显式设了 review_state 的行；NULL=继承册不在此列）
 export function listReviewPhotos(params) {
   return request({ url: '/api/media/admin/review/photos', method: 'get', params })

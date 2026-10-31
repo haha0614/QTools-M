@@ -552,6 +552,12 @@
           <span class="photos-head-title">{{ photosTitle }}</span>
           <span class="photos-head-picked" v-if="photoSelected.length">已选 {{ photoSelected.length }} 张</span>
           <span class="photos-head-tip">Shift+点击 / 触屏长按拖动 可连选</span>
+          <!-- P6.57：人工排序（拖拽重排当前页，退出时保存） -->
+          <el-button v-if="photoList.length && photoSource !== 'disk'" link
+            :type="photoSortMode ? 'success' : 'primary'" size="small" data-testid="photo-sort-toggle"
+            v-hasPermi="['media:admin:edit']" @click="toggleSortMode">
+            {{ photoSortMode ? '完成排序' : '排序' }}
+          </el-button>
           <el-button v-if="photoList.length" link type="primary" size="small" class="photos-head-all"
             data-testid="photo-select-all" @click="toggleSelectAll">
             {{ allPicked ? '取消全选本页' : '全选本页（' + photoList.length + '）' }}
@@ -589,11 +595,15 @@
       >
         <div
           class="photo-item"
-          :class="{ picked: photoSelected.includes(String(photo.id)) }"
+          :class="{ picked: photoSelected.includes(String(photo.id)), 'sorting': photoSortMode }"
           :data-id="String(photo.id)"
-          v-for="photo in photoList"
+          v-for="(photo, photoIndex) in photoList"
           :key="photoKey(photo)"
-          @click="onPhotoClick(photo)"
+          :draggable="photoSortMode"
+          @dragstart="onSortDragStart(photoIndex)"
+          @dragover.prevent
+          @drop.prevent="onSortDrop(photoIndex)"
+          @click="photoSortMode || onPhotoClick(photo)"
           @pointerdown="onCardPointerDown(photo, $event)"
         >
           <!-- P6.17：自绘勾选框（el-checkbox 的 change 拿不到 shiftKey），支持 Shift 连选 -->
@@ -946,7 +956,7 @@ import DeriveEmptyState from './DeriveEmptyState.vue'
 import { deriveMapOf, buildResultModel, DERIVE_FILTER_DEFAULT, filterVideoRows } from './deriveModel'
 import { getDeriveStatus } from '@/api/media'
 // 内容分级（P5.99）：行内下拉 / 批量设置用到的接口与值域常量
-import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos, confirmAlbums as confirmAlbumsApi } from '@/api/media'
+import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos, confirmAlbums as confirmAlbumsApi, reorderAlbumPhotos } from '@/api/media'
 import { RATING_OPTIONS, ratingOf } from './ratingOptions'
 
 const route = useRoute()
@@ -1641,6 +1651,8 @@ let dragSelecting = false
 let suppressClick = false
 
 function onCardPointerDown(photo, event) {
+  // 排序模式下：不启用连选/长按手势，把指针让给原生拖拽
+  if (photoSortMode.value) return
   if (!photo || photo.id == null) return
   suppressClick = false
   // 鼠标沿用 Shift + 勾选框，不做长按（长按鼠标很反直觉）
@@ -3099,6 +3111,50 @@ async function doAlbumMerge() {
   }
 }
 
+/* P6.57：册内人工排序（拖拽重排当前页，退出时一次性保存） */
+const photoSortMode = ref(false)
+const sortDragIndex = ref(-1)
+
+function toggleSortMode() {
+  if (photoSortMode.value) {
+    photoSortMode.value = false
+    saveSort()
+  } else {
+    photoSortMode.value = true
+  }
+}
+
+function onSortDragStart(index) {
+  if (!photoSortMode.value) return
+  sortDragIndex.value = index
+}
+
+function onSortDrop(index) {
+  const from = sortDragIndex.value
+  sortDragIndex.value = -1
+  if (!photoSortMode.value || from < 0 || from === index) return
+  const list = photoList.value.slice()
+  const moved = list.splice(from, 1)[0]
+  if (!moved) return
+  list.splice(index, 0, moved)
+  photoList.value = list
+}
+
+async function saveSort() {
+  const ids = photoList.value.map((p) => String(p.id)).filter((v) => v && v !== 'undefined')
+  const albumId = photoQuery.albumId
+  if (!ids.length || !albumId) return
+  // 当前页第一张的 seq 作为起点：翻页排序也不会把别页的顺序搅乱
+  const startSeq = Number((photoList.value[0] && photoList.value[0].seq) || 0)
+  try {
+    const res = await reorderAlbumPhotos(albumId, ids, startSeq)
+    proxy.$modal.msgSuccess('顺序已保存（' + ((res && res.updated) || ids.length) + ' 张）')
+    applyPhotoPage()
+  } catch (e) {
+    proxy.$modal.msgError('保存顺序失败：' + (errorText(e) || (e && e.message) || '请求失败'))
+  }
+}
+
 /* P6.52：未归类（album_id 为空）—— 列表 + 逐张移入某册 + 批量移出 */
 const uncatVisible = ref(false)
 const uncatLoading = ref(false)
@@ -3396,6 +3452,10 @@ onBeforeUnmount(() => { stopScanPolling() })
 .album-merge-preview { margin: 10px 0 0; font-size: 13px; color: var(--el-text-color-regular); }
 .album-merge-dup { color: var(--el-color-warning); }
 .album-merge-tip { margin: 0 0 12px; font-size: 13px; line-height: 1.7; color: var(--el-text-color-regular); }
+/* P6.57：排序模式：可拖 + 抓手光标 */
+.photo-item.sorting { cursor: grab; }
+.photo-item.sorting:active { cursor: grabbing; }
+
 /* P6.54：建议册徽标 */
 .album-suggest-tag { margin-left: 8px; transform: scale(0.9); }
 
