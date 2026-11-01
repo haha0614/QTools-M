@@ -332,7 +332,10 @@
         <span class="pv-big-keys">← → 切换 · 1/2/3 定级 · 0 继承 · X 勾选并下一张</span>
       </div>
       <div class="pv-big" v-if="pvBig">
-        <img :src="mediaSrc(pvBig.big)" alt="" @error="onBigError" />
+        <img :src="mediaSrc(bigDisplaySrc)" alt="" @error="onBigError" />
+        <!-- P6.69：渐进加载——先出 800 宽，原图就绪后自动替换 -->
+        <span class="pv-big-hint" v-if="bigLoadingFull">原图加载中…</span>
+        <span class="pv-big-hint ok" v-else-if="bigFullReady && pvBig && pvBig.big && pvBig.big !== pvBig.thumb">原图</span>
         <span class="pv-big-hint" v-if="bigFailed">大图不可用，已回退到缩略图</span>
       </div>
       <div class="pv-big-bar">
@@ -894,11 +897,45 @@ async function openAlbumPhotos(row) {
 }
 
 function onBigError() {
-  // 大图（preview 产物）没生成 / 404：回退到缩略图，别留一个空白弹窗
-  if (pvBig.value && pvBig.value.big !== pvBig.value.thumb) {
-    pvBig.value = { ...pvBig.value, big: pvBig.value.thumb }
+  // 显示中的图 404：退到缩略图，别留一个空白弹窗
+  if (pvBig.value && bigDisplaySrc.value !== pvBig.value.thumb) {
+    bigDisplaySrc.value = pvBig.value.thumb
+    bigLoadingFull.value = false
     bigFailed.value = true
   }
+}
+
+/* P6.69：大图渐进加载——先显示 800 宽缩略图（秒出），再把原图预载进来替换 */
+const bigDisplaySrc = ref('')
+const bigFullReady = ref(false)
+const bigLoadingFull = ref(false)
+/** 防竞态：翻页/关窗时自增，旧的 onload 回调直接作废 */
+let bigLoadToken = 0
+
+function loadBigProgressive(p) {
+  const token = ++bigLoadToken
+  bigDisplaySrc.value = p && p.thumb ? p.thumb : ''
+  bigFullReady.value = false
+  bigLoadingFull.value = false
+  const full = p && p.big
+  if (!full || full === (p && p.thumb)) {
+    bigFullReady.value = true
+    return
+  }
+  bigLoadingFull.value = true
+  const probe = new Image()
+  probe.onload = () => {
+    if (token !== bigLoadToken) return
+    bigDisplaySrc.value = full
+    bigFullReady.value = true
+    bigLoadingFull.value = false
+  }
+  probe.onerror = () => {
+    if (token !== bigLoadToken) return
+    // 原图取不到（被删 / 403）：留在缩略图上，不报错
+    bigLoadingFull.value = false
+  }
+  probe.src = mediaSrc(full)
 }
 
 function openBig(p) {
@@ -909,6 +946,7 @@ function openBig(p) {
   pvBigIndex.value = pvBigList.value.findIndex((x) => String(x.id) === String(p.id))
   pvBig.value = p
   bigFailed.value = false
+  loadBigProgressive(p)
   pvBigVisible.value = true
 }
 
@@ -939,7 +977,11 @@ function onPreviewKeydown(e) {
 
 watch(pvBigVisible, (open) => {
   if (open) window.addEventListener('keydown', onPreviewKeydown)
-  else window.removeEventListener('keydown', onPreviewKeydown)
+  else {
+    window.removeEventListener('keydown', onPreviewKeydown)
+    // 关窗时让还在路上的原图回调作废，免得下次打开被上一张覆盖
+    bigLoadToken += 1
+  }
 })
 
 onBeforeUnmount(() => window.removeEventListener('keydown', onPreviewKeydown))
@@ -952,6 +994,7 @@ function stepBig(delta) {
   if (next < 0 || next >= rows.length) return
   pvBigIndex.value = next
   pvBig.value = rows[next]
+  loadBigProgressive(rows[next])
 }
 
 /** 给指定图片设分级（rating=null → 继承相册） */
@@ -1166,6 +1209,7 @@ onMounted(() => {
 .pv-big-rating.inherit { background: var(--el-text-color-secondary); }
 .pv-big-sub { font-size: 12px; color: var(--el-text-color-secondary); }
 .pv-big-keys { margin-left: auto; font-size: 12px; color: var(--el-text-color-placeholder); }
+.pv-big-hint.ok { color: var(--el-color-success); }
 .pv-big-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--el-color-warning); }
 .pv-big img { max-width: 100%; max-height: 72vh; object-fit: contain; }
 .pv-big-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }.review-page { padding: 16px 18px; }
