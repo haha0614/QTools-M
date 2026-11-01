@@ -335,8 +335,9 @@
         <span class="pv-big-keys">← → 切换 · 1/2/3 定级 · 0 继承 · X 勾选并下一张 · 滚轮缩放 · 双击复位</span>
       </div>
       <div class="pv-big" v-if="pvBig" @wheel.prevent="onBigWheel" @dblclick="resetBigZoom">
-        <img :src="mediaSrc(bigDisplaySrc)" alt="" :style="bigImgStyle"
-          :title="'缩放 ' + bigZoomText + '（滚轮缩放，双击复位）'" @error="onBigError" />
+        <img ref="bigImgRef" :src="mediaSrc(bigDisplaySrc)" alt="" :style="bigImgStyle"
+          :title="'缩放 ' + bigZoomText + '（滚轮缩放，双击复位）'"
+          @load="onBigImgLoad" @error="onBigError" />
         <!-- P6.69：渐进加载——先出 800 宽，原图就绪后自动替换 -->
         <span class="pv-big-hint" v-if="bigLoadingFull">原图加载中…</span>
         <span class="pv-big-hint ok" v-else-if="bigFullReady && pvBig && pvBig.big && pvBig.big !== pvBig.thumb">原图</span>
@@ -955,17 +956,36 @@ const bigZoomText = computed(() => Math.round(bigZoom.value * 100) + '%')
  * 同时去掉 max-* 限制并 flex:none —— 只写 width 不够：flex 项默认 flex-shrink:1，
  * 会被容器压回原宽，看起来就是"点了缩放没反应"（第一版正是这么错的）。</p>
  */
+/**
+ * 100% 时的实测显示宽度（px）
+ *
+ * <p>关键：100% 的实际尺寸是 {@code contain} 的结果（竖图被 72vh 高度限制，往往只有 400px 宽），
+ * 并不是容器宽度。所以放大必须以<b>实测宽度</b>为基数，用容器百分比会在 110% 时
+ * 直接跳到「整窗宽」，看着就是"滚一下变巨大"。</p>
+ */
+const bigImgRef = ref(null)
+const bigFitW = ref(0)
+
+function onBigImgLoad() {
+  // 只在 100% 档量基数：放大后再量会把放大值当成基数，越滚越大
+  if (bigZoom.value > 1) return
+  const el = bigImgRef.value
+  const w = el && el.getBoundingClientRect ? el.getBoundingClientRect().width : 0
+  if (w > 0) bigFitW.value = w
+}
+
 const bigImgStyle = computed(() => {
   const z = bigZoom.value
   if (z <= 1) {
     return { maxWidth: '100%', maxHeight: '72vh', width: 'auto' }
   }
-  return {
-    width: Math.round(z * 100) + '%',
-    maxWidth: 'none',
-    maxHeight: 'none',
-    flex: 'none'
+  const base = bigFitW.value
+  if (base > 0) {
+    // 有实测基数就按像素放大：110% = 基数 × 1.1，符合直觉
+    return { width: Math.round(base * z) + 'px', maxWidth: 'none', maxHeight: 'none', flex: 'none' }
   }
+  // 还没量到（图没加载完）就先给个保守的：容器宽度 × 缩放
+  return { width: Math.round(z * 100) + '%', maxWidth: 'none', maxHeight: 'none', flex: 'none' }
 })
 
 function clampZoom(v) {
@@ -978,11 +998,13 @@ function stepBigZoom(delta) {
 
 /** 滚轮：向上放大、向下缩小（0.05 一档，比按钮细一点） */
 function onBigWheel(e) {
-  bigZoom.value = clampZoom(bigZoom.value + (e.deltaY > 0 ? -0.1 : 0.1))
+  // 0.08 一档：比按钮（0.15）细，一路滚上去不会突然变巨大
+  bigZoom.value = clampZoom(bigZoom.value + (e.deltaY > 0 ? -0.08 : 0.08))
 }
 
 function resetBigZoom() {
   bigZoom.value = 1
+  bigFitW.value = 0
 }
 
 /* P6.69：大图渐进加载——先显示 800 宽缩略图（秒出），再把原图预载进来替换 */
@@ -1027,6 +1049,7 @@ function openBig(p) {
   pvBig.value = p
   bigFailed.value = false
   bigZoom.value = 1
+  bigFitW.value = 0
   loadBigProgressive(p)
   pvBigVisible.value = true
 }
@@ -1076,6 +1099,7 @@ function stepBig(delta) {
   pvBigIndex.value = next
   pvBig.value = rows[next]
   bigZoom.value = 1
+  bigFitW.value = 0
   loadBigProgressive(rows[next])
 }
 
