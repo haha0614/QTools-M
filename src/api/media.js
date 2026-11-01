@@ -1057,6 +1057,10 @@ export function keepMainDuplicate(contentHash, keepMemberId) {
     data: { contentHash, keepMemberId }
   })
 }
+// P6.82：视频标签覆盖（未打标签提醒用）
+export function videoTagStats() {
+  return request({ url: '/api/media/admin/videos/tag-stats', method: 'get' })
+}
 // P6.77：相似图片（感知指纹 dHash + 汉明距离）—— 抓"同一张图被重新压缩"，不是字节级重复
 export function nearDuplicateStatus() {
   return request({ url: '/api/media/admin/duplicates/near/status', method: 'get' })

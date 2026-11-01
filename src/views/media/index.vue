@@ -31,6 +31,11 @@
         </span>
         <!-- P6.81：没勾选时也要让人知道这里能批量操作（相册页一直有这行提示，视频页之前什么都没有） -->
         <span v-else class="media-selected-hint">勾选视频后可批量设置分级 / 人物 / 工作室</span>
+        <!-- P6.82：「分类」列下线后，打标签是唯一的语义维度，未打标签数要能一眼看到并可一键筛出来 -->
+        <el-button v-if="tagStats.untagged > 0" size="small" text type="warning" icon="WarningFilled"
+          data-testid="video-untagged" @click="filterUntagged">
+          未打标签 {{ tagStats.untagged }} / {{ tagStats.total }}
+        </el-button>
         <el-button icon="Refresh" :loading="statsLoading" @click="refreshAll">刷新</el-button>
         <el-button icon="PriceTag" @click="openTagManager" v-hasPermi="['media:admin:list']">标签管理</el-button>
         <el-button icon="Setting" @click="openEditPolicy" v-hasPermi="['media:admin:edit']">编辑策略</el-button>
@@ -70,7 +75,14 @@
           <el-form-item label="关键词" prop="keyword">
             <el-input v-model="videoQuery.keyword" placeholder="标题 / 路径" clearable style="width: 180px" @keyup.enter="handleVideoQuery" />
           </el-form-item>
-          <el-form-item label="分类" prop="folder">
+          <el-form-item label="标签" prop="tagFilter">
+            <el-select v-model="videoQuery.tagFilter" multiple collapse-tags placeholder="全部（可多选）"
+              clearable style="width: 220px" data-testid="video-tag-filter">
+              <el-option label="无标签" value="__none__" />
+              <el-option v-for="t in tagOptions" :key="t.id" :label="t.name" :value="String(t.id)" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="分类" prop="folder" v-if="false">
             <el-select v-model="videoQuery.folder" placeholder="全部分类" clearable style="width: 170px">
               <el-option v-for="item in folderOptions" :key="item.name" :label="item.name + ' (' + item.count + ')'" :value="item.name" />
             </el-select>
@@ -131,7 +143,8 @@
           </el-table-column>
           <el-table-column label="标题" prop="title" min-width="200" :show-overflow-tooltip="true" />
           <el-table-column label="路径" prop="relPath" min-width="220" :show-overflow-tooltip="true" />
-          <el-table-column label="分类" prop="folder" width="110" align="center" />
+          <!-- P6.82：「分类」列下线——它只是路径第一段（scan-media.js:763），路径列已经写着，
+               和标签重复；语义维度统一交给标签 -->
           <!-- P6.07：列表补上「人物 / 工作室」两列（后端子查询聚合，无 N+1） -->
           <el-table-column label="人物" min-width="150" :show-overflow-tooltip="true">
             <template #default="scope">{{ scope.row.personText || '—' }}</template>
@@ -968,6 +981,7 @@ import DeriveEmptyState from './DeriveEmptyState.vue'
 import { deriveMapOf, buildResultModel, DERIVE_FILTER_DEFAULT, filterVideoRows } from './deriveModel'
 import { getDeriveStatus } from '@/api/media'
 // 内容分级（P5.99）：行内下拉 / 批量设置用到的接口与值域常量
+import { videoTagStats, listTags as listTagsApi } from '@/api/media'
 import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos, confirmAlbums as confirmAlbumsApi, reorderAlbumPhotos } from '@/api/media'
 import { RATING_OPTIONS, ratingOf } from './ratingOptions'
 
@@ -1009,7 +1023,7 @@ const FILTER_KEYS = {
 }
 const TRASH_PAGE_MAX = 200 // 与后端 /trash 的 pageSize 上限一致
 
-const videoQuery = reactive({ pageNum: 1, pageSize: 10, keyword: '', folder: '', vcodec: '', hidden: 'all', sort: 'mtime-desc', ids: '', rating: '' })
+const videoQuery = reactive({ pageNum: 1, pageSize: 10, keyword: '', folder: '', vcodec: '', hidden: 'all', sort: 'mtime-desc', ids: '', rating: '', tagFilter: [] })
 const videoList = ref([])
 const videoTotal = ref(0)
 const videoLoading = ref(false)
@@ -1126,8 +1140,9 @@ const maintLastJob = ref(null)
 /** P6.04：视频页当前是否真的设置了筛选条件（维护抽屉的「当前筛选结果」范围据此启用） */
 const videoFilterActive = computed(() => {
   if (activeTab.value !== 'video') return false
-  return !!((videoQuery.keyword || '').trim() || videoQuery.folder || videoQuery.vcodec
-    || (videoQuery.hidden && videoQuery.hidden !== 'all') || videoQuery.ids)
+  return !!((videoQuery.keyword || '').trim() || videoQuery.vcodec
+    || (videoQuery.hidden && videoQuery.hidden !== 'all') || videoQuery.ids
+    || (Array.isArray(videoQuery.tagFilter) && videoQuery.tagFilter.length))
 })
 
 /** P6.04：清空回收站后刷新统计卡片与回收站页（面板只负责删，页面负责刷新） */
@@ -1350,6 +1365,16 @@ function loadVideos() {
   videoLoading.value = true
   persistFilters('video', videoQuery)
   const params = buildParams(videoQuery)
+  // P6.82：标签筛选（多选）。取第一个真标签走既有 tagId 层级筛选；勾了「无标签」就走 noTag。
+  const tagSel = Array.isArray(videoQuery.tagFilter) ? videoQuery.tagFilter.map(String) : []
+  const realTags = tagSel.filter((v) => v !== '__none__')
+  if (realTags.length) {
+    params.tagId = realTags[0]
+  }
+  if (tagSel.indexOf('__none__') > -1) {
+    params.noTag = true
+  }
+  delete params.tagFilter
   listVideos(params).then(res => {
     videoList.value = (res && res.rows) || []
     videoTotal.value = (res && res.total) || 0
@@ -1363,6 +1388,29 @@ function loadVideos() {
  * /api/media/admin/stats 没有 vcodec 字段（已核对后端），又不改后端，因此按约定用 pageSize=200 拉一次全库去重。
  * 同时给出每个编码的条数，方便判断「这个编码有多少素材」。
  */
+/** 标签选项（P6.82：视频列表的语义筛选改由标签承担） */
+const tagOptions = ref([])
+const tagStats = reactive({ total: 0, tagged: 0, untagged: 0 })
+
+function loadTagOptions() {
+  listTagsApi().then(res => {
+    const rows = Array.isArray(res) ? res : (res && (res.rows || res.data)) || []
+    tagOptions.value = rows.map(t => ({ id: t.id, name: t.name }))
+  }).catch(() => { tagOptions.value = [] })
+  videoTagStats().then(res => {
+    tagStats.total = (res && res.total) || 0
+    tagStats.tagged = (res && res.tagged) || 0
+    tagStats.untagged = (res && res.untagged) || 0
+  }).catch(() => { /* 统计失败不影响列表 */ })
+}
+
+/** 一键筛出「还没打标签」的视频（提醒补标签用） */
+function filterUntagged() {
+  videoQuery.tagFilter = ['__none__']
+  videoQuery.pageNum = 1
+  loadVideos()
+}
+
 function loadVcodecOptions() {
   listVideos({ pageNum: 1, pageSize: 200 }).then(res => {
     const counter = new Map()
@@ -3435,6 +3483,7 @@ onMounted(() => {
   loadStats()
   loadPeople()
   loadVideos()
+  loadTagOptions()
   // P6.19：vcodec 下拉的选项要拉 200 行视频来统计，没必要挡住首屏，空闲时再补
   setTimeout(() => loadVcodecOptions(), 400)
 
