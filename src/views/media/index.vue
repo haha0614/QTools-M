@@ -354,12 +354,16 @@
                       v-hasPermi="['media:admin:edit']">并入另一册…</el-dropdown-item>
                     <el-dropdown-item icon="Edit" divided data-testid="album-rename"
                       v-hasPermi="['media:admin:edit']" @click="renameAlbumRow(scope.row)">重命名…</el-dropdown-item>
-                    <el-dropdown-item icon="Delete" data-testid="album-delete"
-                      v-hasPermi="['media:admin:remove']" @click="deleteAlbumRow(scope.row)">删除这本册…</el-dropdown-item>
+                    <el-dropdown-item icon="Delete" data-testid="album-delete" divided
+                      v-hasPermi="['media:admin:remove']" @click="deleteAlbumRow(scope.row)">
+                      删除这本册（不可撤销）…
+                    </el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
-              <el-button link type="danger" icon="Delete" title="软删" @click="handleRemove(scope.row, 'album')" v-hasPermi="['media:admin:remove']" />
+              <el-button link type="danger" icon="Delete" data-testid="album-soft-delete"
+                title="移到回收站（可恢复；整本目录会被搬走，目录被多本册共用时不允许）"
+                @click="handleRemove(scope.row, 'album')" v-hasPermi="['media:admin:remove']" />
             </template>
           </el-table-column>
         </el-table>
@@ -2322,7 +2326,8 @@ function toggleHidden(row, kind) {
 
 function handleRemove(row, kind) {
   const label = kind === 'video' ? '视频《' + row.title + '》' : '相册《' + row.title + '》'
-  proxy.$modal.confirm('确认把' + label + '移到回收站，可在回收站恢复？').then(() => {
+  proxy.$modal.confirm('把' + label + '移到回收站？\n'
+    + '整本目录会被搬进回收站（可在回收站恢复）；目录被多本册共用时会被拒绝。').then(() => {
     removeMedia(kind, row.id).then(() => {
       proxy.$modal.msgSuccess('已移到回收站，可在回收站恢复')
       loadStats()
@@ -2816,14 +2821,12 @@ async function renameAlbumRow(row) {
 async function deleteAlbumRow(row) {
   if (!row || !row.id) return
   const count = Number(row.photoCount) || 0
-  const dirWarn = row.dirKey
-    ? '\n\n注意：这本册来自磁盘目录「' + row.dirKey + '」，下一次扫描还会按目录把它重新建出来；'
-      + '要彻底不出现，得把那个目录改名/移走，或改用「并入另一册」。'
-    : ''
   try {
     await proxy.$modal.confirm(
-      '删除册「' + (row.title || row.id) + '」？\n'
-      + '册里的 ' + count + ' 张照片不会删，会变成「未归类」（可随时再移进别的册）。' + dirWarn
+      '删除册「' + (row.title || row.id) + '」——**不可撤销**。\n\n'
+      + '· 册里的 ' + count + ' 张照片不会被删，会变成「未归类」，可以再移进别的册；\n'
+      + '· 这本册的标题、封面、排序、人物归属、以及指向它的归属规则都会一起消失；\n'
+      + '· 与垃圾桶的区别：垃圾桶是「整本目录搬进回收站」（可恢复），这里是「只解散册」。'
     )
   } catch (e) {
     return
