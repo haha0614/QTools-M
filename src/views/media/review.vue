@@ -339,7 +339,7 @@
         @mousedown="onBigPanStart" @mousemove="onBigPanMove" @mouseup="onBigPanEnd" @mouseleave="onBigPanEnd">
         <img ref="bigImgRef" :src="mediaSrc(bigDisplaySrc)" alt="" :style="bigImgStyle"
           :title="'缩放 ' + bigZoomText + '（滚轮缩放，双击复位）'"
-          @load="onBigImgLoad" @error="onBigError" />
+          draggable="false" @dragstart.prevent @load="onBigImgLoad" @error="onBigError" />
         <!-- P6.69：渐进加载——先出 800 宽，原图就绪后自动替换 -->
         <span class="pv-big-hint" v-if="bigLoadingFull">原图加载中…</span>
         <span class="pv-big-hint ok" v-else-if="bigFullReady && pvBig && pvBig.big && pvBig.big !== pvBig.thumb">原图</span>
@@ -1018,6 +1018,8 @@ function onBigPanStart(e) {
   if (bigZoom.value <= 1 || !bigBoxRef.value) return
   // 只接左键；双击复位由 @dblclick 处理，不冲突
   if (e.button !== 0) return
+  // 关键：阻止原生「拖拽图片 / 选区」行为，否则浏览器接管指针，平移收不到 mousemove
+  e.preventDefault()
   const box = bigBoxRef.value
   bigPanning.value = true
   bigPan.x = e.clientX
@@ -1350,12 +1352,15 @@ onMounted(() => {
 }
 .pv-item:hover .pv-range { display: inline-block; }
 .pv-big {
-  position: relative; display: flex; justify-content: center; align-items: flex-start;
-  /* P6.73：固定高度（不是 min-height）——放大后图片在容器内部滚动，
-     否则 flex 容器会被撑高，整个弹窗跟着变长、底部按钮被挤出可视区 */
+  position: relative;
+  /* P6.74：用 block 而不是 flex。flex 行容器的**交叉轴**（纵向）溢出不会产生可滚动区域，
+     实测放大后 scrollTop 恒为 0 —— 垂直方向拖不动就是这个原因。
+     block + text-align: center 既能居中，两个方向的 overflow 又都能正常滚动。 */
+  display: block; text-align: center;
   height: 68vh; background: #000; border-radius: 4px; overflow: auto;
 }
-.pv-big.can-pan { cursor: grab; }
+.pv-big img { -webkit-user-drag: none; user-drag: none; }
+.pv-big.can-pan { cursor: grab; user-select: none; }
 .pv-big.panning { cursor: grabbing; }
 .pv-big { align-items: flex-start; justify-content: safe center; }
 .pv-big-zoom { display: inline-flex; align-items: center; gap: 6px; }
@@ -1373,7 +1378,7 @@ onMounted(() => {
 .pv-big-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--el-color-warning); }
 /* P6.71：缩放由内联样式覆盖（见 bigImgStyle）。这里只给「100% 时铺满可视区」的兜底，
    注意别再写 max-width/max-height 之外的限制，否则会把放大后的内联宽度压回去。 */
-.pv-big img { display: block; object-fit: contain; }
+.pv-big img { display: inline-block; object-fit: contain; vertical-align: top; font-size: 0; }
 .pv-big-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }.review-page { padding: 16px 18px; }
 .rv-head { margin-bottom: 6px; }
 .rv-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
