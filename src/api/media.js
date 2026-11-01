@@ -1057,6 +1057,13 @@ export function keepMainDuplicate(contentHash, keepMemberId) {
     data: { contentHash, keepMemberId }
   })
 }
+// P6.88：未归类按目录汇总 + 一键「建册 + 建规则 + 并入」（规则模式下新增归属的人手入口）
+export function listUncategorizedDirs() {
+  return request({ url: BASE + '/albums/photos/uncategorized/dirs', method: 'get' })
+}
+export function claimUncategorizedDir(data) {
+  return request({ url: BASE + '/albums/photos/uncategorized/claim', method: 'post', data })
+}
 // P6.86：相册改名（人工设定，重扫不再覆盖）与删除（册内照片移出到「未归类」）
 export function renameAlbum(id, title) {
   return request({ url: BASE + '/album/' + encodeURIComponent(String(id)), method: 'put', data: { title } })
