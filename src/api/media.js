@@ -1076,6 +1076,10 @@ export function cleanNearDuplicates(data) {
 export function listNearAlbumPairs(params) {
   return request({ url: '/api/media/admin/duplicates/near/albums', method: 'get', params })
 }
+// 某一对册的重叠明细（删之前先看一眼）
+export function listNearAlbumOverlapPhotos(params) {
+  return request({ url: '/api/media/admin/duplicates/near/albums/photos', method: 'get', params })
+}
 // 清理「这本册里与另一本册重复的图」（只删这一侧，另一册保留）
 export function cleanNearAlbumOverlap(data) {
   return request({ url: '/api/media/admin/duplicates/near/albums/clean', method: 'post', data })
