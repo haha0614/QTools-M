@@ -282,9 +282,11 @@
         <el-button size="small" :disabled="!pvSelected.length" @click="pvSelected = []">清空选择</el-button>
         <span class="pv-spacer" />
         <span class="pv-filter-label">格子</span>
-        <el-radio-group v-model="pvDensity" size="small" class="pv-density" @change="onDensityChange">
-          <el-radio-button v-for="d in PV_DENSITIES" :key="d.value" :value="d.value">{{ d.label }}</el-radio-button>
-        </el-radio-group>
+        <el-button size="small" icon="ZoomOut" :disabled="!canZoomOut" data-testid="pv-zoom-out"
+          title="缩小格子（Ctrl+滚轮同样可以）" @click="stepDensity(-1)" />
+        <span class="pv-density-label" data-testid="pv-density-label">{{ pvDensityLabel }}</span>
+        <el-button size="small" icon="ZoomIn" :disabled="!canZoomIn" data-testid="pv-zoom-in"
+          title="放大格子（Ctrl+滚轮同样可以）" @click="stepDensity(1)" />
       </div>
 
       <!-- 第二行：动作条 —— 左边「对选中的这几张做什么」，右边「对整册做什么」 -->
@@ -307,7 +309,8 @@
         <el-button size="small" type="danger" plain :disabled="pvBusy" data-testid="pv-reject-album"
           @click="pvDecideAlbum('rejected')">驳回本册</el-button>
       </div>
-      <div class="pv-grid" v-if="pvRows.length" :style="pvGridStyle">
+      <!-- P6.70：Ctrl+滚轮缩放网格（普通滚轮仍然是滚动浏览） -->
+      <div class="pv-grid" v-if="pvRows.length" :style="pvGridStyle" @wheel.ctrl.prevent="onGridWheel">
         <div class="pv-item" v-for="p in pvFilteredRows" :key="p.id" :class="{ on: pvIsSelected(p.id) }">
           <img :src="mediaSrc(p.thumb)" loading="lazy" decoding="async" alt=""
             :title="'第 ' + (Number(p.seq) + 1) + ' 张 · ' + pvRatingLabel(p.rating)"
@@ -329,10 +332,11 @@
         当前分级
         <b class="pv-big-rating" :class="pvBig.rating || 'inherit'">{{ pvRatingLabel(pvBig.rating) }}</b>
         <span class="pv-big-sub">册级：{{ pvRatingLabel(pvAlbum.rating) }}（没单独设过的图跟着册级走）</span>
-        <span class="pv-big-keys">← → 切换 · 1/2/3 定级 · 0 继承 · X 勾选并下一张</span>
+        <span class="pv-big-keys">← → 切换 · 1/2/3 定级 · 0 继承 · X 勾选并下一张 · 滚轮缩放 · 双击复位</span>
       </div>
-      <div class="pv-big" v-if="pvBig">
-        <img :src="mediaSrc(bigDisplaySrc)" alt="" @error="onBigError" />
+      <div class="pv-big" v-if="pvBig" @wheel.prevent="onBigWheel" @dblclick="resetBigZoom">
+        <img :src="mediaSrc(bigDisplaySrc)" alt="" :style="{ width: (bigZoom * 100) + '%' }"
+          :title="'缩放 ' + bigZoomText + '（滚轮缩放，双击复位）'" @error="onBigError" />
         <!-- P6.69：渐进加载——先出 800 宽，原图就绪后自动替换 -->
         <span class="pv-big-hint" v-if="bigLoadingFull">原图加载中…</span>
         <span class="pv-big-hint ok" v-else-if="bigFullReady && pvBig && pvBig.big && pvBig.big !== pvBig.thumb">原图</span>
@@ -341,6 +345,15 @@
       <div class="pv-big-bar">
         <el-button size="small" :disabled="pvBigIndex <= 0" @click="stepBig(-1)">上一张</el-button>
         <el-button size="small" :disabled="pvBigIndex >= pvBigList.length - 1" @click="stepBig(1)">下一张</el-button>
+        <!-- P6.70：缩放（滚轮同样可缩放，双击图片复位） -->
+        <span class="pv-big-zoom">
+          <el-button size="small" icon="ZoomOut" :disabled="bigZoom <= BIG_ZOOM_MIN" data-testid="big-zoom-out"
+            title="缩小（滚轮向下；双击图片复位）" @click="stepBigZoom(-1)" />
+          <el-button size="small" data-testid="big-zoom-reset" title="复位到 100%"
+            @click="resetBigZoom">{{ bigZoomText }}</el-button>
+          <el-button size="small" icon="ZoomIn" :disabled="bigZoom >= BIG_ZOOM_MAX" data-testid="big-zoom-in"
+            title="放大（滚轮向上）" @click="stepBigZoom(1)" />
+        </span>
         <span class="pv-spacer" />
         <template v-if="pvBig">
           <el-button size="small" type="success" :plain="pvBig.rating !== 'general'" :disabled="pvBusy" @click="pvSetRating([pvBig.id], 'general')">大众</el-button>
@@ -790,6 +803,29 @@ const pvGridStyle = computed(() => {
   return { '--pv-min': px.min + 'px', '--pv-h': px.h + 'px' }
 })
 
+/** P6.70：档位的前后一档（滚轮 / ＋－ 按钮共用） */
+const PV_DENSITY_ORDER = ['compact', 'normal', 'large', 'huge']
+const pvDensityIndex = computed(() => Math.max(0, PV_DENSITY_ORDER.indexOf(pvDensity.value)))
+const canZoomOut = computed(() => pvDensityIndex.value > 0)
+const canZoomIn = computed(() => pvDensityIndex.value < PV_DENSITY_ORDER.length - 1)
+const pvDensityLabel = computed(() => {
+  const hit = PV_DENSITIES.find((d) => d.value === pvDensity.value)
+  return hit ? hit.label : ''
+})
+
+function stepDensity(delta) {
+  const next = Math.min(PV_DENSITY_ORDER.length - 1, Math.max(0, pvDensityIndex.value + delta))
+  const value = PV_DENSITY_ORDER[next]
+  if (value === pvDensity.value) return
+  pvDensity.value = value
+  onDensityChange(value)
+}
+
+function onGridWheel(e) {
+  // Ctrl+滚轮：向下（deltaY>0）缩小，向上放大
+  stepDensity(e.deltaY > 0 ? -1 : 1)
+}
+
 function onDensityChange(value) {
   try {
     localStorage.setItem(PV_DENSITY_KEY, String(value))
@@ -905,6 +941,30 @@ function onBigError() {
   }
 }
 
+/* P6.70：大图缩放 —— 滚轮/按钮，0.5×～4×，双击复位 */
+const BIG_ZOOM_MIN = 0.5
+const BIG_ZOOM_MAX = 4
+const BIG_ZOOM_STEP = 0.15
+const bigZoom = ref(1)
+const bigZoomText = computed(() => Math.round(bigZoom.value * 100) + '%')
+
+function clampZoom(v) {
+  return Math.min(BIG_ZOOM_MAX, Math.max(BIG_ZOOM_MIN, Math.round(v * 100) / 100))
+}
+
+function stepBigZoom(delta) {
+  bigZoom.value = clampZoom(bigZoom.value + delta * BIG_ZOOM_STEP)
+}
+
+/** 滚轮：向上放大、向下缩小（0.05 一档，比按钮细一点） */
+function onBigWheel(e) {
+  bigZoom.value = clampZoom(bigZoom.value + (e.deltaY > 0 ? -0.1 : 0.1))
+}
+
+function resetBigZoom() {
+  bigZoom.value = 1
+}
+
 /* P6.69：大图渐进加载——先显示 800 宽缩略图（秒出），再把原图预载进来替换 */
 const bigDisplaySrc = ref('')
 const bigFullReady = ref(false)
@@ -946,6 +1006,7 @@ function openBig(p) {
   pvBigIndex.value = pvBigList.value.findIndex((x) => String(x.id) === String(p.id))
   pvBig.value = p
   bigFailed.value = false
+  bigZoom.value = 1
   loadBigProgressive(p)
   pvBigVisible.value = true
 }
@@ -994,6 +1055,7 @@ function stepBig(delta) {
   if (next < 0 || next >= rows.length) return
   pvBigIndex.value = next
   pvBig.value = rows[next]
+  bigZoom.value = 1
   loadBigProgressive(rows[next])
 }
 
@@ -1199,7 +1261,14 @@ onMounted(() => {
   cursor: pointer; display: none; user-select: none;
 }
 .pv-item:hover .pv-range { display: inline-block; }
-.pv-big { position: relative; display: flex; justify-content: center; align-items: center; min-height: 320px; background: #000; border-radius: 4px; }
+.pv-big {
+  position: relative; display: flex; justify-content: center; align-items: center;
+  min-height: 320px; background: #000; border-radius: 4px; overflow: auto;
+}
+.pv-big img { display: block; max-width: none; max-height: none; transition: width 0.1s ease-out; }
+.pv-big { align-items: flex-start; }
+.pv-big-zoom { display: inline-flex; align-items: center; gap: 6px; }
+.pv-density-label { font-size: 12px; min-width: 28px; text-align: center; color: var(--el-text-color-regular); }
 .rv-video { width: 100%; max-height: 70vh; background: #000; }
 .pv-big-status { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 13px; }
 .pv-big-rating { padding: 0 8px; border-radius: 10px; color: #fff; background: var(--el-color-info); }
