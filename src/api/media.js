@@ -1072,6 +1072,14 @@ export function buildNearDuplicate(data) {
 export function cleanNearDuplicates(data) {
   return request({ url: '/api/media/admin/duplicates/near/clean', method: 'post', data })
 }
+// P6.80：册级重复——哪两本册其实是同一套图
+export function listNearAlbumPairs(params) {
+  return request({ url: '/api/media/admin/duplicates/near/albums', method: 'get', params })
+}
+// 清理「这本册里与另一本册重复的图」（只删这一侧，另一册保留）
+export function cleanNearAlbumOverlap(data) {
+  return request({ url: '/api/media/admin/duplicates/near/albums/clean', method: 'post', data })
+}
 // 清理指定的几份（勾选清理 / 清理某本册在本组里的全部）
 export function removeNearDuplicates(data) {
   return request({ url: '/api/media/admin/duplicates/near/remove', method: 'post', data })
