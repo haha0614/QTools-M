@@ -228,17 +228,31 @@ getCookie()
   height: min(500px, 88vh);
   border-radius: 28px;
   overflow: hidden;
+  isolation: isolate;
+  /* 外阴影留在容器上；内沿高光改由 ::before 承担 */
+  box-shadow: 0 32px 80px rgba(24, 32, 48, 0.24), 0 2px 10px rgba(24, 32, 48, 0.1);
+}
+
+/**
+ * 玻璃本体单独一层。
+ *
+ * <p>为什么不用 .glass 自己带 backdrop-filter：滤镜层与父级的 box-shadow / inset 阴影
+ * 同属一层时，部分 GPU 与 Chrome 版本会在元素边缘画出一条亮带（P6.95.1 实测到的
+ * 那条"白色圆角条"就是它）。拆成伪元素后滤镜与阴影各自成层，边缘干净。</p>
+ */
+.glass::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-radius: inherit;
   background: linear-gradient(152deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0.18));
-  backdrop-filter: blur(10px) saturate(220%) brightness(1.1) contrast(1.02);
-  -webkit-backdrop-filter: blur(10px) saturate(220%) brightness(1.1) contrast(1.02);
+  backdrop-filter: blur(10px) saturate(200%) brightness(1.04) contrast(1.02);
+  -webkit-backdrop-filter: blur(10px) saturate(200%) brightness(1.04) contrast(1.02);
   box-shadow:
-    0 32px 80px rgba(24, 32, 48, 0.24),
-    0 2px 10px rgba(24, 32, 48, 0.1),
-    0 0 0 1px rgba(255, 255, 255, 0.5),
-    inset 0 1.5px 0 rgba(255, 255, 255, 1),
-    inset 0 -1.5px 1px rgba(255, 255, 255, 0.5),
-    inset 1.5px 0 0 rgba(255, 255, 255, 0.8),
-    inset -1.5px 0 0 rgba(255, 255, 255, 0.8);
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.95),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .lens { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.36; overflow: hidden; }
@@ -415,7 +429,8 @@ getCookie()
 
 /* ---------------- 兜底：不支持 backdrop-filter 的内核 ---------------- */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
-  .glass { background: rgba(255, 255, 255, 0.94); box-shadow: 0 24px 60px rgba(24, 32, 48, 0.18); }
+  .glass { box-shadow: 0 24px 60px rgba(24, 32, 48, 0.18); }
+  .glass::before { background: rgba(255, 255, 255, 0.94); }
   .cover { background: linear-gradient(158deg, #2563eb, #0d9488); }
   .lens, .spec, .grain { display: none; }
 }
@@ -429,13 +444,11 @@ html.dark .b4 { opacity: 0.3; }
 html.dark .ring1 { border-color: rgba(129, 140, 248, 0.24); }
 html.dark .ring2 { border-color: rgba(34, 211, 238, 0.2); }
 
-html.dark .glass {
+html.dark .glass { box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6); }
+
+html.dark .glass::before {
   background: linear-gradient(152deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
-  box-shadow:
-    0 32px 80px rgba(0, 0, 0, 0.6),
-    0 0 0 1px rgba(255, 255, 255, 0.12),
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1.5px 1px rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 1.5px 0 rgba(255, 255, 255, 0.22);
 }
 
 html.dark .cover { background: linear-gradient(158deg, rgba(37, 99, 235, 0.5), rgba(13, 148, 136, 0.42)); }
