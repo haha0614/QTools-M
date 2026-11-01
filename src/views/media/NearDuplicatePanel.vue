@@ -271,12 +271,18 @@ async function removeOne(m) {
   try {
     const res = await removeMainDuplicate(m.id)
     proxy.$modal.msgSuccess(res && res.trashed ? '已清理：文件移入回收站' : '已清理：记录已删（文件本就不在磁盘上）')
-    await load()
-    await loadStatus()
   } catch (e) {
-    proxy.$modal.msgError('清理失败：' + errText(e))
+    const text = errText(e)
+    // 那一行已经被删掉了（别处清过 / 上一次其实成功）：不是错误，刷新即可
+    if (text.indexOf('照片不存在') > -1 || text.indexOf('可能已被删除') > -1) {
+      proxy.$modal.msgWarning('这一份已经不在了，已刷新列表')
+    } else {
+      proxy.$modal.msgError('清理失败：' + text)
+    }
   } finally {
     busyId.value = null
+    await load()
+    await loadStatus()
   }
 }
 
@@ -327,8 +333,15 @@ async function cleanGroups(groupKeys, label) {
     })
     proxy.$modal.msgSuccess('处理 ' + ((res && res.groups) || 0) + ' 组，清理 ' + ((res && res.removed) || 0) + ' 张')
     if (res && res.failed && res.failed.length) {
-      proxy.$modal.msgWarning('有 ' + res.failed.length + ' 张没清掉，见控制台')
-      console.warn('清理失败明细', res.failed)
+      const gone = res.failed.filter((f) => String(f.reason || '').indexOf('照片不存在') > -1)
+      const real = res.failed.filter((f) => String(f.reason || '').indexOf('照片不存在') === -1)
+      if (gone.length) {
+        proxy.$modal.msgWarning(gone.length + ' 张已经不在了（别处清过），已跳过')
+      }
+      if (real.length) {
+        proxy.$modal.msgError(real.length + ' 张没清掉：' + errText({ message: JSON.stringify(real[0]) }))
+        console.warn('清理失败明细', real)
+      }
     }
     await load()
     await loadStatus()
