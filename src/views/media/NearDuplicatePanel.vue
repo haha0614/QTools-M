@@ -22,6 +22,12 @@
         <el-radio-button :value="1">1</el-radio-button>
         <el-radio-button :value="2">2（会混进连拍）</el-radio-button>
       </el-radio-group>
+      <span class="near-label">范围</span>
+      <el-radio-group v-model="mode" size="small" data-testid="near-mode" @change="onModeChange">
+        <el-radio-button value="cross">只看跨册（更可能是重复）</el-radio-button>
+        <el-radio-button value="same">只看同册（多半是连拍）</el-radio-button>
+        <el-radio-button value="all">全部</el-radio-button>
+      </el-radio-group>
       <span class="near-spacer"></span>
       <span class="near-stat" v-if="status.total">
         指纹 {{ status.hashed }} / {{ status.total }}
@@ -54,6 +60,9 @@
       <el-card v-for="(g, gi) in rows" :key="g.groupKey" shadow="never" class="near-card">
         <template #header>
           <div class="near-head">
+            <el-tag size="small" :type="isCross(g) ? 'danger' : 'info'" data-testid="near-group-tag">
+              {{ isCross(g) ? '跨 ' + albumCountOf(g) + ' 册 · 更可能是重复' : '同册 · 可能是连拍' }}
+            </el-tag>
             <span class="near-copies">相似组 · <b>{{ g.length }}</b> 张 · 可省 {{ bytesText(savingOf(g)) }}</span>
             <span class="near-spacer"></span>
             <el-button size="small" type="primary" plain :disabled="!picked[gi]"
@@ -64,7 +73,8 @@
           </div>
         </template>
         <el-radio-group v-model="picked[gi]" class="near-list">
-          <div v-for="m in g" :key="m.id" class="near-item" :class="{ 'is-picked': picked[gi] === m.id }">
+          <div v-for="(m, mi) in g" :key="m.id" class="near-item"
+            :class="{ 'is-picked': picked[gi] === m.id, 'is-album-start': mi > 0 && m.albumId !== g[mi - 1].albumId }">
             <el-image class="near-thumb" fit="contain" :src="thumbSrc(m)"
               :preview-src-list="[bigSrc(m)]" :initial-index="0" :z-index="3000"
               hide-on-click-modal teleported>
@@ -113,6 +123,8 @@ const page = ref(1)
 const size = ref(5)
 const loading = ref(false)
 const threshold = ref(0)
+/** cross=只看跨册（默认：同册相似多半是连拍，跨册才更可能是重复）/ same / all */
+const mode = ref('cross')
 const keepRule = ref('largest')
 const status = reactive({ total: 0, hashed: 0, remaining: 0 })
 const picked = ref({})
@@ -154,6 +166,13 @@ function bytesText(n) {
   }
   return (x >= 100 ? Math.round(x) : x.toFixed(1)) + ' ' + units[i]
 }
+function isCross(g) {
+  return g && g.length > 0 && g[0].crossAlbum === true
+}
+function albumCountOf(g) {
+  if (!g || !g.length) return 0
+  return Number(g[0].albumCount) || new Set(g.map((m) => m.albumId)).size
+}
 function baseName(rel) {
   const s = String(rel || '')
   const k = s.lastIndexOf('/')
@@ -193,7 +212,7 @@ async function load() {
   loading.value = true
   picked.value = {}
   try {
-    const res = await listNearDuplicates({ threshold: threshold.value, page: page.value, size: size.value })
+    const res = await listNearDuplicates({ threshold: threshold.value, mode: mode.value, page: page.value, size: size.value })
     rows.value = (res && res.rows) || []
     total.value = (res && res.total) || 0
     photoCount.value = rows.value.reduce((s, g) => s + g.length, 0)
@@ -213,6 +232,11 @@ async function load() {
 }
 
 function onThreshold() {
+  page.value = 1
+  load()
+}
+
+function onModeChange() {
   page.value = 1
   load()
 }
@@ -298,6 +322,7 @@ async function cleanGroups(groupKeys, label) {
     const res = await cleanNearDuplicates({
       threshold: threshold.value,
       keepRule: keepRule.value,
+      mode: mode.value,
       groupKeys
     })
     proxy.$modal.msgSuccess('处理 ' + ((res && res.groups) || 0) + ' 组，清理 ' + ((res && res.removed) || 0) + ' 张')
@@ -338,6 +363,12 @@ onMounted(async () => {
 }
 .near-item:hover { border-color: var(--el-color-primary-light-5); box-shadow: var(--el-box-shadow-light); }
 .near-item.is-picked { border-color: var(--el-color-primary); box-shadow: 0 0 0 1px var(--el-color-primary) inset; }
+/* 组内换册处留一道间隔：同册的连续排在一起，一眼看出"是不是两本册里各有一张" */
+.near-item.is-album-start { margin-left: 14px; position: relative; }
+.near-item.is-album-start::before {
+  content: ''; position: absolute; left: -8px; top: 8px; bottom: 8px; width: 1px;
+  background: var(--el-border-color);
+}
 .near-thumb { width: 100%; height: 240px; background: var(--el-fill-color-light); cursor: zoom-in; }
 .near-ph {
   display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
