@@ -1,31 +1,14 @@
 <template>
   <div class="login-page">
-    <!-- 左：品牌面板（窄屏隐藏） -->
-    <aside class="login-brand">
-      <div class="brand-inner">
-        <div class="brand-head">
-          <BrandMark class="brand-mark" :size="34" />
-          <span class="brand-name">{{ brandName }}</span>
-        </div>
-        <h1 class="brand-title">媒体库管理后台</h1>
-        <p class="brand-sub">把磁盘上的文件变成原子个体，归属由你和规则决定——路径是事实，册是解释。</p>
-        <ul class="brand-points">
-          <li><span class="dot"></span>扫描只产出个体，归属走规则，未命中即「未归类」</li>
-          <li><span class="dot"></span>册 / 标签 / 人物 / 工作室四类维度，互不干扰</li>
-          <li><span class="dot"></span>重复文件按内容哈希与感知指纹分组，清理进回收站可恢复</li>
-          <li><span class="dot"></span>审核与策展同一道门，未通过的内容站端不可见</li>
-        </ul>
-      </div>
-      <div class="brand-foot">© {{ year }} {{ brandName }}</div>
-    </aside>
-
-    <!-- 右：登录表单 -->
     <main class="login-main">
+      <div class="login-lockup">
+        <BrandMark class="lockup-mark" :size="28" />
+        <span class="lockup-name">{{ brandName }}</span>
+      </div>
+
       <div class="login-card">
         <div class="card-head">
-          <BrandMark class="card-mark" :size="26" />
           <h2 class="card-title">登录</h2>
-          <p class="card-sub">请使用管理账号登录后台</p>
         </div>
 
         <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form" @keyup.enter="handleLogin">
@@ -71,7 +54,7 @@
           </el-button>
         </el-form>
 
-        <p class="card-tip">首次使用默认为 admin / admin123，登录后请及时修改密码。</p>
+        <p class="card-tip">默认账号 admin / admin123</p>
       </div>
       <div class="login-footer">{{ footerContent }}</div>
     </main>
@@ -186,105 +169,49 @@ getCookie()
 </script>
 
 <style lang='scss' scoped>
-/* P6.94：登录页重做 —— 左侧品牌 + 右侧卡片的两栏布局；颜色全部走 Element Plus 变量，明暗主题自适应 */
+/* P6.94.1：单列居中版 —— 去掉左右分栏与左栏营销文案，只留一张卡 */
 .login-page {
   display: flex;
-  height: 100%;
-  background: var(--el-bg-color-page);
-}
-
-/* ---------------- 左：品牌面板 ---------------- */
-.login-brand {
-  flex: 1 1 46%;
-  min-width: 360px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 48px 56px;
-  color: #fff;
-  background:
-    radial-gradient(1200px 600px at 12% 8%, rgba(255, 255, 255, 0.22), transparent 60%),
-    linear-gradient(140deg, #2563eb 0%, #1d4ed8 42%, #0f766e 100%);
-}
-
-.brand-inner { max-width: 520px; }
-
-.brand-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 40px;
-}
-
-.brand-mark { flex: 0 0 auto; color: #fff; }
-.brand-name { font-size: 18px; font-weight: 600; letter-spacing: 0.5px; }
-
-.brand-title {
-  margin: 0 0 12px;
-  font-size: 34px;
-  line-height: 1.25;
-  font-weight: 700;
-  letter-spacing: 1px;
-}
-
-.brand-sub {
-  margin: 0 0 28px;
-  font-size: 14px;
-  line-height: 1.8;
-  color: rgba(255, 255, 255, 0.82);
-}
-
-.brand-points {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-
-  li {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    font-size: 13.5px;
-    line-height: 1.7;
-    color: rgba(255, 255, 255, 0.9);
-    margin-bottom: 12px;
-  }
-
-  .dot {
-    flex: 0 0 auto;
-    width: 6px;
-    height: 6px;
-    margin-top: 8px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.85);
-  }
-}
-
-.brand-foot { font-size: 12px; color: rgba(255, 255, 255, 0.6); letter-spacing: 0.5px; }
-
-/* ---------------- 右：表单 ---------------- */
-.login-main {
-  flex: 1 1 54%;
-  display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 40px 24px;
+  min-height: 100%;
+  padding: 24px;
+  background:
+    radial-gradient(900px 520px at 50% -10%, var(--el-color-primary-light-9), transparent 70%),
+    var(--el-bg-color-page);
 }
+
+.login-main {
+  width: 100%;
+  max-width: 384px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* 顶部小标识：一行字而已，不做营销版面 */
+.login-lockup {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 22px;
+  color: var(--el-text-color-regular);
+}
+
+.lockup-mark { color: var(--el-color-primary); flex: 0 0 auto; }
+.lockup-name { font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }
 
 .login-card {
   width: 100%;
-  max-width: 400px;
-  padding: 32px 32px 24px;
-  border-radius: 14px;
+  padding: 30px 30px 22px;
+  border-radius: 12px;
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 16px 48px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.06);
 }
 
-.card-head { margin-bottom: 22px; text-align: center; }
-.card-mark { color: var(--el-color-primary); margin-bottom: 6px; }
-.card-title { margin: 0; font-size: 22px; font-weight: 600; color: var(--el-text-color-primary); }
-.card-sub { margin: 6px 0 0; font-size: 13px; color: var(--el-text-color-secondary); }
+.card-head { text-align: center; margin-bottom: 22px; }
+.card-title { margin: 0; font-size: 20px; font-weight: 600; color: var(--el-text-color-primary); letter-spacing: 1px; }
 
 .login-form {
   .input-icon { height: 38px; width: 14px; color: var(--el-text-color-placeholder); }
@@ -298,7 +225,6 @@ getCookie()
   &:hover { color: var(--el-color-primary); }
 }
 
-/* 验证码：输入框 + 图块一行 */
 .code-row { display: flex; align-items: center; gap: 10px; width: 100%; }
 .code-input { flex: 1 1 auto; }
 
@@ -340,29 +266,22 @@ getCookie()
 }
 
 .login-footer {
-  margin-top: 18px;
+  margin-top: 16px;
   font-size: 12px;
   color: var(--el-text-color-placeholder);
   text-align: center;
 }
 
-/* 窄屏：隐藏品牌面板，只留表单 */
-@media (max-width: 900px) {
-  .login-brand { display: none; }
-  .login-main { flex: 1 1 100%; }
-  .login-card { max-width: 420px; box-shadow: none; }
-}
-
-/* 暗色：卡片用浮层色，避免和页面底色贴在一起 */
+/* 暗色：卡片提亮一档，否则与页面几乎同色 */
 html.dark .login-card {
-  /* 暗色下 el-bg-color-overlay 与页面底色几乎同色，卡片刻意提亮一档 */
   background: #1b1d20;
   border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 18px 56px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
 }
 
-/* 暗色下右侧补一点极淡的径向光，避免整块死黑 */
-html.dark .login-main {
-  background: radial-gradient(680px 420px at 55% 40%, rgba(64, 128, 255, 0.1), transparent 70%);
+html.dark .login-page {
+  background:
+    radial-gradient(900px 520px at 50% -10%, rgba(64, 128, 255, 0.12), transparent 70%),
+    var(--el-bg-color-page);
 }
 </style>
