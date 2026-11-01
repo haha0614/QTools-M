@@ -925,6 +925,10 @@
         <el-tab-pane label="副本路径（同目录第二份）" name="alias">
           <duplicates-panel v-if="dupTab === 'alias'" />
         </el-tab-pane>
+        <!-- P6.77：相似图片（感知指纹）—— 字节不同但视觉相同的那些 -->
+        <el-tab-pane label="相似图片（重新压缩的同一张）" name="near">
+          <near-duplicate-panel v-if="dupTab === 'near'" />
+        </el-tab-pane>
       </el-tabs>
     </el-drawer>
   </div>
@@ -945,6 +949,7 @@ import ScanPage from './ingest/index.vue'
 import DuplicatesPanel from './DuplicatesPanel'
 // P6.51：同内容多份（主行维度）—— 一张照片只属于一个系列，跨册同 hash 也是重复
 import DuplicateMainPanel from './DuplicateMainPanel'
+import NearDuplicatePanel from './NearDuplicatePanel'
 // 派生资源状态（P5.10-B）：徽标单元格 / 结果对话框 / 日志解析纯函数，三者都独立成文件，主页面只接线
 import DeriveBadges from './DeriveBadges.vue'
 import DeriveResultDialog from './DeriveResultDialog.vue'

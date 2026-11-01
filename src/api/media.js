@@ -1057,6 +1057,25 @@ export function keepMainDuplicate(contentHash, keepMemberId) {
     data: { contentHash, keepMemberId }
   })
 }
+// P6.77：相似图片（感知指纹 dHash + 汉明距离）—— 抓"同一张图被重新压缩"，不是字节级重复
+export function nearDuplicateStatus() {
+  return request({ url: '/api/media/admin/duplicates/near/status', method: 'get' })
+}
+export function listNearDuplicates(params) {
+  return request({ url: '/api/media/admin/duplicates/near/groups', method: 'get', params })
+}
+// 增量补算指纹（每次最多 400 张，前端循环调用直到 remaining=0）
+export function buildNearDuplicate(data) {
+  return request({ url: '/api/media/admin/duplicates/near/build', method: 'post', data })
+}
+// 批量：每组保留一份，其余清理（groupKeys 省略 = 该阈值下全部组）
+export function cleanNearDuplicates(data) {
+  return request({ url: '/api/media/admin/duplicates/near/clean', method: 'post', data })
+}
+// 单组：只留 keepId，其余清理
+export function keepNearDuplicates(data) {
+  return request({ url: '/api/media/admin/duplicates/near/keep', method: 'post', data })
+}
 // P6.51：从当前册拆出一本新册（title 必填），新册 dir_key 为空、source='manual'
 export function splitAlbumPhotos(photoIds, title) {
   return request({
