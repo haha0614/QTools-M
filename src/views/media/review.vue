@@ -334,7 +334,9 @@
         <span class="pv-big-sub">册级：{{ pvRatingLabel(pvAlbum.rating) }}（没单独设过的图跟着册级走）</span>
         <span class="pv-big-keys">← → 切换 · 1/2/3 定级 · 0 继承 · X 勾选并下一张 · 滚轮缩放 · 双击复位</span>
       </div>
-      <div class="pv-big" v-if="pvBig" @wheel.prevent="onBigWheel" @dblclick="resetBigZoom">
+      <div class="pv-big" v-if="pvBig" ref="bigBoxRef" :class="{ 'can-pan': bigZoom > 1, panning: bigPanning }"
+        @wheel.prevent="onBigWheel" @dblclick="resetBigZoom"
+        @mousedown="onBigPanStart" @mousemove="onBigPanMove" @mouseup="onBigPanEnd" @mouseleave="onBigPanEnd">
         <img ref="bigImgRef" :src="mediaSrc(bigDisplaySrc)" alt="" :style="bigImgStyle"
           :title="'缩放 ' + bigZoomText + '（滚轮缩放，双击复位）'"
           @load="onBigImgLoad" @error="onBigError" />
@@ -1007,6 +1009,41 @@ function resetBigZoom() {
   bigFitW.value = 0
 }
 
+/* P6.73：放大后按住拖动平移（滚轮已被缩放占用，只能靠拖） */
+const bigBoxRef = ref(null)
+const bigPanning = ref(false)
+const bigPan = { x: 0, y: 0, left: 0, top: 0 }
+
+function onBigPanStart(e) {
+  if (bigZoom.value <= 1 || !bigBoxRef.value) return
+  // 只接左键；双击复位由 @dblclick 处理，不冲突
+  if (e.button !== 0) return
+  const box = bigBoxRef.value
+  bigPanning.value = true
+  bigPan.x = e.clientX
+  bigPan.y = e.clientY
+  bigPan.left = box.scrollLeft
+  bigPan.top = box.scrollTop
+}
+
+function onBigPanMove(e) {
+  if (!bigPanning.value || !bigBoxRef.value) return
+  const box = bigBoxRef.value
+  box.scrollLeft = bigPan.left - (e.clientX - bigPan.x)
+  box.scrollTop = bigPan.top - (e.clientY - bigPan.y)
+}
+
+function onBigPanEnd() {
+  bigPanning.value = false
+}
+
+/** 拖到容器外松手也要结束拖拽，否则鼠标回来还在"抓"着 */
+function onWindowMouseUp() {
+  bigPanning.value = false
+}
+
+
+
 /* P6.69：大图渐进加载——先显示 800 宽缩略图（秒出），再把原图预载进来替换 */
 const bigDisplaySrc = ref('')
 const bigFullReady = ref(false)
@@ -1080,15 +1117,22 @@ function onPreviewKeydown(e) {
 }
 
 watch(pvBigVisible, (open) => {
-  if (open) window.addEventListener('keydown', onPreviewKeydown)
-  else {
+  if (open) {
+    window.addEventListener('keydown', onPreviewKeydown)
+    window.addEventListener('mouseup', onWindowMouseUp)
+  } else {
     window.removeEventListener('keydown', onPreviewKeydown)
+    window.removeEventListener('mouseup', onWindowMouseUp)
+    bigPanning.value = false
     // 关窗时让还在路上的原图回调作废，免得下次打开被上一张覆盖
     bigLoadToken += 1
   }
 })
 
-onBeforeUnmount(() => window.removeEventListener('keydown', onPreviewKeydown))
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onPreviewKeydown)
+  window.removeEventListener('mouseup', onWindowMouseUp)
+})
 
 function stepBig(delta) {
   bigFailed.value = false
@@ -1306,9 +1350,13 @@ onMounted(() => {
 }
 .pv-item:hover .pv-range { display: inline-block; }
 .pv-big {
-  position: relative; display: flex; justify-content: center; align-items: center;
-  min-height: 320px; background: #000; border-radius: 4px; overflow: auto;
+  position: relative; display: flex; justify-content: center; align-items: flex-start;
+  /* P6.73：固定高度（不是 min-height）——放大后图片在容器内部滚动，
+     否则 flex 容器会被撑高，整个弹窗跟着变长、底部按钮被挤出可视区 */
+  height: 68vh; background: #000; border-radius: 4px; overflow: auto;
 }
+.pv-big.can-pan { cursor: grab; }
+.pv-big.panning { cursor: grabbing; }
 .pv-big { align-items: flex-start; justify-content: safe center; }
 .pv-big-zoom { display: inline-flex; align-items: center; gap: 6px; }
 .pv-density-label { font-size: 12px; min-width: 28px; text-align: center; color: var(--el-text-color-regular); }
