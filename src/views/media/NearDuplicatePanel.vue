@@ -47,7 +47,7 @@
         全部 {{ total }} 组一键处理
       </el-button>
       <span class="near-spacer"></span>
-      <span class="near-stat">共 {{ total }} 组 · 涉及 {{ photoCount }} 张</span>
+      <span class="near-stat">共 {{ total }} 组 · 本页 {{ photoCount }} 张</span>
     </div>
 
     <div v-loading="loading" class="near-body">
@@ -124,14 +124,15 @@ function errText(e) {
   return (e && e.message) || '请求失败'
 }
 
+/** 后端给的就是站内完整路径（/api/media/thumb/p8/<hash>），直接拼 BASE_API 即可 */
 function thumbSrc(m) {
   if (!m || !m.thumb) return ''
-  return BASE_API + m.thumb.replace(/^\/api/, '')
+  return BASE_API + m.thumb
 }
 function bigSrc(m) {
   if (!m) return ''
   const p = m.preview || m.thumb
-  return p ? BASE_API + p.replace(/^\/api/, '') : ''
+  return p ? BASE_API + p : ''
 }
 function bytesText(n) {
   const v = Number(n) || 0
