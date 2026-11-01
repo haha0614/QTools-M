@@ -279,6 +279,10 @@
           {{ pvAllFilteredPicked ? '取消全选' : '全选' }}{{ pvRatingFilter === 'all' ? '' : '（筛出的 ' + pvFilteredRows.length + ' 张）' }}
         </el-button>
         <el-button size="small" :disabled="!pvSelected.length" @click="pvSelected = []">清空选择</el-button>
+        <span class="pv-filter-label">格子</span>
+        <el-radio-group v-model="pvDensity" size="small" class="pv-density" @change="onDensityChange">
+          <el-radio-button v-for="d in PV_DENSITIES" :key="d.value" :value="d.value">{{ d.label }}</el-radio-button>
+        </el-radio-group>
         <span class="pv-spacer" />
         <el-button size="small" type="primary" plain @click="pvAutoVisible = true">自动分级</el-button>
         <!-- P6.59：看完图直接定册，不用关掉弹窗再回行上点 -->
@@ -295,7 +299,7 @@
           <el-button size="small" :disabled="pvBusy" @click="pvBatch(null)">继承相册</el-button>
         </template>
       </div>
-      <div class="pv-grid" v-if="pvRows.length">
+      <div class="pv-grid" v-if="pvRows.length" :style="pvGridStyle">
         <div class="pv-item" v-for="p in pvFilteredRows" :key="p.id" :class="{ on: pvIsSelected(p.id) }">
           <img :src="mediaSrc(p.thumb)" loading="lazy" decoding="async" alt=""
             :title="'第 ' + (Number(p.seq) + 1) + ' 张 · ' + pvRatingLabel(p.rating)"
@@ -743,6 +747,46 @@ const pvAllFilteredPicked = computed(() => {
   return rows.length > 0 && rows.every((p) => pvIsSelected(p.id))
 })
 
+/* P6.64：预览格子密度——低分屏看不清就调大，选择记在 localStorage */
+const PV_DENSITY_KEY = 'qtools.review.pvDensity'
+const PV_DENSITIES = [
+  { value: 'compact', label: '紧凑' },
+  { value: 'normal', label: '标准' },
+  { value: 'large', label: '大' },
+  { value: 'huge', label: '特大' }
+]
+const PV_DENSITY_PX = {
+  compact: { min: 140, h: 180 },
+  normal: { min: 190, h: 240 },
+  large: { min: 260, h: 330 },
+  huge: { min: 340, h: 440 }
+}
+
+function readDensity() {
+  try {
+    const saved = localStorage.getItem(PV_DENSITY_KEY)
+    if (saved && PV_DENSITY_PX[saved]) return saved
+  } catch (e) {
+    // localStorage 不可用就用默认档
+  }
+  return 'large'
+}
+
+const pvDensity = ref(readDensity())
+
+const pvGridStyle = computed(() => {
+  const px = PV_DENSITY_PX[pvDensity.value] || PV_DENSITY_PX.large
+  return { '--pv-min': px.min + 'px', '--pv-h': px.h + 'px' }
+})
+
+function onDensityChange(value) {
+  try {
+    localStorage.setItem(PV_DENSITY_KEY, String(value))
+  } catch (e) {
+    // 存不了就只影响本次浏览
+  }
+}
+
 function pvRatingLabel(r) {
   return r === 'restricted' ? '限制级' : r === 'guidance' ? '家长指导级' : r === 'general' ? '大众级' : '继承相册'
 }
@@ -1062,13 +1106,14 @@ onMounted(() => {
 .pv-count { font-size: 12px; color: var(--el-text-color-secondary); }
 .pv-spacer { flex: 1; }
 .pv-grid {
-  display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px;
-  max-height: 66vh; overflow: auto; padding: 2px;
+  display: grid; gap: 10px;
+  grid-template-columns: repeat(auto-fill, minmax(var(--pv-min, 240px), 1fr));
+  max-height: 68vh; overflow: auto; padding: 2px;
 }
 .pv-item { position: relative; line-height: 0; border-radius: 6px; overflow: hidden; background: var(--el-fill-color-lighter); }
-/* P6.63：不裁切（contain）+ 更高的格子——审内容时要看到整张图，而不是被裁成一条 */
+/* P6.63：不裁切（contain）+ 高度由密度档位给——审内容要看到整张图，而不是被裁成一条 */
 .pv-item img {
-  width: 100%; height: 210px; object-fit: contain; cursor: zoom-in;
+  width: 100%; height: var(--pv-h, 300px); object-fit: contain; cursor: zoom-in;
   background: var(--el-fill-color-light);
 }
 .pv-item.on { outline: 2px solid var(--el-color-primary); }
@@ -1088,6 +1133,7 @@ onMounted(() => {
 .pv-item.on .pv-check { background: var(--el-color-primary); }
 /* P6.59：Shift 连选 / 选到此 */
 .pv-hint-keys { font-size: 12px; color: var(--el-text-color-placeholder); }
+.pv-density { margin-right: 4px; }
 .pv-range {
   position: absolute; right: 4px; bottom: 4px; padding: 0 6px; border-radius: 3px;
   font-size: 12px; line-height: 18px; color: #fff; background: rgba(0, 0, 0, 0.55);
