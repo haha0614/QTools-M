@@ -1093,7 +1093,8 @@ export function renameAlbum(id, title) {
   return request({ url: BASE + '/album/' + encodeURIComponent(String(id)), method: 'put', data: { title } })
 }
 export function deleteAlbum(id) {
-  return request({ url: BASE + '/album/' + encodeURIComponent(String(id)), method: 'delete' })
+  // 必须带 /row：DELETE /album/{id} 是「软删（整册进回收站）」的路径
+  return request({ url: BASE + '/album/' + encodeURIComponent(String(id)) + '/row', method: 'delete' })
 }
 // P6.83：单条视频元数据补丁（tagIds 全量替换 / addTagIds / removeTagIds / rating / markers）
 export function updateVideoMeta(videoId, data) {
