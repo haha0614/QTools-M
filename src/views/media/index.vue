@@ -29,6 +29,8 @@
           <el-button type="primary" size="small" icon="OfficeBuilding" v-hasPermi="['media:admin:edit']"
             data-testid="video-batch-studio" @click="openVideoBatchStudio">设置工作室</el-button>
         </span>
+        <!-- P6.81：没勾选时也要让人知道这里能批量操作（相册页一直有这行提示，视频页之前什么都没有） -->
+        <span v-else class="media-selected-hint">勾选视频后可批量设置分级 / 人物 / 工作室</span>
         <el-button icon="Refresh" :loading="statsLoading" @click="refreshAll">刷新</el-button>
         <el-button icon="PriceTag" @click="openTagManager" v-hasPermi="['media:admin:list']">标签管理</el-button>
         <el-button icon="Setting" @click="openEditPolicy" v-hasPermi="['media:admin:edit']">编辑策略</el-button>
@@ -3564,6 +3566,7 @@ onBeforeUnmount(() => { stopScanPolling() })
 }
 /* P5.12：派生资源汇总条 / 两个下拉 / 空态文案的样式都在子组件里（scoped），页面不再持有 */
 /* P5.10-B：工具栏「已选 N 项」 */
+.media-selected-hint { font-size: 12px; color: var(--el-text-color-placeholder); margin-right: 8px; }
 .media-selected {
   display: inline-flex;
   align-items: center;
