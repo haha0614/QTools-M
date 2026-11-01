@@ -334,15 +334,17 @@
         <span class="pv-big-sub">册级：{{ pvRatingLabel(pvAlbum.rating) }}（没单独设过的图跟着册级走）</span>
         <span class="pv-big-keys">← → 切换 · 1/2/3 定级 · 0 继承 · X 勾选并下一张 · 滚轮缩放 · 双击复位</span>
       </div>
-      <div class="pv-big" v-if="pvBig" ref="bigBoxRef" :class="{ 'can-pan': bigZoom > 1, panning: bigPanning }"
-        @wheel.prevent="onBigWheel" @dblclick="resetBigZoom"
-        @mousedown="onBigPanStart" @mousemove="onBigPanMove" @mouseup="onBigPanEnd" @mouseleave="onBigPanEnd">
-        <img ref="bigImgRef" :src="mediaSrc(bigDisplaySrc)" alt="" :style="bigImgStyle"
-          :title="'缩放 ' + bigZoomText + '（滚轮缩放，双击复位）'"
-          draggable="false" @dragstart.prevent @load="onBigImgLoad" @error="onBigError" />
-        <!-- P6.69：渐进加载——先出 800 宽，原图就绪后自动替换 -->
+      <!-- P6.75：状态标签放在滚动容器**外面**（wrapper 内），否则它会跟着缩放和平移一起跑 -->
+      <div class="pv-big-wrap" v-if="pvBig">
+        <div class="pv-big" ref="bigBoxRef" :class="{ 'can-pan': bigZoom > 1, panning: bigPanning }"
+          @wheel.prevent="onBigWheel" @dblclick="resetBigZoom"
+          @mousedown="onBigPanStart" @mousemove="onBigPanMove" @mouseup="onBigPanEnd" @mouseleave="onBigPanEnd">
+          <img ref="bigImgRef" :src="mediaSrc(bigDisplaySrc)" alt="" :style="bigImgStyle"
+            :title="'缩放 ' + bigZoomText + '（滚轮缩放，双击复位）'"
+            draggable="false" @dragstart.prevent @load="onBigImgLoad" @error="onBigError" />
+        </div>
         <span class="pv-big-hint" v-if="bigLoadingFull">原图加载中…</span>
-        <span class="pv-big-hint ok" v-else-if="bigFullReady && pvBig && pvBig.big && pvBig.big !== pvBig.thumb">原图</span>
+        <span class="pv-big-hint ok" v-else-if="bigFullReady && pvBig.big && pvBig.big !== pvBig.thumb">原图</span>
         <span class="pv-big-hint" v-if="bigFailed">大图不可用，已回退到缩略图</span>
       </div>
       <div class="pv-big-bar">
@@ -374,7 +376,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getReviewSummary, listReview, setReviewState, listRatingReview, decideRatingReview,
@@ -994,19 +996,55 @@ function clampZoom(v) {
   return Math.min(BIG_ZOOM_MAX, Math.max(BIG_ZOOM_MIN, Math.round(v * 100) / 100))
 }
 
-function stepBigZoom(delta) {
-  bigZoom.value = clampZoom(bigZoom.value + delta * BIG_ZOOM_STEP)
+/**
+ * 缩放并保持锚点：缩放前后让「锚点处的内容」留在原地（P6.75）
+ *
+ * @param target 目标倍数
+ * @param anchorX 锚点相对容器可视区的 X（缺省=容器中心）
+ * @param anchorY 锚点相对容器可视区的 Y
+ */
+async function applyBigZoom(target, anchorX, anchorY) {
+  const box = bigBoxRef.value
+  const el = bigImgRef.value
+  const prevW = el && el.getBoundingClientRect ? el.getBoundingClientRect().width : 0
+  const next = clampZoom(target)
+  if (Math.abs(next - bigZoom.value) < 0.001) return
+  bigZoom.value = next
+  await nextTick()
+  if (!box || !el || prevW <= 0) return
+  const nowW = el.getBoundingClientRect().width
+  if (!nowW) return
+  const ratio = nowW / prevW
+  const rx = anchorX == null ? box.clientWidth / 2 : anchorX
+  const ry = anchorY == null ? box.clientHeight / 2 : anchorY
+  // 缩放前锚点对应的内容坐标 → 缩放后按同样比例还原，锚点处画面不动
+  box.scrollLeft = (box.scrollLeft + rx) * ratio - rx
+  box.scrollTop = (box.scrollTop + ry) * ratio - ry
 }
 
-/** 滚轮：向上放大、向下缩小（0.05 一档，比按钮细一点） */
+function stepBigZoom(delta) {
+  applyBigZoom(bigZoom.value + delta * BIG_ZOOM_STEP)
+}
+
+/** 滚轮：以**鼠标位置**为锚点缩放（向上放大、向下缩小） */
 function onBigWheel(e) {
+  const box = bigBoxRef.value
+  if (!box) return
+  const rect = box.getBoundingClientRect()
+  const ax = e.clientX - rect.left
+  const ay = e.clientY - rect.top
   // 0.08 一档：比按钮（0.15）细，一路滚上去不会突然变巨大
-  bigZoom.value = clampZoom(bigZoom.value + (e.deltaY > 0 ? -0.08 : 0.08))
+  applyBigZoom(bigZoom.value + (e.deltaY > 0 ? -0.08 : 0.08), ax, ay)
 }
 
 function resetBigZoom() {
   bigZoom.value = 1
   bigFitW.value = 0
+  const box = bigBoxRef.value
+  if (box) {
+    box.scrollLeft = 0
+    box.scrollTop = 0
+  }
 }
 
 /* P6.73：放大后按住拖动平移（滚轮已被缩放占用，只能靠拖） */
@@ -1359,6 +1397,7 @@ onMounted(() => {
   display: block; text-align: center;
   height: 68vh; background: #000; border-radius: 4px; overflow: auto;
 }
+.pv-big-wrap { position: relative; }
 .pv-big img { -webkit-user-drag: none; user-drag: none; }
 .pv-big.can-pan { cursor: grab; user-select: none; }
 .pv-big.panning { cursor: grabbing; }
@@ -1375,7 +1414,7 @@ onMounted(() => {
 .pv-big-sub { font-size: 12px; color: var(--el-text-color-secondary); }
 .pv-big-keys { margin-left: auto; font-size: 12px; color: var(--el-text-color-placeholder); }
 .pv-big-hint.ok { color: var(--el-color-success); }
-.pv-big-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--el-color-warning); }
+.pv-big-hint { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--el-color-warning); z-index: 2; pointer-events: none; }
 /* P6.71：缩放由内联样式覆盖（见 bigImgStyle）。这里只给「100% 时铺满可视区」的兜底，
    注意别再写 max-width/max-height 之外的限制，否则会把放大后的内联宽度压回去。 */
 .pv-big img { display: inline-block; object-fit: contain; vertical-align: top; font-size: 0; }
