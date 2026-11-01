@@ -66,15 +66,18 @@
         <el-radio-group v-model="picked[gi]" class="near-list">
           <div v-for="m in g" :key="m.id" class="near-item" :class="{ 'is-picked': picked[gi] === m.id }">
             <el-image class="near-thumb" fit="contain" :src="thumbSrc(m)"
-              :preview-src-list="[bigSrc(m)]" :initial-index="0" hide-on-click-modal teleported>
+              :preview-src-list="[bigSrc(m)]" :initial-index="0" :z-index="3000"
+              hide-on-click-modal teleported>
               <template #error><span class="near-ph">{{ fileInitial(m.relPath) }}</span></template>
             </el-image>
             <div class="near-meta">
-              <div class="near-album" :title="m.albumTitle || m.albumId">
+              <div class="near-title" :title="m.albumTitle || m.albumId">
                 {{ m.albumTitle || m.albumId }} <span class="near-seq">#{{ m.seq }}</span>
               </div>
-              <div class="near-path" :title="m.relPath">{{ m.relPath }}</div>
-              <div class="near-size">{{ bytesText(m.bytes) }}</div>
+              <div class="near-sub">
+                <span class="near-size">{{ bytesText(m.bytes) }}</span>
+                <span class="near-path" :title="m.relPath">{{ baseName(m.relPath) }}</span>
+              </div>
               <div class="near-actions">
                 <el-radio :value="m.id" class="near-radio">保留这份</el-radio>
                 <el-button link type="danger" size="small" :loading="busyId === m.id"
@@ -129,10 +132,15 @@ function thumbSrc(m) {
   if (!m || !m.thumb) return ''
   return BASE_API + m.thumb
 }
+/**
+ * 点开看的大图：优先**原图**（/api/media/file?p=相对路径），与同页签「同内容多份」一致。
+ * 不能用 /api/media/preview/p/<hash>：那是 pv 档产物，只有 is_big=1 的 342 张大图才有，
+ * 普通图点开就是 404——"点了没反应"正是这个原因。
+ */
 function bigSrc(m) {
   if (!m) return ''
-  const p = m.preview || m.thumb
-  return p ? BASE_API + p : ''
+  if (m.relPath) return BASE_API + '/api/media/file?p=' + encodeURIComponent(m.relPath)
+  return m.thumb ? BASE_API + m.thumb : ''
 }
 function bytesText(n) {
   const v = Number(n) || 0
@@ -145,6 +153,11 @@ function bytesText(n) {
     i += 1
   }
   return (x >= 100 ? Math.round(x) : x.toFixed(1)) + ' ' + units[i]
+}
+function baseName(rel) {
+  const s = String(rel || '')
+  const k = s.lastIndexOf('/')
+  return k >= 0 ? s.slice(k + 1) : s
 }
 function fileInitial(rel) {
   const s = String(rel || '')
@@ -316,15 +329,25 @@ onMounted(async () => {
 .near-card { margin-bottom: 12px; }
 .near-head { display: flex; align-items: center; gap: 8px; }
 .near-copies { font-size: 13px; }
-.near-list { display: flex; flex-wrap: wrap; gap: 12px; }
-.near-item { display: flex; gap: 10px; width: 340px; padding: 8px; border: 1px solid var(--el-border-color-lighter); border-radius: 6px; }
-.near-item.is-picked { border-color: var(--el-color-primary); background: var(--el-color-primary-light-9); }
-.near-thumb { width: 96px; height: 120px; flex: none; background: var(--el-fill-color-light); }
-.near-ph { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; font-size: 12px; color: var(--el-text-color-secondary); }
-.near-meta { min-width: 0; flex: 1; }
-.near-album { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* P6.77.2：竖版卡片——图片占满宽度（240px 高），文字压在下面，别再挤在 96px 的小图里 */
+.near-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.near-item {
+  display: flex; flex-direction: column; height: 100%;
+  border: 1px solid var(--el-border-color-lighter); border-radius: 8px; overflow: hidden;
+  background: var(--el-bg-color); transition: border-color 0.15s, box-shadow 0.15s;
+}
+.near-item:hover { border-color: var(--el-color-primary-light-5); box-shadow: var(--el-box-shadow-light); }
+.near-item.is-picked { border-color: var(--el-color-primary); box-shadow: 0 0 0 1px var(--el-color-primary) inset; }
+.near-thumb { width: 100%; height: 240px; background: var(--el-fill-color-light); cursor: zoom-in; }
+.near-ph {
+  display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
+  font-size: 13px; color: var(--el-text-color-secondary);
+}
+.near-meta { padding: 8px 10px 10px; display: flex; flex-direction: column; gap: 4px; }
+.near-title { font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .near-seq { font-weight: 400; color: var(--el-text-color-secondary); }
-.near-path { font-size: 12px; color: var(--el-text-color-secondary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.near-size { font-size: 12px; color: var(--el-text-color-secondary); }
-.near-actions { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.near-sub { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--el-text-color-secondary); }
+.near-size { flex: none; }
+.near-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.near-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 2px; }
 </style>
