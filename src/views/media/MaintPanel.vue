@@ -41,6 +41,17 @@
         <div class="maint-task-last" data-testid="maint-last-thumb">上次：{{ lastText('thumb') }}</div>
       </div>
 
+      <div class="maint-task" data-testid="maint-task-photo-preview">
+        <div class="maint-task-line">
+          <span class="maint-task-title">生成照片预览档</span>
+          <span class="maint-task-scope-hint">全部照片 · 约 2000px，审核预览会更清晰</span>
+          <el-button type="primary" plain icon="ZoomIn" :loading="scanRunning" :disabled="scanRunning"
+            v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-start-photo-preview"
+            @click="runGenerate('photo-preview', 'photo-preview', '生成照片预览档')">开始</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-photo-preview">上次：{{ lastText('photo-preview') }}</div>
+      </div>
+
       <div class="maint-task" data-testid="maint-task-sprite">
         <div class="maint-task-line">
           <span class="maint-task-title">生成精灵图</span>
@@ -106,6 +117,22 @@
         <div class="maint-task-last" data-testid="maint-last-gc">上次：{{ lastText('gc') }}</div>
       </div>
 
+      <div class="maint-task" data-testid="maint-task-missing">
+        <div class="maint-task-line">
+          <span class="maint-task-title">缺失记录</span>
+          <maint-scope v-model="allScope" disabled testid="missing" note="缺失记录按整库清理：后端支持 kind 与 ids" />
+          <span class="maint-inline-note" data-testid="maint-missing-count">{{ missingCountText }}</span>
+          <el-tooltip content="索引里有、磁盘上已经没有的条目；缩略图 / 预览图可能还在，所以列表看着正常，点原图才会 404" placement="top">
+            <el-icon class="maint-info-icon"><InfoFilled /></el-icon>
+          </el-tooltip>
+          <el-button icon="View" :loading="missingLoading" :disabled="missingLoading" data-testid="maint-view-missing"
+            v-hasPermi="['media:admin:list']" @click="openMissing">查看</el-button>
+          <el-button type="danger" plain icon="Delete" :loading="pruningMissing" :disabled="pruningMissing || !missingStat.total"
+            v-hasPermi="['media:admin:edit']" data-testid="maint-prune-missing" @click="pruneAllMissing">清理</el-button>
+        </div>
+        <div class="maint-task-last" data-testid="maint-last-missing">上次：{{ lastText('missing') }}</div>
+      </div>
+
       <div class="maint-task" data-testid="maint-task-trash">
         <div class="maint-task-line">
           <span class="maint-task-title">清空回收站</span>
@@ -130,7 +157,8 @@
       </div>
 
       <p class="maint-hint">
-        <strong>GC</strong> 只删 thumbs/v、thumbs/s、thumbs/pv2 下「既不在索引中、也没有同名源文件」的孤儿派生文件，媒体源与索引不受影响。
+        <strong>GC</strong> 只删 thumbs/v、thumbs/s、thumbs/pv2、thumbs/p、thumbs/pv、thumbs/frames 下「既不在索引中、也没有同名源文件」的孤儿派生文件，媒体源与索引不受影响。
+        <strong>缺失记录</strong>是索引里有、磁盘上已经没有的条目：扫描只标 missing 不删行，所以源文件删掉后相册照样能看（用的是缩略图 / 预览图），点原图才 404。「清理」会硬删这些行，之后跑一次 GC 才能把只给它用的派生文件一并回收。
         <strong>清空回收站</strong>会把回收站条目逐条彻底删除（不进备份），删完不可恢复；只想恢复某一条请到「回收站」标签页。
       </p>
     </section>
@@ -140,6 +168,46 @@
       <div class="maint-group-head">
         <span class="maint-group-title">诊断</span>
         <span class="maint-group-desc">平时不用点：只在怀疑数据不对时逐项排查</span>
+        <!-- P6.11：诊断项全是低频操作，默认收起，避免维护页一屏全是按钮 -->
+        <el-button link type="primary" size="small" class="maint-group-toggle"
+          :data-testid="'maint-toggle-diagnose'" @click="diagOpen = !diagOpen">
+          {{ diagOpen ? '收起' : '展开' }}
+        </el-button>
+      </div>
+
+      <div v-show="diagOpen">
+
+      <div class="maint-task" data-testid="maint-task-health">
+        <div class="maint-task-line">
+          <span class="maint-task-title">库健康体检</span>
+          <maint-scope v-model="allScope" disabled testid="health" note="只读体检：查相册 / 图片 / 目录 / 身份，不改数据" />
+          <span class="maint-inline-note" data-testid="maint-health-summary">{{ healthSummary }}</span>
+          <el-button icon="FirstAidKit" :loading="healthLoading" :disabled="healthLoading"
+            v-hasPermi="['media:admin:list']" data-testid="maint-health-check" @click="runHealth">体检</el-button>
+        </div>
+        <el-table v-if="healthChecks.length" :data="healthChecks" size="small" border class="maint-health-table">
+          <el-table-column label="检查项" prop="label" min-width="150" />
+          <el-table-column label="结果" width="86" align="center">
+            <template #default="scope">
+              <el-tag :type="scope.row.ok === null ? 'info' : (scope.row.ok ? 'success' : 'danger')" size="small">
+                {{ scope.row.ok === null ? '未迁移' : (scope.row.ok ? '正常' : '异常') }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="数量" width="76" align="right">
+            <template #default="scope">{{ scope.row.count === null ? '—' : scope.row.count }}</template>
+          </el-table-column>
+          <el-table-column label="说明" prop="detail" min-width="260" :show-overflow-tooltip="true" />
+          <el-table-column label="操作" width="104" align="center">
+            <template #default="scope">
+              <el-button v-if="scope.row.fix" link type="primary" size="small"
+                :loading="healthFixing === scope.row.fix" v-hasPermi="['media:admin:edit']"
+                @click="fixHealthItem(scope.row)">一键修复</el-button>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+        </el-table>
+        <div class="maint-task-last" data-testid="maint-last-health">上次体检：{{ lastText('health') }}</div>
       </div>
 
       <div class="maint-task" data-testid="maint-task-rescan">
@@ -153,10 +221,7 @@
         <div class="maint-task-last" data-testid="maint-last-rescan">上次：{{ lastText('rescan') }}</div>
         <div class="maint-row maint-subrow">
           <span class="maint-label">分册方式</span>
-          <el-radio-group v-model="albumMode" :disabled="scanRunning" size="small">
-            <el-radio-button value="dir">按目录 (dir)</el-radio-button>
-            <el-radio-button value="prefix">按文件名前缀 (prefix)</el-radio-button>
-          </el-radio-group>
+          <span class="maint-inline-note">由 config/application.yml 的 scanArgs 决定（改完需重启后端）——前端不再传，避免与配置打架造出两套相册</span>
         </div>
         <div class="maint-row maint-subrow">
           <span class="maint-label">排除规则</span>
@@ -319,6 +384,7 @@
           两个弹窗都先预览、确认后才写库，执行前自动备份标签表。
         </p>
       </div>
+      </div>
     </section>
 
     <!-- ============================== 4 危险（默认折叠） ============================== -->
@@ -349,6 +415,41 @@
       </div>
     </section>
 
+    <!-- 缺失记录明细：索引里有、磁盘上已经没有的条目 -->
+    <el-dialog v-model="missingVisible" title="缺失记录（索引里有、磁盘上已经没有）" width="880px" append-to-body
+      data-testid="maint-missing-dialog">
+      <p class="maint-hint">
+        扫描发现文件不在磁盘上时只把行标成 <code>missing=1</code>，不会删行——所以相册照样能浏览（用的是缩略图 / 预览图），
+        只有点原图或下载才会 404。<strong>清理</strong>会硬删这些行（SQL 恒带 <code>missing=1</code>，扫描又把文件找回来的行删不掉）。
+        删完相册可能变成 0 图空壳，需要再跑「重建索引」或去重脚本收尾。
+      </p>
+      <el-table v-loading="missingLoading" :data="missingRows" size="small" border max-height="420">
+        <el-table-column label="类型" width="72" align="center">
+          <template #default="scope">{{ scope.row.kind === 'video' ? '视频' : '图片' }}</template>
+        </el-table-column>
+        <el-table-column label="所属" width="210" :show-overflow-tooltip="true">
+          <template #default="scope">
+            {{ scope.row.kind === 'video' ? (scope.row.title || scope.row.id) : (scope.row.albumId || '—') }}
+          </template>
+        </el-table-column>
+        <el-table-column label="文件" prop="relPath" min-width="300" :show-overflow-tooltip="true" />
+        <el-table-column label="大小" width="100" align="right">
+          <template #default="scope">{{ formatFileSize(scope.row.bytes) }}</template>
+        </el-table-column>
+        <el-table-column label="最后可见" width="170">
+          <template #default="scope">{{ scope.row.lastSeen || '—' }}</template>
+        </el-table-column>
+      </el-table>
+      <el-pagination v-model:current-page="missingPage" :page-size="missingPageSize" :total="missingTotal"
+        layout="total, prev, pager, next" small class="maint-missing-pager" @current-change="loadMissingPage" />
+      <template #footer>
+        <el-button @click="missingVisible = false">关闭</el-button>
+        <el-button type="danger" :disabled="!missingStat.total" :loading="pruningMissing" @click="pruneAllMissing">
+          清理全部（{{ missingStat.total }}）
+        </el-button>
+      </template>
+    </el-dialog>
+
     <!-- 自动分级弹窗：预览 / 执行 / 报告展示都在子组件里，面板只负责打开它 -->
     <rating-classify-dialog v-model="ratingVisible" @applied="onRatingApplied" />
     <!-- 标签规范化弹窗（P6.03）：预览 / 备份提示 / 执行 / 报告都在子组件里 -->
@@ -365,7 +466,7 @@ import {
   getWatchStatus, pauseWatch, resumeWatch, updateWatchConfig,
   trashStats, listTrash, purgeTrash,
   listDuplicates, getDeriveStatus, listMissing, listScanJobs,
-  listRoots, getRootArtifacts
+  pruneMissing, getHealth, fixHealth, listRoots, getRootArtifacts
 } from '@/api/media'
 import { errText, errStatus, notReadyText } from './maint-error'
 import RatingClassifyDialog from './RatingClassifyDialog'
@@ -404,6 +505,8 @@ const pendingAction = ref('')
 const clearingTrash = ref(false)
 const checkingDuplicates = ref(false)
 const checkingConsistency = ref(false)
+/** P6.11：诊断段默认收起（低频操作，避免维护页一屏按钮） */
+const diagOpen = ref(false)
 
 function lastText(key) {
   return formatHistoryEntry(history.value[key])
@@ -444,7 +547,6 @@ const selectedIdCount = computed(() => (Array.isArray(props.selectedVideoIds) ? 
 
 const deriveForce = ref(false)
 const deriveNoFresh = ref(false)
-const albumMode = ref('dir')
 const exclude = ref('')
 
 const limitProxy = computed({
@@ -460,7 +562,10 @@ function deriveOptions() {
 }
 
 function scanOptions() {
-  const options = { albumMode: albumMode.value }
+  // 分册方式（--album-mode）不再由前端传：唯一来源是 config 的 scanArgs。
+  // 传了就覆盖配置，两次不同模式各扫一遍就在同一目录造出两套相册（a308 幽灵相册的成因），
+  // 现在库里还有唯一索引 + 模式冲突守卫兜着，前端少一个能点错的地方。
+  const options = {}
   const text = (exclude.value || '').trim()
   if (text) options.exclude = text
   return options
@@ -766,6 +871,141 @@ function checkConsistency() {
   })
 }
 
+/* ---------------------------------------------------------------- 清理：缺失记录（谁丢了、一键清） */
+const missingStat = ref({ photo: 0, video: 0, total: 0 })
+const missingLoading = ref(false)
+const pruningMissing = ref(false)
+const missingVisible = ref(false)
+const missingRows = ref([])
+const missingTotal = ref(0)
+const missingPage = ref(1)
+const missingPageSize = 50
+const missingCountText = computed(() => {
+  const s = missingStat.value
+  if (!s.total) return '无缺失'
+  return '图片 ' + s.photo + ' 条 · 视频 ' + s.video + ' 条'
+})
+
+/** 只取 total（pageSize=1）：两个 kind 各一次，别把上千行拖回前端 */
+function loadMissingStat() {
+  Promise.all([
+    listMissing({ kind: 'photo', pageNum: 1, pageSize: 1 }),
+    listMissing({ kind: 'video', pageNum: 1, pageSize: 1 })
+  ]).then(([photo, video]) => {
+    const p = Number(photo && photo.total) || 0
+    const v = Number(video && video.total) || 0
+    missingStat.value = { photo: p, video: v, total: p + v }
+  }).catch(() => {
+    // 403 / 旧后端：当作「读不到」，按钮保持禁用，不误报有缺失
+    missingStat.value = { photo: 0, video: 0, total: 0 }
+  })
+}
+
+function loadMissingPage() {
+  missingLoading.value = true
+  listMissing({ kind: 'all', pageNum: missingPage.value, pageSize: missingPageSize }).then(res => {
+    missingRows.value = (res && res.rows) || []
+    missingTotal.value = Number(res && res.total) || 0
+  }).catch(err => {
+    missingRows.value = []
+    missingTotal.value = 0
+    proxy.$modal.notifyError({ title: '读取缺失记录失败', message: errText(err) || '请求失败，请查看后端日志', duration: 8000 })
+  }).finally(() => {
+    missingLoading.value = false
+  })
+}
+
+function openMissing() {
+  missingVisible.value = true
+  missingPage.value = 1
+  loadMissingPage()
+}
+
+function pruneAllMissing() {
+  if (pruningMissing.value || !missingStat.value.total) return
+  const { photo, video, total } = missingStat.value
+  proxy.$modal.confirm('确认清理 ' + total + ' 条缺失记录（图片 ' + photo + ' 条、视频 ' + video
+    + ' 条）？这些文件在磁盘上已经不存在，删掉的是索引行，删完不可恢复；扫描把文件找回来的行不会被删。',
+  '清理缺失记录', { confirmButtonText: '确认清理', type: 'error' }).then(async () => {
+    pruningMissing.value = true
+    try {
+      const res = await pruneMissing({ kind: 'all', all: true })
+      const photos = Number(res && res.photos) || 0
+      const videos = Number(res && res.videos) || 0
+      record('missing', entryFromLocal('已清理 图片 ' + photos + ' 条 · 视频 ' + videos + ' 条', 'done'))
+      loadMissingStat()
+      if (missingVisible.value) loadMissingPage()
+      proxy.$modal.msgSuccess('缺失记录已清理：图片 ' + photos + ' 条、视频 ' + videos + ' 条')
+    } catch (err) {
+      record('missing', entryFromLocal('清理失败：' + (errText(err) || '请求失败'), 'failed'))
+      proxy.$modal.notifyError({ title: '清理缺失记录失败', message: errText(err) || '请求失败，请查看后端日志', duration: 8000 })
+    } finally {
+      pruningMissing.value = false
+    }
+  }).catch(() => {})
+}
+
+/* ---------------------------------------------------------------- 诊断：库健康体检（P6.06） */
+const healthLoading = ref(false)
+const healthFixing = ref('')
+const healthChecks = ref([])
+const healthSummary = ref('未体检')
+
+const HEALTH_FIX_LABEL = {
+  albumCounters: '重算相册计数',
+  emptyAlbums: '删除目录已不存在的空壳相册',
+  missing: '打开缺失记录'
+}
+
+function runHealth() {
+  if (healthLoading.value) return
+  healthLoading.value = true
+  getHealth().then(res => {
+    healthChecks.value = (res && res.checks) || []
+    const problems = Number(res && res.problems) || 0
+    healthSummary.value = problems ? problems + ' 项异常' : '全部正常'
+    record('health', entryFromLocal(problems ? '发现 ' + problems + ' 项异常' : healthChecks.value.length + ' 项检查通过',
+      problems ? 'failed' : 'done'))
+    if (problems) {
+      proxy.$modal.msgWarning('库健康：' + problems + ' 项异常，见下方表格')
+    } else {
+      proxy.$modal.msgSuccess('库健康：' + healthChecks.value.length + ' 项检查全部正常')
+    }
+  }).catch(err => {
+    healthChecks.value = []
+    healthSummary.value = '体检失败'
+    proxy.$modal.notifyError({ title: '库健康体检失败', message: errText(err) || '请求失败，请查看后端日志', duration: 8000 })
+  }).finally(() => {
+    healthLoading.value = false
+  })
+}
+
+function fixHealthItem(row) {
+  if (!row || !row.fix) return
+  // 缺失行不在这个接口里修：复用「缺失记录」的查看/清理入口
+  if (row.fix === 'missing') {
+    openMissing()
+    return
+  }
+  const label = HEALTH_FIX_LABEL[row.fix] || row.fix
+  proxy.$modal.confirm('确认执行「' + label + '」？' + (row.detail || ''), label,
+    { confirmButtonText: '确认执行', type: 'warning' }).then(async () => {
+    healthFixing.value = row.fix
+    try {
+      const res = await fixHealth(row.fix)
+      const fixed = Number(res && res.fixed) || 0
+      const kept = Number(res && res.kept) || 0
+      proxy.$modal.msgSuccess(label + '：处理 ' + fixed + ' 项' + (kept ? '，保留 ' + kept + ' 项' : ''))
+      loadMissingStat()
+      runHealth()
+    } catch (err) {
+      proxy.$modal.notifyError({ title: label + '失败', message: errText(err) || '请求失败，请查看后端日志', duration: 8000 })
+    } finally {
+      healthFixing.value = ''
+    }
+  }).catch(() => {})
+}
+
 /* ---------------------------------------------------------------- 文件监听（自动扫描） */
 const NOT_READY_TEXT = '自动扫描接口未就绪：后端部署后刷新页面即可'
 const DISABLED_TEXT = '自动扫描未开启：用上方开关在运行期打开即可（无需改配置或重启）'
@@ -1049,6 +1289,7 @@ function loadAll() {
   loadExports()
   loadTrash()
   loadGcUsage()
+  loadMissingStat()
   seedFromBackend()
 }
 
@@ -1109,6 +1350,7 @@ watch(() => props.refreshKey, () => {
 .maint-task:last-child {
   border-bottom: none;
 }
+.maint-task-scope-hint { font-size: 12px; color: var(--el-text-color-secondary); }
 .maint-task-line {
   display: flex;
   flex-wrap: wrap;
@@ -1174,6 +1416,16 @@ watch(() => props.refreshKey, () => {
 .maint-info-icon {
   color: var(--el-text-color-secondary);
   cursor: help;
+}
+.maint-missing-pager {
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+.maint-group-toggle {
+  margin-left: auto;
+}
+.maint-health-table {
+  margin-top: 8px;
 }
 .maint-hint {
   margin: 8px 0 0;
