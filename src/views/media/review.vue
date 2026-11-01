@@ -335,7 +335,7 @@
         <span class="pv-big-keys">← → 切换 · 1/2/3 定级 · 0 继承 · X 勾选并下一张 · 滚轮缩放 · 双击复位</span>
       </div>
       <div class="pv-big" v-if="pvBig" @wheel.prevent="onBigWheel" @dblclick="resetBigZoom">
-        <img :src="mediaSrc(bigDisplaySrc)" alt="" :style="{ width: (bigZoom * 100) + '%' }"
+        <img :src="mediaSrc(bigDisplaySrc)" alt="" :style="bigImgStyle"
           :title="'缩放 ' + bigZoomText + '（滚轮缩放，双击复位）'" @error="onBigError" />
         <!-- P6.69：渐进加载——先出 800 宽，原图就绪后自动替换 -->
         <span class="pv-big-hint" v-if="bigLoadingFull">原图加载中…</span>
@@ -948,6 +948,26 @@ const BIG_ZOOM_STEP = 0.15
 const bigZoom = ref(1)
 const bigZoomText = computed(() => Math.round(bigZoom.value * 100) + '%')
 
+/**
+ * 大图的尺寸样式（P6.71）
+ *
+ * <p>100% 时按容器自适应（contain，最多 72vh）；放大时把宽度按百分比撑开，
+ * 同时去掉 max-* 限制并 flex:none —— 只写 width 不够：flex 项默认 flex-shrink:1，
+ * 会被容器压回原宽，看起来就是"点了缩放没反应"（第一版正是这么错的）。</p>
+ */
+const bigImgStyle = computed(() => {
+  const z = bigZoom.value
+  if (z <= 1) {
+    return { maxWidth: '100%', maxHeight: '72vh', width: 'auto' }
+  }
+  return {
+    width: Math.round(z * 100) + '%',
+    maxWidth: 'none',
+    maxHeight: 'none',
+    flex: 'none'
+  }
+})
+
 function clampZoom(v) {
   return Math.min(BIG_ZOOM_MAX, Math.max(BIG_ZOOM_MIN, Math.round(v * 100) / 100))
 }
@@ -1265,8 +1285,7 @@ onMounted(() => {
   position: relative; display: flex; justify-content: center; align-items: center;
   min-height: 320px; background: #000; border-radius: 4px; overflow: auto;
 }
-.pv-big img { display: block; max-width: none; max-height: none; transition: width 0.1s ease-out; }
-.pv-big { align-items: flex-start; }
+.pv-big { align-items: flex-start; justify-content: safe center; }
 .pv-big-zoom { display: inline-flex; align-items: center; gap: 6px; }
 .pv-density-label { font-size: 12px; min-width: 28px; text-align: center; color: var(--el-text-color-regular); }
 .rv-video { width: 100%; max-height: 70vh; background: #000; }
@@ -1280,7 +1299,9 @@ onMounted(() => {
 .pv-big-keys { margin-left: auto; font-size: 12px; color: var(--el-text-color-placeholder); }
 .pv-big-hint.ok { color: var(--el-color-success); }
 .pv-big-hint { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 12px; color: var(--el-color-warning); }
-.pv-big img { max-width: 100%; max-height: 72vh; object-fit: contain; }
+/* P6.71：缩放由内联样式覆盖（见 bigImgStyle）。这里只给「100% 时铺满可视区」的兜底，
+   注意别再写 max-width/max-height 之外的限制，否则会把放大后的内联宽度压回去。 */
+.pv-big img { display: block; object-fit: contain; }
 .pv-big-bar { display: flex; align-items: center; gap: 8px; margin-top: 10px; }.review-page { padding: 16px 18px; }
 .rv-head { margin-bottom: 6px; }
 .rv-title { margin: 0 0 4px; font-size: 18px; font-weight: 600; }
