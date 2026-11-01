@@ -1057,6 +1057,22 @@ export function keepMainDuplicate(contentHash, keepMemberId) {
     data: { contentHash, keepMemberId }
   })
 }
+// P6.90：相册归属规则维护（扫描按它决定归属；命中不了 = 未归类）
+export function listAlbumRules(params) {
+  return request({ url: BASE + '/album-rules', method: 'get', params })
+}
+export function createAlbumRule(data) {
+  return request({ url: BASE + '/album-rules', method: 'post', data })
+}
+export function updateAlbumRule(id, data) {
+  return request({ url: BASE + '/album-rules/' + encodeURIComponent(String(id)), method: 'put', data })
+}
+export function deleteAlbumRule(id) {
+  return request({ url: BASE + '/album-rules/' + encodeURIComponent(String(id)), method: 'delete' })
+}
+export function listAlbumRuleDirs() {
+  return request({ url: BASE + '/album-rules/dirs', method: 'get' })
+}
 // P6.88：未归类按目录汇总 + 一键「建册 + 建规则 + 并入」（规则模式下新增归属的人手入口）
 export function listUncategorizedDirs() {
   return request({ url: BASE + '/albums/photos/uncategorized/dirs', method: 'get' })
