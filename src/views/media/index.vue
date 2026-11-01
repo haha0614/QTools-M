@@ -350,6 +350,10 @@
                       v-hasPermi="['media:admin:edit']">采纳为正式册</el-dropdown-item>
                     <el-dropdown-item icon="Share" @click="openAlbumMerge(scope.row)"
                       v-hasPermi="['media:admin:edit']">并入另一册…</el-dropdown-item>
+                    <el-dropdown-item icon="Edit" divided data-testid="album-rename"
+                      v-hasPermi="['media:admin:edit']" @click="renameAlbumRow(scope.row)">重命名…</el-dropdown-item>
+                    <el-dropdown-item icon="Delete" data-testid="album-delete"
+                      v-hasPermi="['media:admin:remove']" @click="deleteAlbumRow(scope.row)">删除这本册…</el-dropdown-item>
                   </el-dropdown-menu>
                 </template>
               </el-dropdown>
@@ -1013,7 +1017,9 @@ import DeriveEmptyState from './DeriveEmptyState.vue'
 import { deriveMapOf, buildResultModel, DERIVE_FILTER_DEFAULT, filterVideoRows } from './deriveModel'
 import { getDeriveStatus } from '@/api/media'
 // 内容分级（P5.99）：行内下拉 / 批量设置用到的接口与值域常量
-import { videoTagStats, listTags as listTagsApi, updateVideoMeta } from '@/api/media'
+import {
+  videoTagStats, listTags as listTagsApi, updateVideoMeta, renameAlbum, deleteAlbum
+} from '@/api/media'
 import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos, confirmAlbums as confirmAlbumsApi, reorderAlbumPhotos } from '@/api/media'
 import { RATING_OPTIONS, ratingOf } from './ratingOptions'
 
@@ -2564,6 +2570,57 @@ watch(scanRunning, (val, old) => {
     maintRefreshKey.value += 1
   }
 })
+
+// ------------------------------------------------------------------ 相册改名 / 删除（P6.86）
+
+async function renameAlbumRow(row) {
+  if (!row || !row.id) return
+  let next
+  try {
+    const r = await proxy.$prompt('新的册名（人工设定后，重扫不会再用目录名覆盖它）', '重命名相册', {
+      confirmButtonText: '保存',
+      cancelButtonText: '取消',
+      inputValue: row.title || '',
+      inputValidator: v => (v && v.trim() ? true : '册名不能为空')
+    })
+    next = (r && r.value ? r.value : '').trim()
+  } catch (e) {
+    return
+  }
+  if (!next) return
+  try {
+    await renameAlbum(row.id, next)
+    proxy.$modal.msgSuccess('已改名为「' + next + '」')
+    loadAlbums()
+  } catch (e) {
+    proxy.$modal.msgError('改名失败：' + errorText(e))
+  }
+}
+
+async function deleteAlbumRow(row) {
+  if (!row || !row.id) return
+  const count = Number(row.photoCount) || 0
+  const dirWarn = row.dirKey
+    ? '\n\n注意：这本册来自磁盘目录「' + row.dirKey + '」，下一次扫描还会按目录把它重新建出来；'
+      + '要彻底不出现，得把那个目录改名/移走，或改用「并入另一册」。'
+    : ''
+  try {
+    await proxy.$modal.confirm(
+      '删除册「' + (row.title || row.id) + '」？\n'
+      + '册里的 ' + count + ' 张照片不会删，会变成「未归类」（可随时再移进别的册）。' + dirWarn
+    )
+  } catch (e) {
+    return
+  }
+  try {
+    const res = await deleteAlbum(row.id)
+    proxy.$modal.msgSuccess('已删除，移出照片 ' + ((res && res.detached) || 0) + ' 张到「未归类」')
+    loadAlbums()
+    loadStats()
+  } catch (e) {
+    proxy.$modal.msgError('删除失败：' + errorText(e))
+  }
+}
 
 // ------------------------------------------------------------------ 单条视频标签编辑（P6.83）
 /* 注意：与既有"编辑标签字典项"（tagEditVisible / openTagEdit）是两件事——

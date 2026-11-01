@@ -1057,6 +1057,13 @@ export function keepMainDuplicate(contentHash, keepMemberId) {
     data: { contentHash, keepMemberId }
   })
 }
+// P6.86：相册改名（人工设定，重扫不再覆盖）与删除（册内照片移出到「未归类」）
+export function renameAlbum(id, title) {
+  return request({ url: BASE + '/album/' + encodeURIComponent(String(id)), method: 'put', data: { title } })
+}
+export function deleteAlbum(id) {
+  return request({ url: BASE + '/album/' + encodeURIComponent(String(id)), method: 'delete' })
+}
 // P6.83：单条视频元数据补丁（tagIds 全量替换 / addTagIds / removeTagIds / rating / markers）
 export function updateVideoMeta(videoId, data) {
   return request({ url: '/api/media/admin/video/' + encodeURIComponent(String(videoId)) + '/meta', method: 'put', data })
