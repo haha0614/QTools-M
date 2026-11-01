@@ -1,23 +1,40 @@
 <template>
   <div class="login-page">
-    <div class="login-glow" aria-hidden="true"></div>
+    <!-- 背景装饰：4 团光斑 + 2 圈细环。细环的作用是让"玻璃后面的模糊"看得出来 -->
+    <div class="bg" aria-hidden="true">
+      <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="blob b4"></span>
+      <span class="ring ring1"></span><span class="ring ring2"></span>
+    </div>
 
-    <main class="login-main">
-      <div class="login-brand">
-        <BrandMark class="brand-mark" :size="20" />
-        <span class="brand-name">{{ brandName }}</span>
+    <section class="glass">
+      <!-- 折射层：卡内再画一遍放大 1.3 倍的光斑，模拟透镜 -->
+      <div class="lens" aria-hidden="true">
+        <span class="l l1"></span><span class="l l2"></span><span class="l l3"></span>
       </div>
+      <div class="spec" aria-hidden="true"></div>
+      <div class="grain" aria-hidden="true"></div>
 
-      <section class="login-card">
-        <header class="card-head">
-          <h1 class="card-title">登录</h1>
-          <p class="card-sub">使用管理账号进入后台</p>
-        </header>
+      <!-- 左：有色玻璃封面 -->
+      <aside class="cover">
+        <div class="cover-top">
+          <BrandMark class="cover-mark" :size="18" />
+          <span class="cover-name">{{ brandName }}</span>
+        </div>
+        <div class="cover-body">
+          <p class="cover-line">一个目录进来，<br><b>一本可以翻的册</b>出去。</p>
+          <span class="cover-chip">扫描 → 个体 → 规则归属</span>
+        </div>
+      </aside>
+
+      <!-- 右：表单 -->
+      <main class="form">
+        <h1 class="form-title">登录</h1>
+        <p class="form-sub">使用管理账号进入后台</p>
 
         <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form"
           label-position="top" hide-required-asterisk @keyup.enter="handleLogin">
           <el-form-item prop="username" label="账号">
-            <el-input v-model="loginForm.username" clearable auto-complete="off" placeholder="请输入账号" />
+            <el-input v-model="loginForm.username" auto-complete="off" placeholder="请输入账号" />
           </el-form-item>
 
           <el-form-item prop="password" label="密码">
@@ -48,17 +65,15 @@
           </div>
 
           <el-button class="submit" :loading="loading" type="primary" @click.prevent="handleLogin">
-            {{ loading ? '登录中…' : '登录' }}
+            {{ loading ? '登录中…' : '登 录' }}
           </el-button>
         </el-form>
 
-        <footer class="card-foot">
-          默认账号 <code>admin</code> / <code>admin123</code>
-        </footer>
-      </section>
+        <p class="form-hint">默认账号 <code>admin</code> / <code>admin123</code></p>
+      </main>
+    </section>
 
-      <p class="login-outer-foot">{{ footerContent }}</p>
-    </main>
+    <p class="outer-foot">{{ footerContent }}</p>
   </div>
 </template>
 
@@ -73,7 +88,6 @@ import BrandMark from '@/components/BrandMark.vue'
 const title = import.meta.env.VITE_APP_TITLE
 const brandName = title || '青兔工具箱'
 const footerContent = defaultSettings.footerContent
-const year = new Date().getFullYear()
 const userStore = useUserStore()
 const route = useRoute()
 const router = useRouter()
@@ -171,12 +185,15 @@ getCookie()
 
 <style lang='scss' scoped>
 /**
- * P6.94.3：按 Linear / Vercel 的实际取值重排（设计语言来源见 doc 里的记录）：
- * - 边框一律用"极细半透明发丝线"，不用实心灰：rgba(15,23,42,.08) / rgba(255,255,255,.06)
- * - 层次靠亮度而非颜色：强文本 #16181d、次文本 #5b6470、弱文本 #8a8f98
- * - 字号阶梯 20 / 14 / 13 / 12，字重 590 / 510 / 400（Linear 的 510 介于 regular 与 medium 之间）
- * - 控件等高 36px，8px 栅格：label 下 6、字段间 14、区块间 20
- * - 不用阴影：卡片靠发丝边框与背景亮度差立起来
+ * P6.95：登录页定稿 —— 分栏大卡（原 09）+ 液态玻璃（P6.94 那套手法）。
+ *
+ * 玻璃成立的五个条件，少一个就变"半透明白板"：
+ *   1. 背景必须有内容可折射（光斑 + 细环），纯色渐变被模糊等于没模糊；
+ *   2. 模糊要小（10px）：模糊大了就成奶白塑料；
+ *   3. saturate/brightness 上提，通透感来自"更艳"，不是"更白"；
+ *   4. 四边亮色内沿 + 斜向镜面扫光（真实玻璃的棱与反射）；
+ *   5. 卡内再画一层放大的光斑，模拟透镜折射。
+ * 不支持 backdrop-filter 的内核走 @supports 兜底（纯色板 + 正常阴影）。
  */
 .login-page {
   position: relative;
@@ -184,195 +201,278 @@ getCookie()
   align-items: center;
   justify-content: center;
   min-height: 100%;
-  padding: 40px 20px;
-  background: #fbfbfd;
+  padding: 24px;
   overflow: hidden;
+  background: linear-gradient(150deg, #eef2ff 0%, #e0f2fe 46%, #eefaf3 100%);
 }
 
-/* 顶部一层极淡的品牌色光晕：让"白底"不是死白，也不做网格那种装饰 */
-.login-glow {
-  position: absolute;
-  inset: -20% -10% auto -10%;
-  height: 60%;
-  pointer-events: none;
-  background: radial-gradient(60% 60% at 50% 0%, rgba(94, 106, 210, 0.10), transparent 70%);
-}
+/* ---------------- 背景 ---------------- */
+.bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 
-.login-main {
+.blob { position: absolute; border-radius: 50%; filter: blur(30px); }
+.b1 { width: 460px; height: 460px; left: 4%; top: 4%; background: radial-gradient(circle at 35% 35%, #a5b4fc, #4f46e5); opacity: 0.85; }
+.b2 { width: 400px; height: 400px; right: 6%; top: 10%; background: radial-gradient(circle at 60% 40%, #67e8f9, #0891b2); opacity: 0.8; }
+.b3 { width: 520px; height: 520px; left: 30%; bottom: -16%; background: radial-gradient(circle at 50% 50%, #fbcfe8, #db2777); opacity: 0.65; }
+.b4 { width: 300px; height: 300px; right: 20%; bottom: 4%; background: radial-gradient(circle at 45% 45%, #fde68a, #f59e0b); opacity: 0.6; }
+
+.ring { position: absolute; border-radius: 50%; filter: blur(5px); }
+.ring1 { width: 560px; height: 560px; left: calc(50% - 330px); top: calc(50% - 320px); border: 10px solid rgba(99, 102, 241, 0.3); }
+.ring2 { width: 260px; height: 260px; right: 13%; top: calc(50% - 130px); border: 8px solid rgba(8, 145, 178, 0.26); }
+
+/* ---------------- 玻璃卡 ---------------- */
+.glass {
   position: relative;
-  width: 100%;
-  max-width: 384px;
+  z-index: 2;
+  display: flex;
+  width: min(860px, 94vw);
+  height: min(500px, 88vh);
+  border-radius: 28px;
+  overflow: hidden;
+  background: linear-gradient(152deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0.18));
+  backdrop-filter: blur(10px) saturate(220%) brightness(1.1) contrast(1.02);
+  -webkit-backdrop-filter: blur(10px) saturate(220%) brightness(1.1) contrast(1.02);
+  box-shadow:
+    0 32px 80px rgba(24, 32, 48, 0.24),
+    0 2px 10px rgba(24, 32, 48, 0.1),
+    0 0 0 1px rgba(255, 255, 255, 0.5),
+    inset 0 1.5px 0 rgba(255, 255, 255, 1),
+    inset 0 -1.5px 1px rgba(255, 255, 255, 0.5),
+    inset 1.5px 0 0 rgba(255, 255, 255, 0.8),
+    inset -1.5px 0 0 rgba(255, 255, 255, 0.8);
+}
+
+.lens { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.36; overflow: hidden; }
+.lens .l { position: absolute; border-radius: 50%; filter: blur(16px) saturate(160%); transform: scale(1.3); }
+.l1 { width: 280px; height: 280px; left: -50px; top: -40px; background: radial-gradient(circle, #818cf8, #4f46e5); }
+.l2 { width: 240px; height: 240px; right: -60px; top: 60px; background: radial-gradient(circle, #22d3ee, #0e7490); }
+.l3 { width: 300px; height: 300px; left: 120px; bottom: -90px; background: radial-gradient(circle, #f9a8d4, #db2777); }
+
+.spec,
+.grain { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
+
+.spec {
+  background: linear-gradient(118deg,
+    rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0.08) 16%,
+    rgba(255, 255, 255, 0) 40%, rgba(255, 255, 255, 0) 66%,
+    rgba(255, 255, 255, 0.36) 100%);
+  mix-blend-mode: screen;
+}
+
+.grain {
+  opacity: 0.15;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/><feColorMatrix type='saturate' values='0'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.6'/></svg>");
+  background-size: 120px 120px;
+}
+
+/* ---------------- 左：有色玻璃封面 ---------------- */
+.cover {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 45%;
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  padding: 30px 28px;
+  background: linear-gradient(158deg, rgba(37, 99, 235, 0.42), rgba(13, 148, 136, 0.34));
+  backdrop-filter: blur(6px) saturate(180%);
+  -webkit-backdrop-filter: blur(6px) saturate(180%);
+  border-right: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
-.login-brand {
+.cover-top { display: flex; align-items: center; gap: 9px; color: #fff; font-size: 13px; font-weight: 600; }
+.cover-mark { color: #fff; flex: 0 0 auto; }
+.cover-name { text-shadow: 0 1px 10px rgba(0, 0, 0, 0.25); }
+
+.cover-line {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.95;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.25);
+
+  b { font-weight: 650; }
+}
+
+.cover-chip {
+  display: inline-block;
+  margin-top: 16px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11.5px;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+/* ---------------- 右：表单 ---------------- */
+.form {
+  position: relative;
+  z-index: 2;
+  flex: 1;
   display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 16px;
-  color: #5b6470;
+  flex-direction: column;
+  justify-content: center;
+  padding: 42px 44px;
 }
 
-.brand-mark { color: var(--el-color-primary); flex: 0 0 auto; }
-.brand-name { font-size: 13px; font-weight: 510; letter-spacing: 0.1px; }
-
-.login-card {
-  border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 10px;
-  background: #fff;
-  padding: 26px 26px 0;
-}
-
-.card-head { margin-bottom: 20px; }
-.card-title {
-  margin: 0 0 6px;
-  font-size: 20px;
-  font-weight: 590;
-  line-height: 1.3;
-  letter-spacing: -0.2px;
-  color: #16181d;
-}
-.card-sub { margin: 0; font-size: 13px; line-height: 1.5; color: #8a8f98; }
+.form-title { margin: 0 0 5px; font-size: 22px; font-weight: 650; letter-spacing: -0.3px; color: #0f172a; }
+.form-sub { margin: 0 0 24px; font-size: 12.5px; color: #475569; }
 
 .login-form {
   :deep(.el-form-item) { margin-bottom: 14px; }
-  :deep(.el-form-item:last-of-type) { margin-bottom: 8px; }
   :deep(.el-form-item__label) {
     padding-bottom: 6px;
-    font-size: 13px;
-    font-weight: 510;
+    font-size: 12.5px;
+    font-weight: 520;
     line-height: 1.4;
-    color: #5b6470;
+    color: #334155;
   }
   :deep(.el-input__wrapper) {
-    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.10) inset;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.62), rgba(255, 255, 255, 0.42));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.85),
+      0 1px 2px rgba(15, 23, 42, 0.06);
     transition: box-shadow 0.15s;
 
-    &:hover { box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.20) inset; }
-    &.is-focus {
-      box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px rgba(64, 158, 255, 0.12);
-    }
+    &:hover { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 1px rgba(37, 99, 235, 0.35), 0 1px 2px rgba(15, 23, 42, 0.08); }
+    &.is-focus { box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.7), 0 0 0 4px rgba(37, 99, 235, 0.16); }
   }
-  :deep(.el-input__inner) { font-size: 14px; }
+  :deep(.el-input__inner) { font-size: 13.5px; color: #0f172a; }
+  :deep(.el-input__inner::placeholder) { color: #7c8798; }
 }
 
-.pwd-toggle {
-  cursor: pointer;
-  color: #b4b9c2;
+.pwd-toggle { cursor: pointer; color: #6b7a90; &:hover { color: #2563eb; } }
 
-  &:hover { color: var(--el-color-primary); }
-}
-
-.code-row { display: flex; align-items: center; gap: 8px; width: 100%; }
+.code-row { display: flex; align-items: center; gap: 9px; width: 100%; }
 .code-input { flex: 1 1 auto; }
 
 .code-box {
   flex: 0 0 100px;
   height: 32px;
   padding: 0;
-  border: 1px solid rgba(15, 23, 42, 0.10);
-  border-radius: 5px;
-  background: #f7f8fa;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.46));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
   cursor: pointer;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: border-color 0.15s;
 
-  &:hover { border-color: rgba(15, 23, 42, 0.24); }
+  &:hover { border-color: rgba(37, 99, 235, 0.45); }
 }
 
 .code-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.code-ph { font-size: 12px; color: #a8aeb8; }
+.code-ph { font-size: 12px; color: #7c8798; }
 
-.form-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin: 0 0 16px;
-  font-size: 13px;
-}
+.form-row { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 16px; font-size: 12.5px; }
 
 .submit {
   width: 100%;
-  height: 36px;
+  height: 38px;
+  border: 0;
+  border-radius: 14px;
   font-size: 13.5px;
-  font-weight: 510;
-  letter-spacing: 0.2px;
-  border-radius: 7px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  color: #fff;
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12);
+
+  &:hover { background: linear-gradient(180deg, #6fb0fb, #2f6ce8); }
 }
 
-.card-foot {
-  margin: 22px -26px 0;
-  padding: 11px 26px;
-  border-top: 1px solid rgba(15, 23, 42, 0.06);
-  font-size: 12px;
-  color: #a8aeb8;
+.form-hint {
+  margin: 16px 0 0;
+  font-size: 11.5px;
+  text-align: center;
+  color: #64748b;
 
   code {
     padding: 1px 5px;
-    border-radius: 4px;
-    background: #f2f3f6;
-    color: #5b6470;
+    border-radius: 5px;
+    background: rgba(255, 255, 255, 0.6);
+    color: #334155;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 }
 
-.login-outer-foot {
-  margin: 18px 0 0;
-  text-align: center;
-  font-size: 12px;
-  color: #b4b9c2;
+.outer-foot { position: absolute; bottom: 14px; margin: 0; font-size: 11.5px; color: #7d8798; }
+
+/* ---------------- 窄屏：竖排，封面压成一条 ---------------- */
+@media (max-width: 860px) {
+  .glass { flex-direction: column; height: auto; max-height: none; width: min(420px, 94vw); }
+  .cover { flex: 0 0 auto; padding: 18px 22px; border-right: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.45); }
+  .cover-line { display: none; }
+  .cover-chip { display: none; }
+  .form { padding: 26px 22px 22px; }
+  .outer-foot { position: static; margin-top: 14px; text-align: center; }
 }
 
-/* ---------------- 暗色：near-black 画布，靠白色透明度分级 ---------------- */
-html.dark .login-page { background: #08090a; }
-
-html.dark .login-glow {
-  background: radial-gradient(60% 60% at 50% 0%, rgba(113, 112, 255, 0.16), transparent 70%);
+/* ---------------- 兜底：不支持 backdrop-filter 的内核 ---------------- */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .glass { background: rgba(255, 255, 255, 0.94); box-shadow: 0 24px 60px rgba(24, 32, 48, 0.18); }
+  .cover { background: linear-gradient(158deg, #2563eb, #0d9488); }
+  .lens, .spec, .grain { display: none; }
 }
 
-html.dark .login-brand { color: #8a8f98; }
+/* ---------------- 暗色：黑玻璃 ---------------- */
+html.dark .login-page { background: #0a0c12; }
+html.dark .b1 { opacity: 0.5; }
+html.dark .b2 { opacity: 0.45; }
+html.dark .b3 { opacity: 0.35; }
+html.dark .b4 { opacity: 0.3; }
+html.dark .ring1 { border-color: rgba(129, 140, 248, 0.24); }
+html.dark .ring2 { border-color: rgba(34, 211, 238, 0.2); }
 
-html.dark .login-card {
-  background: #0e0f11;
-  border-color: rgba(255, 255, 255, 0.06);
+html.dark .glass {
+  background: linear-gradient(152deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1.5px 1px rgba(255, 255, 255, 0.08);
 }
 
-html.dark .card-title { color: #f7f8f8; }
-html.dark .card-sub { color: #8a8f98; }
+html.dark .cover { background: linear-gradient(158deg, rgba(37, 99, 235, 0.5), rgba(13, 148, 136, 0.42)); }
+html.dark .form-title { color: #f2f5f9; }
+html.dark .form-sub { color: #98a3b3; }
 
 html.dark .login-form {
-  :deep(.el-form-item__label) { color: #8a8f98; }
+  :deep(.el-form-item__label) { color: #a9b3c1; }
   :deep(.el-input__wrapper) {
-    background: #131417;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07) inset;
+    background: rgba(255, 255, 255, 0.07);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.12);
 
-    &:hover { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16) inset; }
-    &.is-focus {
-      box-shadow: 0 0 0 1px rgba(113, 112, 255, 0.8) inset, 0 0 0 3px rgba(113, 112, 255, 0.14);
-    }
+    &.is-focus { box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.8), 0 0 0 4px rgba(96, 165, 250, 0.16); }
   }
-  :deep(.el-input__inner) { color: #f7f8f8; }
+  :deep(.el-input__inner) { color: #f2f5f9; }
+  :deep(.el-input__inner::placeholder) { color: #7a8598; }
 }
 
-html.dark .pwd-toggle { color: #62666d; }
+html.dark .pwd-toggle { color: #8a94a6; }
 
-html.dark .code-box {
-  border-color: rgba(255, 255, 255, 0.07);
-  background: #131417;
-
-  &:hover { border-color: rgba(255, 255, 255, 0.18); }
+/* 深色玻璃上 EP 的复选框会渲染成一块黑方块，这里显式给底色/边线/文字色 */
+html.dark .form-row {
+  :deep(.el-checkbox__inner) {
+    background: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.34);
+  }
+  :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
+    background: var(--el-color-primary);
+    border-color: var(--el-color-primary);
+  }
+  :deep(.el-checkbox__label) { color: #a9b3c1; }
 }
+html.dark .code-box { border-color: rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.07); }
+html.dark .form-hint {
+  color: #a8b2c0;
 
-html.dark .card-foot {
-  border-top-color: rgba(255, 255, 255, 0.05);
-  color: #62666d;
-
-  code { background: #1a1c1f; color: #8a8f98; }
+  code { background: rgba(255, 255, 255, 0.13); color: #dfe6ee; }
 }
-
-html.dark .login-outer-foot { color: #62666d; }
+html.dark .outer-foot { color: #6f7a8c; }
 </style>
