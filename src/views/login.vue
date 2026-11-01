@@ -1,28 +1,30 @@
 <template>
   <div class="login-page">
+    <div class="login-bg" aria-hidden="true"></div>
+
     <main class="login-main">
-      <div class="login-lockup">
-        <BrandMark class="lockup-mark" :size="28" />
-        <span class="lockup-name">{{ brandName }}</span>
+      <!-- 品牌行：左对齐，像 Linear / Vercel 那样只占一行 -->
+      <div class="login-brand">
+        <BrandMark class="brand-mark" :size="22" />
+        <span class="brand-name">{{ brandName }}</span>
       </div>
 
       <div class="login-card">
-        <div class="card-head">
-          <h2 class="card-title">登录</h2>
-        </div>
+        <header class="card-head">
+          <h1 class="card-title">登录</h1>
+          <p class="card-sub">使用管理账号进入后台</p>
+        </header>
 
-        <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form" @keyup.enter="handleLogin">
-          <el-form-item prop="username">
-            <el-input v-model="loginForm.username" size="large" clearable auto-complete="off"
-              placeholder="账号">
-              <template #prefix><svg-icon icon-class="user" class="input-icon" /></template>
-            </el-input>
+        <!-- hide-required-asterisk：三个字段都是必填，红色星号只是噪音 -->
+        <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form"
+          label-position="top" hide-required-asterisk @keyup.enter="handleLogin">
+          <el-form-item prop="username" label="账号">
+            <el-input v-model="loginForm.username" clearable auto-complete="off" placeholder="请输入账号" />
           </el-form-item>
 
-          <el-form-item prop="password">
-            <el-input v-model="loginForm.password" :type="showPassword ? 'text' : 'password'" size="large"
-              auto-complete="off" placeholder="密码" @keyup.enter="handleLogin">
-              <template #prefix><svg-icon icon-class="password" class="input-icon" /></template>
+          <el-form-item prop="password" label="密码">
+            <el-input v-model="loginForm.password" :type="showPassword ? 'text' : 'password'" auto-complete="off"
+              placeholder="请输入密码" @keyup.enter="handleLogin">
               <template #suffix>
                 <el-icon class="pwd-toggle" @click="showPassword = !showPassword">
                   <component :is="showPassword ? 'View' : 'Hide'" />
@@ -31,32 +33,33 @@
             </el-input>
           </el-form-item>
 
-          <el-form-item prop="code" v-if="captchaEnabled">
+          <el-form-item prop="code" label="验证码" v-if="captchaEnabled">
             <div class="code-row">
-              <el-input v-model="loginForm.code" size="large" auto-complete="off" placeholder="验证码"
-                class="code-input" @keyup.enter="handleLogin">
-                <template #prefix><svg-icon icon-class="validCode" class="input-icon" /></template>
-              </el-input>
-              <button type="button" class="code-box" :title="'看不清？点击换一张'" @click="getCode">
+              <el-input v-model="loginForm.code" auto-complete="off" placeholder="请输入验证码"
+                class="code-input" @keyup.enter="handleLogin" />
+              <button type="button" class="code-box" title="看不清？点击换一张" @click="getCode">
                 <img v-if="codeUrl" :src="codeUrl" alt="验证码" class="code-img" />
-                <span v-else class="code-ph">加载中…</span>
+                <span v-else class="code-ph">加载中</span>
               </button>
             </div>
           </el-form-item>
 
           <div class="form-row">
             <el-checkbox v-model="loginForm.rememberMe">记住密码</el-checkbox>
-            <router-link v-if="register" class="link-type" to="/register">立即注册</router-link>
+            <router-link v-if="register" class="link-type" to="/register">注册账号</router-link>
           </div>
 
-          <el-button class="submit" :loading="loading" size="large" type="primary" @click.prevent="handleLogin">
-            {{ loading ? '登 录 中…' : '登 录' }}
+          <el-button class="submit" :loading="loading" type="primary" @click.prevent="handleLogin">
+            {{ loading ? '登录中…' : '登录' }}
           </el-button>
         </el-form>
 
-        <p class="card-tip">默认账号 admin / admin123</p>
+        <footer class="card-foot">
+          默认账号 <code>admin</code> / <code>admin123</code>
+        </footer>
       </div>
-      <div class="login-footer">{{ footerContent }}</div>
+
+      <p class="login-outer-foot">{{ footerContent }}</p>
     </main>
   </div>
 </template>
@@ -169,53 +172,80 @@ getCookie()
 </script>
 
 <style lang='scss' scoped>
-/* P6.94.1：单列居中版 —— 去掉左右分栏与左栏营销文案，只留一张卡 */
+/* P6.94.2：换成"左对齐 + 细边框卡片 + 网格背景"这一派（Linear / Vercel / GitHub 的登录观感），
+   去掉中心大标题与浮动感的厚阴影；表单字段改成 label 在上，信息层次更像产品而不是"模板"。 */
 .login-page {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100%;
-  padding: 24px;
-  background:
-    radial-gradient(900px 520px at 50% -10%, var(--el-color-primary-light-9), transparent 70%),
-    var(--el-bg-color-page);
+  padding: 40px 20px;
+  background: var(--el-bg-color-page);
+  overflow: hidden;
+}
+
+/* 背景：极淡网格 + 顶部主色柔光，给空白一点结构，但不抢视线 */
+.login-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    radial-gradient(760px 420px at 50% -8%, var(--el-color-primary-light-8), transparent 72%),
+    linear-gradient(to right, var(--el-border-color-lighter) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--el-border-color-lighter) 1px, transparent 1px);
+  background-size: 100% 100%, 44px 44px, 44px 44px;
+  opacity: 0.55;
+  mask-image: radial-gradient(720px 520px at 50% 22%, #000 35%, transparent 82%);
 }
 
 .login-main {
+  position: relative;
   width: 100%;
-  max-width: 384px;
+  max-width: 392px;
   display: flex;
   flex-direction: column;
-  align-items: center;
 }
 
-/* 顶部小标识：一行字而已，不做营销版面 */
-.login-lockup {
+/* 品牌行（左对齐） */
+.login-brand {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 22px;
+  margin-bottom: 18px;
   color: var(--el-text-color-regular);
 }
 
-.lockup-mark { color: var(--el-color-primary); flex: 0 0 auto; }
-.lockup-name { font-size: 15px; font-weight: 600; letter-spacing: 0.3px; }
+.brand-mark { color: var(--el-color-primary); flex: 0 0 auto; }
+.brand-name { font-size: 14px; font-weight: 600; letter-spacing: 0.2px; }
 
+/* 卡片：细边框、几乎无阴影——这是"产品感"与"模板感"的分水岭 */
 .login-card {
-  width: 100%;
-  padding: 30px 30px 22px;
-  border-radius: 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 10px;
   background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.06);
+  padding: 24px 24px 0;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
 }
 
-.card-head { text-align: center; margin-bottom: 22px; }
-.card-title { margin: 0; font-size: 20px; font-weight: 600; color: var(--el-text-color-primary); letter-spacing: 1px; }
+.card-head { margin-bottom: 20px; }
+.card-title {
+  margin: 0 0 4px;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--el-text-color-primary);
+}
+.card-sub { margin: 0; font-size: 13px; color: var(--el-text-color-secondary); }
 
 .login-form {
-  .input-icon { height: 38px; width: 14px; color: var(--el-text-color-placeholder); }
-  :deep(.el-form-item) { margin-bottom: 18px; }
+  :deep(.el-form-item) { margin-bottom: 16px; }
+  :deep(.el-form-item__label) {
+    padding-bottom: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+    color: var(--el-text-color-regular);
+  }
 }
 
 .pwd-toggle {
@@ -225,12 +255,12 @@ getCookie()
   &:hover { color: var(--el-color-primary); }
 }
 
-.code-row { display: flex; align-items: center; gap: 10px; width: 100%; }
+.code-row { display: flex; align-items: center; gap: 8px; width: 100%; }
 .code-input { flex: 1 1 auto; }
 
 .code-box {
-  flex: 0 0 132px;
-  height: 40px;
+  flex: 0 0 104px;
+  height: 32px;
   padding: 0;
   border: 1px solid var(--el-border-color);
   border-radius: var(--el-border-radius-base);
@@ -252,36 +282,46 @@ getCookie()
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: -4px 0 18px;
+  margin: -2px 0 18px;
 }
 
-.submit { width: 100%; letter-spacing: 2px; }
+.submit { width: 100%; }
 
-.card-tip {
+/* 卡片底栏：用一条发丝线分开，替代"再挂一行说明文字" */
+.card-foot {
+  margin: 20px -24px 0;
+  padding: 12px 24px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+
+  code {
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--el-fill-color-light);
+    color: var(--el-text-color-regular);
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+}
+
+.login-outer-foot {
   margin: 16px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
   text-align: center;
+  font-size: 12px;
   color: var(--el-text-color-placeholder);
 }
 
-.login-footer {
-  margin-top: 16px;
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
-  text-align: center;
+/* 暗色：卡片用浮层色 + 更暗的网格，避免"死黑一片" */
+html.dark .login-bg {
+  background-image:
+    radial-gradient(760px 420px at 50% -8%, rgba(64, 128, 255, 0.16), transparent 72%),
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+  opacity: 0.6;
 }
 
-/* 暗色：卡片提亮一档，否则与页面几乎同色 */
 html.dark .login-card {
-  background: #1b1d20;
-  border-color: rgba(255, 255, 255, 0.1);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.55);
-}
-
-html.dark .login-page {
-  background:
-    radial-gradient(900px 520px at 50% -10%, rgba(64, 128, 255, 0.12), transparent 70%),
-    var(--el-bg-color-page);
+  background: var(--el-bg-color-overlay);
+  box-shadow: none;
 }
 </style>
