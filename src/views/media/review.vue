@@ -271,6 +271,7 @@
           {{ opt.label }} <b>{{ pvCountOf(opt.value) }}</b>
         </button>
       </div>
+      <!-- 第一行：筛选结果 / 选择 / 视图密度（只读信息与浏览操作） -->
       <div class="pv-bar">
         <span class="pv-hint-keys">Shift+点击勾选可连选一段</span>
         <span class="pv-count">共 {{ pvRows.length }} 张<span v-if="pvRatingFilter !== 'all'">（筛出 {{ pvFilteredRows.length }} 张）</span></span>
@@ -279,25 +280,32 @@
           {{ pvAllFilteredPicked ? '取消全选' : '全选' }}{{ pvRatingFilter === 'all' ? '' : '（筛出的 ' + pvFilteredRows.length + ' 张）' }}
         </el-button>
         <el-button size="small" :disabled="!pvSelected.length" @click="pvSelected = []">清空选择</el-button>
+        <span class="pv-spacer" />
         <span class="pv-filter-label">格子</span>
         <el-radio-group v-model="pvDensity" size="small" class="pv-density" @change="onDensityChange">
           <el-radio-button v-for="d in PV_DENSITIES" :key="d.value" :value="d.value">{{ d.label }}</el-radio-button>
         </el-radio-group>
+      </div>
+
+      <!-- 第二行：动作条 —— 左边「对选中的这几张做什么」，右边「对整册做什么」 -->
+      <div class="pv-actions">
+        <template v-if="pvSelected.length">
+          <span class="pv-action-label">已选 {{ pvSelected.length }} 张 · 设为</span>
+          <el-button size="small" type="success" :disabled="pvBusy" @click="pvBatch('general')">大众</el-button>
+          <el-button size="small" type="warning" :disabled="pvBusy" @click="pvBatch('guidance')">家长指导</el-button>
+          <el-button size="small" type="danger" :disabled="pvBusy" @click="pvBatch('restricted')">限制</el-button>
+          <el-button size="small" :disabled="pvBusy" @click="pvBatch(null)">继承相册</el-button>
+        </template>
+        <span v-else class="pv-action-hint">勾选图片后可批量定级</span>
         <span class="pv-spacer" />
+        <span class="pv-action-label">本册</span>
         <el-button size="small" type="primary" plain @click="pvAutoVisible = true">自动分级</el-button>
-        <!-- P6.59：看完图直接定册，不用关掉弹窗再回行上点 -->
         <el-button size="small" type="success" plain :disabled="pvBusy" data-testid="pv-approve-album"
           @click="pvDecideAlbum('approved')">通过本册</el-button>
         <el-button v-if="pvAlbum.confirmed === 0" size="small" type="success" :disabled="pvBusy"
           data-testid="pv-adopt-album" @click="pvApproveAndAdopt">通过并采纳</el-button>
         <el-button size="small" type="danger" plain :disabled="pvBusy" data-testid="pv-reject-album"
           @click="pvDecideAlbum('rejected')">驳回本册</el-button>
-        <template v-if="pvSelected.length">
-          <el-button size="small" type="success" :disabled="pvBusy" @click="pvBatch('general')">设大众</el-button>
-          <el-button size="small" type="warning" :disabled="pvBusy" @click="pvBatch('guidance')">设指导</el-button>
-          <el-button size="small" type="danger" :disabled="pvBusy" @click="pvBatch('restricted')">设限制</el-button>
-          <el-button size="small" :disabled="pvBusy" @click="pvBatch(null)">继承相册</el-button>
-        </template>
       </div>
       <div class="pv-grid" v-if="pvRows.length" :style="pvGridStyle">
         <div class="pv-item" v-for="p in pvFilteredRows" :key="p.id" :class="{ on: pvIsSelected(p.id) }">
@@ -1102,7 +1110,15 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.pv-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.pv-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+/* P6.68：动作条单独一条底色，和上面的筛选/浏览区分开，多选时不会串成一锅 */
+.pv-actions {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-bottom: 10px; padding: 6px 10px; border-radius: 6px;
+  background: var(--el-fill-color-lighter); border: 1px solid var(--el-border-color-lighter);
+}
+.pv-action-label { font-size: 12px; color: var(--el-text-color-regular); font-weight: 600; }
+.pv-action-hint { font-size: 12px; color: var(--el-text-color-placeholder); }
 .pv-count { font-size: 12px; color: var(--el-text-color-secondary); }
 .pv-spacer { flex: 1; }
 .pv-grid {
