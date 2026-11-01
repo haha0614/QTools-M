@@ -3475,10 +3475,25 @@ function openAlbumMerge(row) {
   searchMergeTargets('')
 }
 
+/**
+ * 目标册候选（P6.91.1）
+ *
+ * <p>原来固定 pageSize=30：全库 167 本册时下拉只出现前 30 条，用户想找的
+ * 「2023写真合集」（标题以数字开头、排序靠后）根本不在列表里，看着像"列表不全"。
+ * 现在一次拉 200 条（覆盖当前规模）+ 按图片数降序（大册优先出现），
+ * 并保留远程搜索：输入关键词时按关键词查，不受这 200 条限制。</p>
+ */
 async function searchMergeTargets(keyword) {
   albumMergeLoading.value = true
   try {
-    const res = await listAlbums({ keyword: keyword || '', pageNum: 1, pageSize: 30, hidden: 'all' })
+    const kw = (keyword || '').trim()
+    const res = await listAlbums({
+      keyword: kw,
+      pageNum: 1,
+      pageSize: 200,
+      hidden: 'all',
+      sort: kw ? undefined : 'photoCount-desc'
+    })
     const selfId = albumMergeSource.value && albumMergeSource.value.id
     albumMergeOptions.value = ((res && res.rows) || []).filter((a) => a.id !== selfId)
   } catch (e) {
