@@ -310,7 +310,7 @@
     </el-dialog>
 
     <!-- 大图 + 单张定级 -->
-    <el-dialog v-model="pvBigVisible" :title="pvBig ? ('第 ' + (Number(pvBig.seq) + 1) + ' 张 · ' + pvRatingLabel(pvBig.rating)) : ''"
+    <el-dialog v-model="pvBigVisible" :title="pvBig ? ('第 ' + (Number(pvBig.seq) + 1) + ' 张 · ' + pvRatingLabel(pvBig.rating) + ' · ' + (pvBigIndex + 1) + '/' + pvFilteredRows.length + (pvRatingFilter === 'all' ? '' : '（已筛选）')) : ''"
       width="min(1200px, 96vw)" append-to-body>
       <div class="pv-big-status" v-if="pvBig">
         当前分级
@@ -324,7 +324,7 @@
       </div>
       <div class="pv-big-bar">
         <el-button size="small" :disabled="pvBigIndex <= 0" @click="stepBig(-1)">上一张</el-button>
-        <el-button size="small" :disabled="pvBigIndex >= pvRows.length - 1" @click="stepBig(1)">下一张</el-button>
+        <el-button size="small" :disabled="pvBigIndex >= pvFilteredRows.length - 1" @click="stepBig(1)">下一张</el-button>
         <span class="pv-spacer" />
         <template v-if="pvBig">
           <el-button size="small" type="success" :plain="pvBig.rating !== 'general'" :disabled="pvBusy" @click="pvSetRating([pvBig.id], 'general')">大众</el-button>
@@ -847,7 +847,9 @@ function onBigError() {
 }
 
 function openBig(p) {
-  pvBigIndex.value = pvRows.value.findIndex((x) => String(x.id) === String(p.id))
+  // P6.62：大图翻页要沿着**当前筛选**的顺序走，否则在「家长指导」里点开一张，
+  // 按 → 会跳到被筛掉的那些图上（用户看到的是"顺序和内容都不是筛出来的那批"）
+  pvBigIndex.value = pvFilteredRows.value.findIndex((x) => String(x.id) === String(p.id))
   pvBig.value = p
   bigFailed.value = false
   pvBigVisible.value = true
@@ -887,10 +889,12 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPreviewKeydown))
 
 function stepBig(delta) {
   bigFailed.value = false
+  // P6.62：与 openBig 同一口径——沿着筛选后的列表翻页
+  const rows = pvFilteredRows.value
   const next = pvBigIndex.value + delta
-  if (next < 0 || next >= pvRows.value.length) return
+  if (next < 0 || next >= rows.length) return
   pvBigIndex.value = next
-  pvBig.value = pvRows.value[next]
+  pvBig.value = rows[next]
 }
 
 /** 给指定图片设分级（rating=null → 继承相册） */
@@ -909,6 +913,13 @@ async function pvSetRating(ids, rating) {
     }
     if (pvBig.value && hit.has(String(pvBig.value.id))) {
       pvBig.value.rating = rating || ''
+    }
+    // P6.62：改完分级这张可能已经不在当前筛选里了 —— 重新定位翻页锚点，
+    // 找不到就把下标夹回有效范围（大图仍停在这张，按 → 从最近的位置继续）
+    if (pvBigVisible.value && pvBig.value) {
+      const rows = pvFilteredRows.value
+      const idx = rows.findIndex((x) => String(x.id) === String(pvBig.value.id))
+      pvBigIndex.value = idx >= 0 ? idx : Math.max(0, Math.min(pvBigIndex.value, rows.length - 1))
     }
     pvSelected.value = []
   } catch (e) {
