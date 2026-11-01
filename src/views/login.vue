@@ -1,21 +1,19 @@
 <template>
   <div class="login-page">
-    <div class="login-bg" aria-hidden="true"></div>
+    <div class="login-glow" aria-hidden="true"></div>
 
     <main class="login-main">
-      <!-- 品牌行：左对齐，像 Linear / Vercel 那样只占一行 -->
       <div class="login-brand">
-        <BrandMark class="brand-mark" :size="22" />
+        <BrandMark class="brand-mark" :size="20" />
         <span class="brand-name">{{ brandName }}</span>
       </div>
 
-      <div class="login-card">
+      <section class="login-card">
         <header class="card-head">
           <h1 class="card-title">登录</h1>
           <p class="card-sub">使用管理账号进入后台</p>
         </header>
 
-        <!-- hide-required-asterisk：三个字段都是必填，红色星号只是噪音 -->
         <el-form ref="loginRef" :model="loginForm" :rules="loginRules" class="login-form"
           label-position="top" hide-required-asterisk @keyup.enter="handleLogin">
           <el-form-item prop="username" label="账号">
@@ -57,7 +55,7 @@
         <footer class="card-foot">
           默认账号 <code>admin</code> / <code>admin123</code>
         </footer>
-      </div>
+      </section>
 
       <p class="login-outer-foot">{{ footerContent }}</p>
     </main>
@@ -172,8 +170,14 @@ getCookie()
 </script>
 
 <style lang='scss' scoped>
-/* P6.94.2：换成"左对齐 + 细边框卡片 + 网格背景"这一派（Linear / Vercel / GitHub 的登录观感），
-   去掉中心大标题与浮动感的厚阴影；表单字段改成 label 在上，信息层次更像产品而不是"模板"。 */
+/**
+ * P6.94.3：按 Linear / Vercel 的实际取值重排（设计语言来源见 doc 里的记录）：
+ * - 边框一律用"极细半透明发丝线"，不用实心灰：rgba(15,23,42,.08) / rgba(255,255,255,.06)
+ * - 层次靠亮度而非颜色：强文本 #16181d、次文本 #5b6470、弱文本 #8a8f98
+ * - 字号阶梯 20 / 14 / 13 / 12，字重 590 / 510 / 400（Linear 的 510 介于 regular 与 medium 之间）
+ * - 控件等高 36px，8px 栅格：label 下 6、字段间 14、区块间 20
+ * - 不用阴影：卡片靠发丝边框与背景亮度差立起来
+ */
 .login-page {
   position: relative;
   display: flex;
@@ -181,76 +185,81 @@ getCookie()
   justify-content: center;
   min-height: 100%;
   padding: 40px 20px;
-  background: var(--el-bg-color-page);
+  background: #fbfbfd;
   overflow: hidden;
 }
 
-/* 背景：极淡网格 + 顶部主色柔光，给空白一点结构，但不抢视线 */
-.login-bg {
+/* 顶部一层极淡的品牌色光晕：让"白底"不是死白，也不做网格那种装饰 */
+.login-glow {
   position: absolute;
-  inset: 0;
+  inset: -20% -10% auto -10%;
+  height: 60%;
   pointer-events: none;
-  background-image:
-    radial-gradient(760px 420px at 50% -8%, var(--el-color-primary-light-8), transparent 72%),
-    linear-gradient(to right, var(--el-border-color-lighter) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--el-border-color-lighter) 1px, transparent 1px);
-  background-size: 100% 100%, 44px 44px, 44px 44px;
-  opacity: 0.55;
-  mask-image: radial-gradient(720px 520px at 50% 22%, #000 35%, transparent 82%);
+  background: radial-gradient(60% 60% at 50% 0%, rgba(94, 106, 210, 0.10), transparent 70%);
 }
 
 .login-main {
   position: relative;
   width: 100%;
-  max-width: 392px;
+  max-width: 384px;
   display: flex;
   flex-direction: column;
 }
 
-/* 品牌行（左对齐） */
 .login-brand {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 18px;
-  color: var(--el-text-color-regular);
+  gap: 7px;
+  margin-bottom: 16px;
+  color: #5b6470;
 }
 
 .brand-mark { color: var(--el-color-primary); flex: 0 0 auto; }
-.brand-name { font-size: 14px; font-weight: 600; letter-spacing: 0.2px; }
+.brand-name { font-size: 13px; font-weight: 510; letter-spacing: 0.1px; }
 
-/* 卡片：细边框、几乎无阴影——这是"产品感"与"模板感"的分水岭 */
 .login-card {
-  border: 1px solid var(--el-border-color);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 10px;
-  background: var(--el-bg-color);
-  padding: 24px 24px 0;
-  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+  background: #fff;
+  padding: 26px 26px 0;
 }
 
 .card-head { margin-bottom: 20px; }
 .card-title {
-  margin: 0 0 4px;
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.2px;
-  color: var(--el-text-color-primary);
+  margin: 0 0 6px;
+  font-size: 20px;
+  font-weight: 590;
+  line-height: 1.3;
+  letter-spacing: -0.2px;
+  color: #16181d;
 }
-.card-sub { margin: 0; font-size: 13px; color: var(--el-text-color-secondary); }
+.card-sub { margin: 0; font-size: 13px; line-height: 1.5; color: #8a8f98; }
 
 .login-form {
-  :deep(.el-form-item) { margin-bottom: 16px; }
+  :deep(.el-form-item) { margin-bottom: 14px; }
+  :deep(.el-form-item:last-of-type) { margin-bottom: 8px; }
   :deep(.el-form-item__label) {
     padding-bottom: 6px;
     font-size: 13px;
+    font-weight: 510;
     line-height: 1.4;
-    color: var(--el-text-color-regular);
+    color: #5b6470;
   }
+  :deep(.el-input__wrapper) {
+    box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.10) inset;
+    transition: box-shadow 0.15s;
+
+    &:hover { box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.20) inset; }
+    &.is-focus {
+      box-shadow: 0 0 0 1px var(--el-color-primary) inset, 0 0 0 3px rgba(64, 158, 255, 0.12);
+    }
+  }
+  :deep(.el-input__inner) { font-size: 14px; }
 }
 
 .pwd-toggle {
   cursor: pointer;
-  color: var(--el-text-color-placeholder);
+  color: #b4b9c2;
 
   &:hover { color: var(--el-color-primary); }
 }
@@ -259,12 +268,12 @@ getCookie()
 .code-input { flex: 1 1 auto; }
 
 .code-box {
-  flex: 0 0 104px;
+  flex: 0 0 100px;
   height: 32px;
   padding: 0;
-  border: 1px solid var(--el-border-color);
-  border-radius: var(--el-border-radius-base);
-  background: var(--el-fill-color-lighter);
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  border-radius: 5px;
+  background: #f7f8fa;
   cursor: pointer;
   overflow: hidden;
   display: flex;
@@ -272,56 +281,98 @@ getCookie()
   justify-content: center;
   transition: border-color 0.15s;
 
-  &:hover { border-color: var(--el-color-primary); }
+  &:hover { border-color: rgba(15, 23, 42, 0.24); }
 }
 
 .code-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.code-ph { font-size: 12px; color: var(--el-text-color-placeholder); }
+.code-ph { font-size: 12px; color: #a8aeb8; }
 
 .form-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin: -2px 0 18px;
+  margin: 0 0 16px;
+  font-size: 13px;
 }
 
-.submit { width: 100%; }
+.submit {
+  width: 100%;
+  height: 36px;
+  font-size: 13.5px;
+  font-weight: 510;
+  letter-spacing: 0.2px;
+  border-radius: 7px;
+}
 
-/* 卡片底栏：用一条发丝线分开，替代"再挂一行说明文字" */
 .card-foot {
-  margin: 20px -24px 0;
-  padding: 12px 24px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  margin: 22px -26px 0;
+  padding: 11px 26px;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
   font-size: 12px;
-  color: var(--el-text-color-placeholder);
+  color: #a8aeb8;
 
   code {
     padding: 1px 5px;
     border-radius: 4px;
-    background: var(--el-fill-color-light);
-    color: var(--el-text-color-regular);
+    background: #f2f3f6;
+    color: #5b6470;
     font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
 }
 
 .login-outer-foot {
-  margin: 16px 0 0;
+  margin: 18px 0 0;
   text-align: center;
   font-size: 12px;
-  color: var(--el-text-color-placeholder);
+  color: #b4b9c2;
 }
 
-/* 暗色：卡片用浮层色 + 更暗的网格，避免"死黑一片" */
-html.dark .login-bg {
-  background-image:
-    radial-gradient(760px 420px at 50% -8%, rgba(64, 128, 255, 0.16), transparent 72%),
-    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
-  opacity: 0.6;
+/* ---------------- 暗色：near-black 画布，靠白色透明度分级 ---------------- */
+html.dark .login-page { background: #08090a; }
+
+html.dark .login-glow {
+  background: radial-gradient(60% 60% at 50% 0%, rgba(113, 112, 255, 0.16), transparent 70%);
 }
+
+html.dark .login-brand { color: #8a8f98; }
 
 html.dark .login-card {
-  background: var(--el-bg-color-overlay);
-  box-shadow: none;
+  background: #0e0f11;
+  border-color: rgba(255, 255, 255, 0.06);
 }
+
+html.dark .card-title { color: #f7f8f8; }
+html.dark .card-sub { color: #8a8f98; }
+
+html.dark .login-form {
+  :deep(.el-form-item__label) { color: #8a8f98; }
+  :deep(.el-input__wrapper) {
+    background: #131417;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07) inset;
+
+    &:hover { box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16) inset; }
+    &.is-focus {
+      box-shadow: 0 0 0 1px rgba(113, 112, 255, 0.8) inset, 0 0 0 3px rgba(113, 112, 255, 0.14);
+    }
+  }
+  :deep(.el-input__inner) { color: #f7f8f8; }
+}
+
+html.dark .pwd-toggle { color: #62666d; }
+
+html.dark .code-box {
+  border-color: rgba(255, 255, 255, 0.07);
+  background: #131417;
+
+  &:hover { border-color: rgba(255, 255, 255, 0.18); }
+}
+
+html.dark .card-foot {
+  border-top-color: rgba(255, 255, 255, 0.05);
+  color: #62666d;
+
+  code { background: #1a1c1f; color: #8a8f98; }
+}
+
+html.dark .login-outer-foot { color: #62666d; }
 </style>
