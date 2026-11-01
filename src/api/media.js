@@ -1057,6 +1057,10 @@ export function keepMainDuplicate(contentHash, keepMemberId) {
     data: { contentHash, keepMemberId }
   })
 }
+// P6.83：单条视频元数据补丁（tagIds 全量替换 / addTagIds / removeTagIds / rating / markers）
+export function updateVideoMeta(videoId, data) {
+  return request({ url: '/api/media/admin/video/' + encodeURIComponent(String(videoId)) + '/meta', method: 'put', data })
+}
 // P6.82：视频标签覆盖（未打标签提醒用）
 export function videoTagStats() {
   return request({ url: '/api/media/admin/videos/tag-stats', method: 'get' })

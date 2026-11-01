@@ -152,6 +152,21 @@
           <el-table-column label="工作室" min-width="130" :show-overflow-tooltip="true">
             <template #default="scope">{{ scope.row.studioText || '—' }}</template>
           </el-table-column>
+          <!-- P6.83：标签列——没有标签就显示灰色「无」，提醒去补 -->
+          <el-table-column label="标签" min-width="200">
+            <template #default="scope">
+              <span class="video-tags" @click.stop>
+                <el-tag v-for="t in (scope.row.tags || [])" :key="t.id" size="small"
+                  :color="t.color || undefined" :style="t.color ? 'border-color:transparent;color:#fff' : ''"
+                  class="video-tag">{{ t.name }}</el-tag>
+                <el-tag v-if="!(scope.row.tags || []).length" size="small" type="info"
+                  class="video-tag" data-testid="video-tag-none">无</el-tag>
+                <el-button link type="primary" size="small" class="video-tag-edit"
+                  v-hasPermi="['media:admin:edit']" data-testid="video-tag-edit"
+                  @click.stop="openVideoTagEdit(scope.row)">编辑</el-button>
+              </span>
+            </template>
+          </el-table-column>
           <el-table-column label="清晰度" width="110" align="center">
             <template #default="scope">{{ resolution(scope.row) }}</template>
           </el-table-column>
@@ -796,6 +811,23 @@
       <p class="preview-meta">{{ previewMeta }}</p>
     </el-dialog>
 
+    <!-- P6.83：给单条视频编辑标签（多选 + 可直接输新名字新建） -->
+    <el-dialog v-model="videoTagEditVisible" title="设置本视频的标签" width="min(520px, 92vw)" append-to-body>
+      <div class="tag-edit-tip">{{ videoTagEditTitle }}</div>
+      <el-select v-model="videoTagEditValue" multiple filterable allow-create default-first-option
+        placeholder="选择或输入新标签名" style="width: 100%">
+        <el-option v-for="t in tagOptions" :key="t.id" :label="t.name" :value="String(t.id)" />
+      </el-select>
+      <div class="tag-edit-hint">
+        输入不存在的名字回车 = 现场新建并挂上。标签是跨条目的语义维度，与「册（归属）」「人物」互不影响。
+      </div>
+      <template #footer>
+        <el-button @click="videoTagEditVisible = false">取 消</el-button>
+        <el-button type="primary" :loading="videoTagEditSaving" data-testid="video-tag-save"
+          @click="saveVideoTagEdit">保 存</el-button>
+      </template>
+    </el-dialog>
+
     <!-- 标签管理：字典维护（新建 / 搜索 / 删除），列表前端过滤 + 前端分页 -->
     <el-dialog v-model="tagVisible" title="标签管理" width="min(760px, 94vw)" append-to-body>
       <div class="tag-create">
@@ -981,7 +1013,7 @@ import DeriveEmptyState from './DeriveEmptyState.vue'
 import { deriveMapOf, buildResultModel, DERIVE_FILTER_DEFAULT, filterVideoRows } from './deriveModel'
 import { getDeriveStatus } from '@/api/media'
 // 内容分级（P5.99）：行内下拉 / 批量设置用到的接口与值域常量
-import { videoTagStats, listTags as listTagsApi } from '@/api/media'
+import { videoTagStats, listTags as listTagsApi, updateVideoMeta } from '@/api/media'
 import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos, confirmAlbums as confirmAlbumsApi, reorderAlbumPhotos } from '@/api/media'
 import { RATING_OPTIONS, ratingOf } from './ratingOptions'
 
@@ -2533,6 +2565,53 @@ watch(scanRunning, (val, old) => {
   }
 })
 
+// ------------------------------------------------------------------ 单条视频标签编辑（P6.83）
+/* 注意：与既有"编辑标签字典项"（tagEditVisible / openTagEdit）是两件事——
+   那是改标签本身的名字/颜色，这里是给这条视频挂哪些标签。命名刻意分开，避免再撞。 */
+const videoTagEditVisible = ref(false)
+const videoTagEditSaving = ref(false)
+const videoTagEditRow = ref(null)
+const videoTagEditValue = ref([])
+const videoTagEditTitle = computed(() => (videoTagEditRow.value
+  ? (videoTagEditRow.value.title || videoTagEditRow.value.relPath || '')
+  : ''))
+
+function openVideoTagEdit(row) {
+  videoTagEditRow.value = row
+  videoTagEditValue.value = (row.tags || []).map(t => String(t.id))
+  videoTagEditVisible.value = true
+  if (!tagOptions.value.length) loadTagOptions()
+}
+
+async function saveVideoTagEdit() {
+  const row = videoTagEditRow.value
+  if (!row || !row.id) return
+  tagEditSaving.value = true
+  try {
+    // allow-create：值里可能混着"新名字"，先逐个新建成标签，再统一提交 tagIds（全量替换）
+    const ids = []
+    for (const raw of videoTagEditValue.value || []) {
+      const v = String(raw)
+      if (/^\d+$/.test(v)) {
+        ids.push(v)
+        continue
+      }
+      const res = await createTag({ name: v })
+      const id = res && (res.id || (res.data && res.data.id))
+      if (id) ids.push(String(id))
+    }
+    await updateVideoMeta(row.id, { tagIds: ids })
+    proxy.$modal.msgSuccess('标签已更新')
+    videoTagEditVisible.value = false
+    loadTagOptions()
+    loadVideos()
+  } catch (e) {
+    proxy.$modal.msgError('保存标签失败：' + errorText(e))
+  } finally {
+    videoTagEditSaving.value = false
+  }
+}
+
 // ------------------------------------------------------------------ 标签管理
 
 function openTagManager() {
@@ -3615,6 +3694,12 @@ onBeforeUnmount(() => { stopScanPolling() })
 }
 /* P5.12：派生资源汇总条 / 两个下拉 / 空态文案的样式都在子组件里（scoped），页面不再持有 */
 /* P5.10-B：工具栏「已选 N 项」 */
+/* P6.83：标签列 */
+.video-tags { display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.video-tag { max-width: 90px; overflow: hidden; text-overflow: ellipsis; }
+.video-tag-edit { margin-left: 2px; }
+.tag-edit-tip { font-size: 13px; color: var(--el-text-color-regular); margin-bottom: 8px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag-edit-hint { font-size: 12px; color: var(--el-text-color-secondary); margin-top: 8px; line-height: 1.6; }
 .media-selected-hint { font-size: 12px; color: var(--el-text-color-placeholder); margin-right: 8px; }
 .media-selected {
   display: inline-flex;
