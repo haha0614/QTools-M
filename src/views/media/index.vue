@@ -483,6 +483,10 @@
           </div>
         </el-option>
       </el-select>
+      <!-- P6.91：默认直接把源册整段追加到末尾；勾上则按指纹把每张插到最像的那张后面 -->
+      <el-checkbox v-model="albumMergeSimilar" class="album-merge-similar" data-testid="merge-similar">
+        按相似度插入（不追加到末尾，同姿势/同场景的排在一起）
+      </el-checkbox>
       <p class="album-merge-preview" v-if="albumMergeTarget && albumMergePreview.moving">
         将并入 <b>{{ albumMergePreview.moving }}</b> 张
         <span v-if="albumMergePreview.duplicates" class="album-merge-dup">
@@ -1131,6 +1135,7 @@ import {
   listUncategorizedDirs, claimUncategorizedDir,
   listAlbumRules, createAlbumRule, updateAlbumRule, deleteAlbumRule, listAlbumRuleDirs
 } from '@/api/media'
+import { mergeAlbumsSimilar } from '@/api/media'
 import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos, confirmAlbums as confirmAlbumsApi, reorderAlbumPhotos } from '@/api/media'
 import { RATING_OPTIONS, ratingOf } from './ratingOptions'
 
@@ -3427,6 +3432,8 @@ function submitVideoPersons() {
 
 /* P6.48：册并入 */
 const albumMergeVisible = ref(false)
+/* P6.91：并入时是否按相似度插入 */
+const albumMergeSimilar = ref(false)
 const albumMergeSource = ref(null)
 const albumMergeTarget = ref('')
 const albumMergeOptions = ref([])
@@ -3461,6 +3468,7 @@ function confirmOneAlbum(row) {
 function openAlbumMerge(row) {
   albumMergeSource.value = row
   albumMergeTarget.value = ''
+  albumMergeSimilar.value = false
   albumMergeOptions.value = []
   albumMergeVisible.value = true
   albumMergePreview.value = { moving: 0, duplicates: 0 }
@@ -3506,8 +3514,15 @@ async function doAlbumMerge() {
   }
   albumMergeBusy.value = true
   try {
-    const res = await mergeAlbums(albumMergeSource.value.id, albumMergeTarget.value)
-    proxy.$modal.msgSuccess('已并入：移动 ' + ((res && res.moved) || 0) + ' 张')
+    const res = albumMergeSimilar.value
+      ? await mergeAlbumsSimilar(albumMergeSource.value.id, albumMergeTarget.value)
+      : await mergeAlbums(albumMergeSource.value.id, albumMergeTarget.value)
+    let msg = '已并入：移动 ' + ((res && res.moved) || 0) + ' 张'
+    if (albumMergeSimilar.value && res && res.insertedBySimilarity != null) {
+      msg += '（按相似插入 ' + res.insertedBySimilarity + ' 张，追加 ' + (res.appended || 0)
+        + ' 张，平均距离 ' + (res.avgDistance || 0) + '）'
+    }
+    proxy.$modal.msgSuccess(msg)
     albumMergeVisible.value = false
     loadAlbums()
     loadStats()
@@ -3954,6 +3969,7 @@ onBeforeUnmount(() => { stopScanPolling() })
 </script>
 
 <style scoped>
+.album-merge-similar { margin: 10px 0 4px; }
 .album-merge-preview { margin: 10px 0 0; font-size: 13px; color: var(--el-text-color-regular); }
 .album-merge-dup { color: var(--el-color-warning); }
 .album-merge-tip { margin: 0 0 12px; font-size: 13px; line-height: 1.7; color: var(--el-text-color-regular); }
