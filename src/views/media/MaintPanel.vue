@@ -44,7 +44,7 @@
       <div class="maint-task" data-testid="maint-task-photo-preview">
         <div class="maint-task-line">
           <span class="maint-task-title">生成照片预览档</span>
-          <span class="maint-task-scope-hint">全部照片 · 约 2000px，审核预览会更清晰</span>
+          <span class="maint-task-scope-hint">仅大图（is_big=1）· 1600px 宽 · 受「试跑条数」限制</span>
           <el-button type="primary" plain icon="ZoomIn" :loading="scanRunning" :disabled="scanRunning"
             v-hasPermi="['media:admin:scan', 'media:admin:edit']" data-testid="maint-start-photo-preview"
             @click="runGenerate('photo-preview', 'photo-preview', '生成照片预览档')">开始</el-button>

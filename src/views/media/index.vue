@@ -2390,7 +2390,7 @@ const MAINT_CONFIRM = {
 }
 
 /** limit 只对这些逐条处理的 mode 生效（scan / gc 传了后端会 400：这些 mode 没有「只跑前 n 条」的语义） */
-const MAINT_LIMIT_MODES = ['thumb', 'sprite', 'preview', 'sprite,preview', 'enrich']
+const MAINT_LIMIT_MODES = ['thumb', 'photo-preview', 'sprite', 'preview', 'sprite,preview', 'enrich']
 
 /**
  * P6.04：「当前筛选结果」范围 → 真实 videoId 列表。
