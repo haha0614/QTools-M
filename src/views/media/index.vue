@@ -551,6 +551,10 @@
       <div class="uncat-bar">
         <span class="uncat-count">共 {{ uncatTotal }} 张 · 站端不展示 · 以后可以再移进别的册</span>
         <el-button size="small" :loading="uncatLoading" data-testid="uncat-refresh" @click="loadUncat">刷新</el-button>
+        <span v-if="uncatSelected.length" class="uncat-picked">已选 {{ uncatSelected.length }} 张</span>
+        <el-button v-if="uncatSelected.length" size="small" type="primary" v-hasPermi="['media:admin:edit']"
+          data-testid="uncat-claim-picked" @click="claimPickedPhotos">建册并入（勾选的 {{ uncatSelected.length }} 张）</el-button>
+        <el-button v-if="uncatSelected.length" size="small" text @click="clearUncatPick">清空选择</el-button>
       </div>
 
       <!-- P6.88：规则模式下扫描不再按目录建册，新目录的照片都停在这里。
@@ -570,7 +574,9 @@
         </div>
       </div>
       <div v-loading="uncatLoading" class="uncat-grid">
-        <div v-for="p in uncatRows" :key="p.id" class="uncat-card">
+        <div v-for="p in uncatRows" :key="p.id" class="uncat-card" :class="{ 'is-picked': isUncatPicked(p.id) }">
+          <span class="uncat-check" :title="isUncatPicked(p.id) ? '取消勾选' : '勾选这一张'"
+            data-testid="uncat-check" @click.stop="toggleUncatPick(p.id)">{{ isUncatPicked(p.id) ? '✓' : '' }}</span>
           <el-image class="uncat-thumb" fit="cover" :src="mediaSrc(p.thumbUrl)"
             :preview-src-list="[mediaSrc(p.previewUrl || p.thumbUrl)]" :initial-index="0"
             preview-teleported hide-on-click-modal>
@@ -3379,12 +3385,60 @@ const uncatPageSize = ref(48)
 /* P6.88：未归类按目录汇总 + 一键建册并入 */
 const uncatDirs = ref([])
 const uncatClaiming = ref('')
+/* P6.89：未归类里勾选若干张 → 建册并入（无规则，纯人工归属） */
+const uncatSelected = ref([])
 
 function openUncategorized() {
   uncatVisible.value = true
   uncatPage.value = 1
   loadUncat()
   loadUncatDirs()
+}
+
+function isUncatPicked(id) {
+  return uncatSelected.value.indexOf(String(id)) > -1
+}
+
+function toggleUncatPick(id) {
+  const key = String(id)
+  uncatSelected.value = isUncatPicked(key)
+    ? uncatSelected.value.filter(x => x !== key)
+    : uncatSelected.value.concat([key])
+}
+
+function clearUncatPick() {
+  uncatSelected.value = []
+}
+
+/** 勾选的几张 → 建一本新册并入（不落规则：这是人工挑的，不代表整个目录） */
+async function claimPickedPhotos() {
+  const ids = uncatSelected.value.slice()
+  if (!ids.length) return
+  let title
+  try {
+    const r = await proxy.$prompt('把这 ' + ids.length + ' 张放进一本新册，标题：', '建册并入', {
+      confirmButtonText: '建册并入',
+      cancelButtonText: '取消',
+      inputValue: '未命名册',
+      inputValidator: v => (v && v.trim() ? true : '标题不能为空')
+    })
+    title = (r && r.value ? r.value : '').trim()
+  } catch (e) {
+    return
+  }
+  if (!title) return
+  try {
+    const res = await splitAlbumPhotos(ids, title)
+    const moved = (res && (res.moved != null ? res.moved : res.count)) || ids.length
+    proxy.$modal.msgSuccess('已建册「' + title + '」并入 ' + moved + ' 张')
+    uncatSelected.value = []
+    loadAlbums()
+    loadStats()
+    await loadUncat()
+    await loadUncatDirs()
+  } catch (e) {
+    proxy.$modal.msgError('建册失败：' + errorText(e))
+  }
 }
 
 async function loadUncatDirs() {
@@ -3433,6 +3487,7 @@ async function claimDir(d) {
 
 async function loadUncat() {
   uncatLoading.value = true
+  uncatSelected.value = []
   try {
     const res = await listUncategorizedPhotos({ page: uncatPage.value, size: uncatPageSize.value })
     uncatRows.value = (res && res.rows) || []
@@ -3726,6 +3781,15 @@ onBeforeUnmount(() => { stopScanPolling() })
 .uncat-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
 .uncat-count { font-size: 13px; color: var(--el-text-color-secondary); }
 .uncat-grid { display: flex; flex-wrap: wrap; gap: 12px; min-height: 160px; }
+.uncat-picked { font-size: 12px; color: var(--el-color-primary); }
+.uncat-card { position: relative; }
+.uncat-card.is-picked { outline: 2px solid var(--el-color-primary); border-radius: 6px; }
+.uncat-check {
+  position: absolute; left: 6px; top: 6px; z-index: 2; width: 22px; height: 22px; border-radius: 50%;
+  background: rgba(0,0,0,.45); color: #fff; font-size: 13px; line-height: 22px; text-align: center;
+  cursor: pointer; user-select: none;
+}
+.uncat-card.is-picked .uncat-check { background: var(--el-color-primary); }
 .uncat-dirs { margin-bottom: 10px; padding: 8px 10px; border: 1px solid var(--el-border-color-lighter); border-radius: 6px; background: var(--el-fill-color-lighter); }
 .uncat-dirs-head { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 6px; }
 .uncat-dir-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px dashed var(--el-border-color-lighter); }
