@@ -1072,6 +1072,10 @@ export function buildNearDuplicate(data) {
 export function cleanNearDuplicates(data) {
   return request({ url: '/api/media/admin/duplicates/near/clean', method: 'post', data })
 }
+// 清理指定的几份（勾选清理 / 清理某本册在本组里的全部）
+export function removeNearDuplicates(data) {
+  return request({ url: '/api/media/admin/duplicates/near/remove', method: 'post', data })
+}
 // 单组：只留 keepId，其余清理
 export function keepNearDuplicates(data) {
   return request({ url: '/api/media/admin/duplicates/near/keep', method: 'post', data })

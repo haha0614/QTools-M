@@ -65,6 +65,11 @@
             </el-tag>
             <span class="near-copies">相似组 · <b>{{ g.length }}</b> 张 · 可省 {{ bytesText(savingOf(g)) }}</span>
             <span class="near-spacer"></span>
+            <span class="near-stat" v-if="markedOf(g).length">已勾选 {{ markedOf(g).length }} 张</span>
+            <el-button size="small" type="danger" plain :disabled="!markedOf(g).length"
+              :loading="busy === g.groupKey" data-testid="near-remove-marked"
+              v-hasPermi="['media:admin:scan', 'media:admin:edit']"
+              @click="removeMarked(g, gi)">清理勾选的 {{ markedOf(g).length }} 张</el-button>
             <el-button size="small" type="primary" plain :disabled="!picked[gi]"
               :loading="busy === g.groupKey" data-testid="near-keep-group"
               v-hasPermi="['media:admin:scan', 'media:admin:edit']" @click="keepGroup(g, gi)">
@@ -72,31 +77,54 @@
             </el-button>
           </div>
         </template>
-        <el-radio-group v-model="picked[gi]" class="near-list">
-          <div v-for="(m, mi) in g" :key="m.id" class="near-item"
-            :class="{ 'is-picked': picked[gi] === m.id, 'is-album-start': mi > 0 && m.albumId !== g[mi - 1].albumId }">
-            <el-image class="near-thumb" fit="contain" :src="thumbSrc(m)"
-              :preview-src-list="[bigSrc(m)]" :initial-index="0" :z-index="3000"
-              hide-on-click-modal teleported>
-              <template #error><span class="near-ph">{{ fileInitial(m.relPath) }}</span></template>
-            </el-image>
-            <div class="near-meta">
-              <div class="near-title" :title="m.albumTitle || m.albumId">
-                {{ m.albumTitle || m.albumId }} <span class="near-seq">#{{ m.seq }}</span>
-              </div>
-              <div class="near-sub">
-                <span class="near-size">{{ bytesText(m.bytes) }}</span>
-                <span class="near-path" :title="m.relPath">{{ baseName(m.relPath) }}</span>
-              </div>
-              <div class="near-actions">
-                <el-radio :value="m.id" class="near-radio">保留这份</el-radio>
-                <el-button link type="danger" size="small" :loading="busyId === m.id"
-                  data-testid="near-remove-one" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
-                  @click.stop.prevent="removeOne(m)">清理这份</el-button>
+
+        <!-- P6.79：组内按册分区。同册的连拍会挤在一起，跨册的那一份单独一块 -->
+        <div v-for="blk in albumBlocks(g)" :key="blk.albumId" class="near-block">
+          <div class="near-block-head">
+            <span class="near-block-title" :title="blk.albumId">
+              {{ blk.albumTitle || blk.albumId }}
+            </span>
+            <span class="near-block-count">{{ blk.members.length }} 张在这里</span>
+            <span class="near-spacer"></span>
+            <el-button size="small" text type="danger" :disabled="blk.members.length === 1 && g.length === 1"
+              data-testid="near-clean-album" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
+              :loading="busy === g.groupKey"
+              @click="cleanAlbum(blk, g)">清理本册 {{ blk.members.length }} 张</el-button>
+            <el-button size="small" text type="primary" v-if="albumBlocks(g).length > 1"
+              data-testid="near-keep-album" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
+              :loading="busy === g.groupKey"
+              @click="keepAlbum(blk, g)">只留本册，清理其他 {{ g.length - blk.members.length }} 张</el-button>
+          </div>
+          <el-radio-group v-model="picked[gi]" class="near-list">
+            <div v-for="m in blk.members" :key="m.id" class="near-item"
+              :class="{ 'is-picked': picked[gi] === m.id, 'is-marked': isMarked(g, m.id) }">
+              <span class="near-mark" :class="{ on: isMarked(g, m.id) }"
+                :title="isMarked(g, m.id) ? '取消勾选' : '勾选这一张（可多选后一起清理）'"
+                data-testid="near-mark" @click.stop="toggleMark(g, m.id)">
+                {{ isMarked(g, m.id) ? '✓' : '' }}
+              </span>
+              <el-image class="near-thumb" fit="contain" :src="thumbSrc(m)"
+                :preview-src-list="[bigSrc(m)]" :initial-index="0" :z-index="3000"
+                hide-on-click-modal teleported>
+                <template #error><span class="near-ph">{{ fileInitial(m.relPath) }}</span></template>
+              </el-image>
+              <div class="near-meta">
+                <div class="near-title" :title="m.relPath">
+                  <span class="near-seq">#{{ m.seq }}</span> {{ baseName(m.relPath) }}
+                </div>
+                <div class="near-sub">
+                  <span class="near-size">{{ bytesText(m.bytes) }}</span>
+                </div>
+                <div class="near-actions">
+                  <el-radio :value="m.id" class="near-radio">保留这份</el-radio>
+                  <el-button link type="danger" size="small" :loading="busyId === m.id"
+                    data-testid="near-remove-one" v-hasPermi="['media:admin:scan', 'media:admin:edit']"
+                    @click.stop.prevent="removeOne(m)">清理这份</el-button>
+                </div>
               </div>
             </div>
-          </div>
-        </el-radio-group>
+          </el-radio-group>
+        </div>
       </el-card>
 
       <el-empty v-if="!loading && !rows.length" description="这个阈值下没有相似组" />
@@ -110,7 +138,7 @@
 import { getCurrentInstance, onMounted, reactive, ref } from 'vue'
 import {
   listNearDuplicates, nearDuplicateStatus, buildNearDuplicate,
-  cleanNearDuplicates, keepNearDuplicates, removeMainDuplicate
+  cleanNearDuplicates, keepNearDuplicates, removeNearDuplicates, removeMainDuplicate
 } from '@/api/media'
 
 const { proxy } = getCurrentInstance()
@@ -128,6 +156,8 @@ const mode = ref('cross')
 const keepRule = ref('largest')
 const status = reactive({ total: 0, hashed: 0, remaining: 0 })
 const picked = ref({})
+/** 勾选清理的成员：{ 组键: [id...] }——与「保留这份」单选是两套语义，互不影响 */
+const marked = ref({})
 const busy = ref('')
 const busyId = ref(null)
 const building = ref(false)
@@ -166,6 +196,36 @@ function bytesText(n) {
   }
   return (x >= 100 ? Math.round(x) : x.toFixed(1)) + ' ' + units[i]
 }
+/** 组内按册分区（保持后端给的 册→序号 顺序） */
+function albumBlocks(g) {
+  const out = []
+  const idx = {}
+  for (const m of g || []) {
+    const key = String(m.albumId)
+    if (!idx[key]) {
+      idx[key] = { albumId: m.albumId, albumTitle: m.albumTitle, members: [] }
+      out.push(idx[key])
+    }
+    idx[key].members.push(m)
+  }
+  return out
+}
+
+function markedOf(g) {
+  return marked.value[g.groupKey] || []
+}
+
+function isMarked(g, id) {
+  return markedOf(g).some((x) => String(x) === String(id))
+}
+
+function toggleMark(g, id) {
+  const key = g.groupKey
+  const cur = markedOf(g)
+  const next = isMarked(g, id) ? cur.filter((x) => String(x) !== String(id)) : cur.concat([id])
+  marked.value = { ...marked.value, [key]: next }
+}
+
 function isCross(g) {
   return g && g.length > 0 && g[0].crossAlbum === true
 }
@@ -211,6 +271,7 @@ async function loadStatus() {
 async function load() {
   loading.value = true
   picked.value = {}
+  marked.value = {}
   try {
     const res = await listNearDuplicates({ threshold: threshold.value, mode: mode.value, page: page.value, size: size.value })
     rows.value = (res && res.rows) || []
@@ -284,6 +345,48 @@ async function removeOne(m) {
     await load()
     await loadStatus()
   }
+}
+
+/** 统一的"按 id 清理"：一次确认，删完刷新 */
+async function removeByIds(ids, label) {
+  const list = (ids || []).map(String).filter(Boolean)
+  if (!list.length) return
+  try {
+    await proxy.$modal.confirm(label + '：移入回收站 + 删行（可恢复）。确认？')
+  } catch (e) {
+    return
+  }
+  try {
+    const res = await removeNearDuplicates({ ids: list })
+    proxy.$modal.msgSuccess('已清理 ' + ((res && res.removed) || 0) + ' 张')
+    const failed = (res && res.failed) || []
+    const gone = failed.filter((f) => String(f.reason || '').indexOf('照片不存在') > -1)
+    const real = failed.filter((f) => String(f.reason || '').indexOf('照片不存在') === -1)
+    if (gone.length) proxy.$modal.msgWarning(gone.length + ' 张已经不在了，已跳过')
+    if (real.length) console.warn('清理失败明细', real)
+  } catch (e) {
+    proxy.$modal.msgError('清理失败：' + errText(e))
+  } finally {
+    await load()
+    await loadStatus()
+  }
+}
+
+/** 清理勾选的那几张 */
+function removeMarked(g, gi) {
+  removeByIds(markedOf(g), '清理本组勾选的 ' + markedOf(g).length + ' 张')
+}
+
+/** 清理这一本册在本组里的全部 */
+function cleanAlbum(blk, g) {
+  removeByIds(blk.members.map((m) => m.id), '清理「' + (blk.albumTitle || blk.albumId) + '」在本组的 ' + blk.members.length + ' 张')
+}
+
+/** 只留这一本册，其他册的成员全部清理 */
+function keepAlbum(blk, g) {
+  const keepIds = new Set(blk.members.map((m) => String(m.id)))
+  const others = g.filter((m) => !keepIds.has(String(m.id))).map((m) => m.id)
+  removeByIds(others, '只留「' + (blk.albumTitle || blk.albumId) + '」，清理其他 ' + others.length + ' 张')
 }
 
 async function keepGroup(g, gi) {
@@ -383,6 +486,24 @@ onMounted(async () => {
   background: var(--el-border-color);
 }
 .near-thumb { width: 100%; height: 240px; background: var(--el-fill-color-light); cursor: zoom-in; }
+/* P6.79：册分区 + 勾选清理 */
+.near-block { margin-bottom: 12px; }
+.near-block:last-child { margin-bottom: 0; }
+.near-block-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+  padding-left: 8px; border-left: 3px solid var(--el-color-primary-light-5);
+}
+.near-block-title { font-size: 13px; font-weight: 600; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.near-block-count { font-size: 12px; color: var(--el-text-color-secondary); }
+.near-mark {
+  position: absolute; left: 8px; top: 8px; z-index: 2;
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+  background: rgba(0, 0, 0, 0.45); color: #fff; font-size: 13px; line-height: 22px; text-align: center;
+  user-select: none;
+}
+.near-mark.on { background: var(--el-color-danger); }
+.near-item { position: relative; }
+.near-item.is-marked { border-color: var(--el-color-danger); box-shadow: 0 0 0 1px var(--el-color-danger) inset; }
 .near-ph {
   display: flex; align-items: center; justify-content: center; width: 100%; height: 100%;
   font-size: 13px; color: var(--el-text-color-secondary);
