@@ -297,7 +297,8 @@
       </div>
       <div class="pv-grid" v-if="pvRows.length">
         <div class="pv-item" v-for="p in pvFilteredRows" :key="p.id" :class="{ on: pvIsSelected(p.id) }">
-          <img :src="mediaSrc(p.thumb)" loading="lazy" alt="" :title="'第 ' + (Number(p.seq) + 1) + ' 张 · ' + pvRatingLabel(p.rating)"
+          <img :src="mediaSrc(p.thumb)" loading="lazy" decoding="async" alt=""
+            :title="'第 ' + (Number(p.seq) + 1) + ' 张 · ' + pvRatingLabel(p.rating)"
             @click="openBig(p)" />
           <span class="pv-badge" :class="p.rating || 'inherit'">{{ pvRatingShort(p.rating) }}</span>
           <span class="pv-check" @click.stop="togglePv(p.id, $event)">{{ pvIsSelected(p.id) ? '✓' : '' }}</span>
@@ -310,7 +311,7 @@
     </el-dialog>
 
     <!-- 大图 + 单张定级 -->
-    <el-dialog v-model="pvBigVisible" :title="pvBig ? ('第 ' + (Number(pvBig.seq) + 1) + ' 张 · ' + pvRatingLabel(pvBig.rating) + ' · ' + (pvBigIndex + 1) + '/' + pvFilteredRows.length + (pvRatingFilter === 'all' ? '' : '（已筛选）')) : ''"
+    <el-dialog v-model="pvBigVisible" :title="pvBig ? ('第 ' + (Number(pvBig.seq) + 1) + ' 张 · ' + pvRatingLabel(pvBig.rating) + ' · ' + (pvBigIndex + 1) + '/' + pvBigList.length + (pvRatingFilter === 'all' ? '' : '（已筛选）')) : ''"
       width="min(1200px, 96vw)" append-to-body>
       <div class="pv-big-status" v-if="pvBig">
         当前分级
@@ -324,7 +325,7 @@
       </div>
       <div class="pv-big-bar">
         <el-button size="small" :disabled="pvBigIndex <= 0" @click="stepBig(-1)">上一张</el-button>
-        <el-button size="small" :disabled="pvBigIndex >= pvFilteredRows.length - 1" @click="stepBig(1)">下一张</el-button>
+        <el-button size="small" :disabled="pvBigIndex >= pvBigList.length - 1" @click="stepBig(1)">下一张</el-button>
         <span class="pv-spacer" />
         <template v-if="pvBig">
           <el-button size="small" type="success" :plain="pvBig.rating !== 'general'" :disabled="pvBusy" @click="pvSetRating([pvBig.id], 'general')">大众</el-button>
@@ -705,6 +706,8 @@ const pvBig = ref(null)
 const pvBigVisible = ref(false)
 const bigFailed = ref(false)
 const pvBigIndex = ref(-1)
+/** P6.63：大图翻页用的列表快照（openBig 时冻结，边定级边翻不会跳图） */
+const pvBigList = ref([])
 const pvAutoVisible = ref(false)
 
 const pvTitle = computed(() => pvAlbum.value.title || pvAlbum.value.id)
@@ -847,9 +850,11 @@ function onBigError() {
 }
 
 function openBig(p) {
-  // P6.62：大图翻页要沿着**当前筛选**的顺序走，否则在「家长指导」里点开一张，
-  // 按 → 会跳到被筛掉的那些图上（用户看到的是"顺序和内容都不是筛出来的那批"）
-  pvBigIndex.value = pvFilteredRows.value.findIndex((x) => String(x.id) === String(p.id))
+  // P6.62：大图翻页沿着**当前筛选**的顺序走（不是整册）。
+  // P6.63：进入大图时把这份顺序**快照**下来——边看边定级会让「继承」这类筛选实时变短，
+  // 若每翻一张都按实时列表取下一张，就会隔一张跳一张（用户实测：走到底了，继承里还剩一半）。
+  pvBigList.value = pvFilteredRows.value.slice()
+  pvBigIndex.value = pvBigList.value.findIndex((x) => String(x.id) === String(p.id))
   pvBig.value = p
   bigFailed.value = false
   pvBigVisible.value = true
@@ -889,8 +894,8 @@ onBeforeUnmount(() => window.removeEventListener('keydown', onPreviewKeydown))
 
 function stepBig(delta) {
   bigFailed.value = false
-  // P6.62：与 openBig 同一口径——沿着筛选后的列表翻页
-  const rows = pvFilteredRows.value
+  // P6.63：翻的是 openBig 那一刻的快照，定级改了筛选也不会把后续图片挤走
+  const rows = pvBigList.value
   const next = pvBigIndex.value + delta
   if (next < 0 || next >= rows.length) return
   pvBigIndex.value = next
@@ -914,13 +919,7 @@ async function pvSetRating(ids, rating) {
     if (pvBig.value && hit.has(String(pvBig.value.id))) {
       pvBig.value.rating = rating || ''
     }
-    // P6.62：改完分级这张可能已经不在当前筛选里了 —— 重新定位翻页锚点，
-    // 找不到就把下标夹回有效范围（大图仍停在这张，按 → 从最近的位置继续）
-    if (pvBigVisible.value && pvBig.value) {
-      const rows = pvFilteredRows.value
-      const idx = rows.findIndex((x) => String(x.id) === String(pvBig.value.id))
-      pvBigIndex.value = idx >= 0 ? idx : Math.max(0, Math.min(pvBigIndex.value, rows.length - 1))
-    }
+
     pvSelected.value = []
   } catch (e) {
     ElMessage.error('设置失败：' + ((e && e.message) || '请求失败'))
@@ -1062,9 +1061,16 @@ onMounted(() => {
 .pv-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 .pv-count { font-size: 12px; color: var(--el-text-color-secondary); }
 .pv-spacer { flex: 1; }
-.pv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 8px; max-height: 65vh; overflow: auto; }
-.pv-item { position: relative; line-height: 0; border-radius: 4px; overflow: hidden; }
-.pv-item img { width: 100%; height: 130px; object-fit: cover; cursor: zoom-in; background: var(--el-fill-color-light); }
+.pv-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 10px;
+  max-height: 66vh; overflow: auto; padding: 2px;
+}
+.pv-item { position: relative; line-height: 0; border-radius: 6px; overflow: hidden; background: var(--el-fill-color-lighter); }
+/* P6.63：不裁切（contain）+ 更高的格子——审内容时要看到整张图，而不是被裁成一条 */
+.pv-item img {
+  width: 100%; height: 210px; object-fit: contain; cursor: zoom-in;
+  background: var(--el-fill-color-light);
+}
 .pv-item.on { outline: 2px solid var(--el-color-primary); }
 .pv-badge {
   position: absolute; left: 4px; top: 4px; padding: 0 5px; border-radius: 3px;
