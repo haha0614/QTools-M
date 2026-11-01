@@ -34,7 +34,7 @@
         <div class="album-head">
           <el-button size="small" text type="primary" data-testid="album-toggle"
             @click="toggleDetail(p)">
-            {{ detailOpen[p.albumA.id + '|' + p.albumB.id] ? '收起重叠明细' : '查看重叠的 ' + p.overlap + ' 张' }}
+            {{ detailOpen[keyOf(p)] ? '收起重叠明细' : '查看重叠的 ' + p.overlap + ' 张' }}
           </el-button>
           <span v-if="detailLoading === keyOf(p)" class="album-loading">加载中…</span>
         </div>
@@ -66,12 +66,12 @@
           <div class="album-detail-tip">
             每一行是同一组相似里「A 一张 ↔ B 一张」。缩略图可点开看原图；
             只想删某一对里的那一张时，点右侧「清理」。
-            <span v-if="detailTotal[keyOf(p)] > detailRows[keyOf(p)].length">
-              （共 {{ detailTotal[keyOf(p)] }} 对，只列前 {{ detailRows[keyOf(p)].length }} 对）
+            <span v-if="detailCount(p) > detailList(p).length">
+              （共 {{ detailCount(p) }} 对，只列前 {{ detailList(p).length }} 对）
             </span>
           </div>
           <div class="album-pairs">
-            <div v-for="row in detailRows[keyOf(p)]" :key="row.a.id + '-' + row.b.id" class="album-pairrow">
+            <div v-for="row in detailList(p)" :key="row.a.id + '-' + row.b.id" class="album-pairrow">
               <div class="album-cell">
                 <el-image class="album-thumb" fit="contain" :src="thumbSrc(row.a)"
                   :preview-src-list="[bigSrc(row.a)]" :initial-index="0" :z-index="3000"
@@ -128,6 +128,21 @@ const detailLoading = ref('')
 
 function keyOf(p) {
   return p.albumA.id + '|' + p.albumB.id
+}
+
+/**
+ * 明细取值一律走这两个函数（P6.80.2）
+ *
+ * <p>模板里直接写 {@code detailRows[key].length}，在"还没加载/刷新后被清空"的那一刻是
+ * undefined → 整页渲染中断（实测：整个媒体库变成"本页出错了"）。渲染期永远给默认值。</p>
+ */
+function detailList(p) {
+  const rows = detailRows.value[keyOf(p)]
+  return Array.isArray(rows) ? rows : []
+}
+
+function detailCount(p) {
+  return Number(detailTotal.value[keyOf(p)]) || 0
 }
 function thumbSrc(m) {
   return m && m.thumb ? BASE_API + m.thumb : ''
