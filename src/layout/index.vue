@@ -71,17 +71,30 @@ function setLayout() {
   position: relative;
   height: 100%;
   width: 100%;
-  /* P6.122：页面底色与"可被模糊的细节"（细网格 + 三团柔光）挪到最外层，
-     这样侧栏、页签条做 backdrop-filter 时背后不是空白，玻璃才成立。 */
+  /* P6.125：底色与柔光铺满全视口（侧栏做玻璃时背后要有平滑色，不能是空白）；
+     细网格单独放进 ::before 并**在左侧 240px 内淡出** ——
+     网格若直接铺到侧栏背后，被 blur 会糊成一条条横向亮带（P6.124 就是这么翻车的）。 */
+  position: relative;
   background-color: var(--el-bg-color-page);
   background-image:
     radial-gradient(900px 520px at 12% 4%, var(--qt-glow-1), transparent 70%),
     radial-gradient(820px 480px at 88% 10%, var(--qt-glow-2), transparent 70%),
-    radial-gradient(900px 560px at 45% 108%, var(--qt-glow-3), transparent 70%),
-    linear-gradient(to right, var(--qt-grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--qt-grid-line) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+    radial-gradient(900px 560px at 45% 108%, var(--qt-glow-3), transparent 70%);
   background-attachment: fixed;
+
+  &::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 0;
+    background-image:
+      linear-gradient(to right, var(--qt-grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--qt-grid-line) 1px, transparent 1px);
+    background-size: 48px 48px, 48px 48px;
+    -webkit-mask-image: linear-gradient(to right, transparent 0, transparent 200px, #000 260px);
+    mask-image: linear-gradient(to right, transparent 0, transparent 200px, #000 260px);
+  }
 
   &.mobile.openSidebar {
     position: fixed;

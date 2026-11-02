@@ -71,12 +71,16 @@ const activeMenu = computed(() => {
 <style lang="scss" scoped>
 .sidebar-container {
   background-color: v-bind(getMenuBackground);
-  /* P6.124：侧栏退回"不透明 + 极淡渐变 + 边缘高光"。
-     上一版让它半透明 + backdrop blur，结果背景的 48px 网格透过来，
-     在侧栏上被糊成一条条横向亮带（用户两次说"很怪"，看的就是这个）。
-     侧栏是常驻大面积区域，背后细节只会变成噪点 —— 这里不追求折射，只保留材质感。 */
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.05), transparent 160px);
-  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06);
+  /* P6.125：侧栏玻璃化。
+     P6.124 翻车的真正原因不是"侧栏不该玻璃"，而是**它背后有网格**：
+     48px 网格被 blur 成横向亮带。现在网格在左侧 200px 内已被 mask 淡出，
+     侧栏背后只剩平滑柔光，backdrop-filter 出来就是干净的水玻璃。 */
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 200px);
+  box-shadow:
+    inset -1px 0 0 rgba(255, 255, 255, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.10);
   
   .scrollbar-wrapper {
     background-color: v-bind(getMenuBackground);
