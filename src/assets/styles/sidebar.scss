@@ -196,12 +196,20 @@
     
     // theme-light 浅色主题
     &.theme-light {
-      border-right: 1px solid #e8eaf0;
+      border-right: 1px solid var(--shell-border);
       box-shadow: none;
+
+      /* P6.130：用 EP 自己的变量统一文字色，而不是逐个类去覆盖 ——
+         逐个覆盖会漏掉 el-menu--inline 里的二级项（它们继承的是为深色准备的浅色字）。 */
+      .el-menu {
+        --el-menu-text-color: #334155;
+        --el-menu-active-color: #2563eb;
+        --el-menu-hover-text-color: #0f172a;
+      }
 
       .el-menu-item,
       .el-sub-menu__title {
-        color: rgba(0, 0, 0, 0.65);
+        color: #334155;
       }
 
       .el-menu-item.is-active {
@@ -230,17 +238,24 @@
       .el-menu-item:not(.is-active):hover,
       .submenu-title-noDropdown:hover,
       .el-sub-menu__title:hover {
-        background-color: #f5f7fa;
-        color: rgba(0, 0, 0, 0.85) !important;
+        background-color: rgba(15, 23, 42, 0.045);
+        color: #0f172a !important;
       }
 
+      /* P6.129：二级菜单项不再铺 #fafafa —— 那层底色让上下两级像"两块拼起来"，
+         现在与一级同底，只靠缩进和字号区分层级。
+         文字色必须显式给：二级项原来继承的是为深色侧栏准备的浅色字，放在白底上几乎看不见。 */
       .nest-menu .el-sub-menu > .el-sub-menu__title,
       .el-sub-menu .el-menu-item {
-        background-color: #fafafa;
+        background-color: transparent;
 
         &:hover {
-          background-color: #f0f5ff;
+          background-color: rgba(15, 23, 42, 0.045);
         }
+      }
+
+      .el-sub-menu .el-menu-item.is-active {
+        color: #2563eb !important;
       }
     }
   }

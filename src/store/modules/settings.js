@@ -16,7 +16,10 @@ const useSettingsStore = defineStore(
     state: () => ({
       title: '',
       theme: storageSetting.theme || '#409EFF',
-      sideTheme: storageSetting.sideTheme || sideTheme,
+      /* P6.129：不再读本地存的 sideTheme —— 老用户 localStorage 里是 theme-dark，
+         只改默认值对他们无效，侧栏会继续是深色、继续"突兀"。
+         这里直接固定为浅色；要深色可由设置面板临时切换。 */
+      sideTheme: sideTheme,
       showSettings: showSettings,
       navType: storageSetting.navType === undefined ? navType : storageSetting.navType,
       tagsView: storageSetting.tagsView === undefined ? tagsView : storageSetting.tagsView,
