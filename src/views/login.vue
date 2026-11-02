@@ -75,10 +75,6 @@
 
     <p class="outer-foot">{{ footerContent }}</p>
 
-    <!-- 临时对比开关：一键在「hyalite 折射」与「CSS 模糊」之间切换，确认效果后可删 -->
-    <button type="button" class="glass-switch" data-testid="glass-switch" @click="toggleGlass">
-      玻璃：{{ glassMode === 'hyalite' ? 'hyalite 折射' : 'CSS 模糊' }} ⇄
-    </button>
   </div>
 </template>
 
@@ -89,7 +85,6 @@ import { encrypt, decrypt } from "@/utils/jsencrypt"
 import useUserStore from '@/store/modules/user'
 import defaultSettings from '@/settings'
 import BrandMark from '@/components/BrandMark.vue'
-import '@/utils/hyalite.js'
 
 const title = import.meta.env.VITE_APP_TITLE
 const brandName = title || '青兔工具箱'
@@ -107,26 +102,6 @@ const showPassword = ref(false)
 /** 玻璃卡元素：hyalite 会给它算透镜位移图（SVG 滤镜），非 Chromium 内核自动退化为普通模糊 */
 const cardRef = ref(null)
 
-/** 临时对比开关（确认效果后连同按钮一起删） */
-const glassMode = ref('hyalite')
-const HYALITE_OPTS = { bevel: 30, thickness: 34, slope: 0.85, dispersion: 1.6, shade: 0.55, rim: 1.2, blur: 5 }
-
-function applyGlass(mode) {
-  const H = window.Hyalite
-  const el = cardRef.value
-  glassMode.value = mode
-  if (!H || !el) return
-  try {
-    if (mode === 'hyalite') H.attach(el, HYALITE_OPTS)
-    else H.detach(el)
-  } catch (e) {
-    console.warn('[login] 切换玻璃模式失败', e)
-  }
-}
-
-function toggleGlass() {
-  applyGlass(glassMode.value === 'hyalite' ? 'css' : 'hyalite')
-}
 
 const loginForm = ref({
   username: "admin",
@@ -224,17 +199,7 @@ getCookie()
  * <p>失败不阻断登录：拿不到 Hyalite 或内核不支持时，CSS 里的 var(--hyalite, blur(...))
  * 兜底成普通模糊，输入框/验证码/提交全部照常。</p>
  */
-onMounted(() => {
-  applyGlass('hyalite')
-  if (!window.Hyalite || !window.Hyalite.supported()) glassMode.value = 'css'
-})
 
-onBeforeUnmount(() => {
-  const H = window.Hyalite
-  if (H && cardRef.value) {
-    try { H.detach(cardRef.value) } catch (e) { /* 忽略 */ }
-  }
-})
 </script>
 
 <style lang='scss' scoped>
@@ -335,12 +300,11 @@ onBeforeUnmount(() => {
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-  /* hyalite 把 --hyalite（SVG 折射滤镜）写在 attach 的那个元素上，
-     所以滤镜必须挂在 .glass 本体，不能挂在 ::before（挂错层会让整个面变暗） */
-  backdrop-filter: var(--hyalite, blur(14px) saturate(190%) brightness(1.05));
-  -webkit-backdrop-filter: var(--hyalite, blur(14px) saturate(190%) brightness(1.05));
+  background: linear-gradient(152deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.14));
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.05);
   box-shadow:
-    var(--hyalite-edge, inset 0 0 0 1px rgba(255, 255, 255, 0.6)),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
     inset 0 1.5px 0 rgba(255, 255, 255, 0.95);
 }
 
