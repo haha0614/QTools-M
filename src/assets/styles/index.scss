@@ -6,6 +6,8 @@
 @use './ruoyi.scss';
 /* P6.107：全站 token 放在最后引入，覆盖前面的 EP 默认变量 */
 @use './qtools-tokens.scss';
+/* P6.112：组件皮肤（卡片/表格/弹窗/控件高度） */
+@use './qtools-components.scss';
 
 body {
   height: 100%;

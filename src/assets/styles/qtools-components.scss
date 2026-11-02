@@ -1,0 +1,79 @@
+/**
+ * P6.112 · 组件皮肤（统一设计语言第 1 层）
+ *
+ * 只做"看起来像同一个产品"必需的几件事，尽量走 Element Plus 自己的 CSS 变量，
+ * 少用 !important 硬改内部结构：
+ *   1. 卡片：圆角 10 + 发丝边框 + 去投影
+ *   2. 表格：表头浅底 + 12.5px 次要色文字、行高 44、hover 用主色极淡底
+ *   3. 弹窗/抽屉：圆角与边框同卡片
+ *   4. 输入/选择框高度统一 32（与媒体库工具栏一致）
+ */
+
+/* ---------------- 卡片 ---------------- */
+.el-card {
+  border-radius: 10px;
+  border-color: var(--shell-border);
+  box-shadow: none !important;
+
+  .el-card__header {
+    padding: 12px 16px;
+    border-bottom-color: var(--shell-border);
+    font-weight: 600;
+  }
+
+  .el-card__body { padding: 16px; }
+}
+
+/* ---------------- 表格 ---------------- */
+.el-table {
+  --el-table-border-color: var(--shell-border);
+  --el-table-header-bg-color: var(--el-fill-color-light);
+  --el-table-header-text-color: var(--el-text-color-secondary);
+  --el-table-row-hover-bg-color: var(--qt-primary-weaker, rgba(37, 99, 235, 0.06));
+
+  th.el-table__cell {
+    font-weight: 600;
+    font-size: 12.5px;
+    letter-spacing: 0.2px;
+    /* 只设 --el-table-header-bg-color 会被 Element 自己的同优先级声明盖掉（实测表头仍是白的），
+       这里直接给单元格上色 */
+    background-color: var(--el-fill-color-light) !important;
+  }
+
+  th.el-table__cell > .cell,
+  td.el-table__cell > .cell { padding: 0 10px; }
+
+  /* 行高：内容 44px 左右（EP 默认偏松，视觉上更接近列表而不是表格） */
+  td.el-table__cell { padding: 7px 0; }
+
+  /* 外层不需要自己的边框，交给容器卡片 */
+  &::before,
+  &::after { display: none; }
+
+  .el-table__inner-wrapper::before { display: none; }
+}
+
+/* ---------------- 弹窗 / 抽屉 ---------------- */
+.el-dialog {
+  border-radius: 12px;
+  border: 1px solid var(--shell-border);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+
+  .el-dialog__header { padding: 16px 20px 8px; margin-right: 0; }
+  .el-dialog__title { font-size: 15px; font-weight: 600; }
+  .el-dialog__body { padding: 8px 20px 16px; }
+  .el-dialog__footer { padding: 0 20px 16px; }
+}
+
+.el-drawer {
+  .el-drawer__header { margin-bottom: 12px; padding: 16px 20px 0; font-weight: 600; }
+  .el-drawer__body { padding: 0 20px 16px; }
+}
+
+/* ---------------- 表单控件高度 ---------------- */
+.el-input,
+.el-select,
+.el-date-editor { --el-input-height: 32px; }
+
+/* 对话框里的按钮组与页面保持 8px 间距节奏 */
+.el-dialog__footer .el-button + .el-button { margin-left: 8px; }
