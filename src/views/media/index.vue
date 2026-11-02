@@ -4838,14 +4838,16 @@ onBeforeUnmount(() => { stopScanPolling() })
 :deep(.photos-dialog .el-dialog__body)::-webkit-scrollbar-thumb { background: var(--el-border-color); border-radius: 3px; }
 :deep(.photos-dialog .el-dialog__body)::-webkit-scrollbar-track { background: transparent; }
 .photos-head-tip { font-size: 12px; color: var(--el-text-color-secondary); }
-.photo-grid { padding: 16px 20px 6px; gap: 14px; }
+.photo-grid { padding: 10px 20px 6px; gap: 14px; }
 .photo-item { padding: 0; border: 0; background: transparent; border-radius: 8px; }
 .photo-item img { height: 140px; border-radius: 8px; }
 .photo-item:hover img { box-shadow: 0 0 0 2px var(--el-color-primary-light-5); }
 .photo-item.picked img { box-shadow: 0 0 0 2px var(--el-color-primary); }
 .photo-name { opacity: 0; transition: opacity .12s; font-size: 11px; }
 .photo-item:hover .photo-name { opacity: 1; }
-:deep(.photos-dialog .el-dialog__footer) { padding: 10px 20px; background: transparent; border-top: 1px solid var(--shell-border); }
+/* P6.168：底部整块（关闭按钮所在区域）与正文同底、无分隔线 ——
+   之前它带一层淡灰底 + 顶部线，看着像弹窗下面又接了一个框。 */
+:deep(.photos-dialog .el-dialog__footer) { padding: 8px 20px 12px; background: transparent; border-top: 0; }
 .photo-batch { background: transparent; }
 </style>
 

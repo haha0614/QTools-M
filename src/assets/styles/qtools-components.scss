@@ -283,10 +283,12 @@
 
   .el-dialog__body { padding: 16px 20px; }
 
+  /* P6.168：脚部不再铺那层淡灰底 —— 弹窗是玻璃，脚部一铺底就和正文分成两块；
+     只留一条发丝线（照片选择弹窗会把它也去掉，改用渐隐）。 */
   .el-dialog__footer {
     padding: 12px 20px;
     border-top: 1px solid var(--shell-border);
-    background: rgba(15, 23, 42, 0.02);
+    background: transparent;
   }
 }
 
