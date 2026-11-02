@@ -110,14 +110,16 @@
   padding: 8px 10px;
 }
 
-/* 表格：外容器玻璃，行保持实心（表格文字密度高，透明行会花） */
+/* 表格容器：比卡片更"透"一些，模糊也更轻 ——
+   28px 的模糊会把背后的 48px 网格直接糊平，表格看起来就退回实心底了（用户实测反馈）。
+   这里用 6px，网格还在，只是柔化。 */
 .media-table {
   border: 1px solid var(--qt-glass-border);
   border-radius: 14px;
   overflow: hidden;
-  background: var(--qt-glass-surface);
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  background: linear-gradient(152deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.22));
+  backdrop-filter: blur(6px) saturate(140%);
+  -webkit-backdrop-filter: blur(6px) saturate(140%);
   box-shadow: inset 0 1px 0 var(--qt-glass-inner);
 }
 
@@ -212,6 +214,20 @@
   th.el-table__cell.is-first-column,
   td.el-table__cell.is-first-column {
     background-color: var(--el-bg-color);
+  }
+
+  /* P6.147：悬停时固定列不能用半透明的 hover 色 —— 那等于把它的实底又打开，
+     下层滚动内容与列内图标互相干扰（用户实测"悬停后图标看不见"）。
+     这里给一个不透明的浅主色作为悬停底。 */
+  tr:hover > td.el-table-fixed-column--left,
+  tr:hover > td.el-table-fixed-column--right,
+  tr:hover > td.el-table__cell.is-first-column,
+  tr:hover > td.el-table__cell.is-last-column,
+  tr.hover-row > td.el-table-fixed-column--left,
+  tr.hover-row > td.el-table-fixed-column--right,
+  tr.hover-row > td.el-table__cell.is-first-column,
+  tr.hover-row > td.el-table__cell.is-last-column {
+    background-color: var(--el-color-primary-light-9) !important;
   }
 }
 

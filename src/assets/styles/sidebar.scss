@@ -91,7 +91,20 @@
     .el-sub-menu__title {
       border-radius: 7px;
       margin: 1px 8px;
-      padding-left: 12px !important;
+    }
+
+    /* P6.146：缩进必须按层级给。之前一条 `padding-left: 12px !important` 对二级项
+       同样生效，把两级压平了 —— 侧栏于是"看不出层级"。
+       一级 14px、二级 34px，二级字号再小一档，层级靠缩进 + 字号一起表达。 */
+    > .el-menu-item,
+    > .el-sub-menu > .el-sub-menu__title {
+      padding-left: 14px !important;
+    }
+
+    .el-menu--inline > .el-menu-item,
+    .el-menu--inline > .el-sub-menu > .el-sub-menu__title {
+      padding-left: 34px !important;
+      font-size: 12px !important;
     }
 
     /* 选项内的图标与文字跟着缩进走 */
