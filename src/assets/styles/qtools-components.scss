@@ -17,8 +17,8 @@
   border-radius: 16px !important;
   border: 1px solid var(--qt-glass-border) !important;
   background: var(--qt-glass-surface) !important;
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.9),
     inset 0 0 0 1px var(--qt-glass-inner),
@@ -43,8 +43,8 @@
 .scan-panel,
 .content-inner {
   background: var(--qt-glass-surface);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
   border: 1px solid var(--qt-glass-border);
   border-radius: 14px;
   box-shadow: var(--qt-glass-shadow), inset 0 1px 0 var(--qt-glass-inner);
@@ -68,8 +68,8 @@
   border-radius: 14px;
   overflow: hidden;
   background: var(--qt-glass-surface);
-  backdrop-filter: blur(16px) saturate(180%);
-  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
   box-shadow: inset 0 1px 0 var(--qt-glass-inner);
 }
 
@@ -130,6 +130,15 @@
   &::after { display: none; }
 
   .el-table__inner-wrapper::before { display: none; }
+
+  /* P6.140（按用户提议试验）：数据行不再自己铺白，直接透出容器的玻璃；
+     可读性靠"加重背景模糊"来补 —— 网格与光斑被糊平后，文字仍然稳。
+     与 P6.121 的"行保持实心"是两种取舍，这次实测对比。 */
+  --el-table-tr-bg-color: transparent;
+  /* 表格自身还有一层白底（--el-table-bg-color），不关掉的话透明行只是露出这层白 */
+  --el-table-bg-color: transparent;
+  background-color: transparent;
+  tr.el-table__row { background-color: transparent; }
 }
 
 /* ---------------- 弹窗 / 抽屉 ---------------- */
