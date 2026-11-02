@@ -12,6 +12,13 @@
       <div class="lens" aria-hidden="true">
         <span class="l l1"></span><span class="l l2"></span><span class="l l3"></span>
       </div>
+      <!-- 卡内背景层：与页面背景同坐标（position: fixed 撑满视口），自身做 blur。
+           用它替代 backdrop-filter —— 侧采样不会再碰元素边缘，那条白色亮带从根上没有来源 -->
+      <div class="glass-bg" aria-hidden="true">
+        <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="blob b4"></span>
+        <span class="arc a1"></span><span class="arc a2"></span><span class="arc a3"></span><span class="arc a4"></span>
+        <span class="arc a5"></span><span class="arc a6"></span><span class="arc a7"></span>
+      </div>
       <div class="spec" aria-hidden="true"></div>
       <div class="grain" aria-hidden="true"></div>
 
@@ -217,8 +224,26 @@ getCookie()
 /* ---------------- 背景 ---------------- */
 .bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 
+/**
+ * P6.97：玻璃的模糊改成"卡内复制一份背景再模糊"，不再用 backdrop-filter。
+ *
+ * <p>为什么换：backdrop-filter 要侧采样元素**外面**的像素，各家 GPU/DPR 下会在边缘
+ * 画出一条亮带（用户两次截到的那道白条）。改成卡内同坐标复制 + filter: blur() 之后，
+ * 模糊只吃自己这层的像素，边缘不可能再出现采样残留，也不需要 @supports 兜底。</p>
+ *
+ * <p>position: fixed 让这层与页面背景共用视口坐标，所以两层图案严丝合缝。</p>
+ */
+.glass-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  filter: blur(14px) saturate(190%) brightness(1.05);
+}
+
 /* 细网格 */
-.bg::before {
+.bg::before,
+.glass-bg::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -229,7 +254,8 @@ getCookie()
 }
 
 /* 点阵（向四周淡出，避免整屏噪点） */
-.bg::after {
+.bg::after,
+.glass-bg::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -282,9 +308,7 @@ getCookie()
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-  background: linear-gradient(152deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0.18));
-  backdrop-filter: blur(14px) saturate(190%) brightness(1.05);
-  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.05);
+  background: linear-gradient(152deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.16));
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.6),
     inset 0 1.5px 0 rgba(255, 255, 255, 0.95),
@@ -320,6 +344,10 @@ getCookie()
   position: relative;
   z-index: 2;
   flex: 0 0 45%;
+  /* P6.97.1：不写不行 —— 实测 .cover 高度只有 480（卡片 500），底部 20px 空出来，
+     正是用户两次圈到的那道"白条"。显式拉伸到卡片满高。 */
+  align-self: stretch;
+  min-height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -474,19 +502,22 @@ getCookie()
 /* ---------------- 暗色：黑玻璃 ---------------- */
 html.dark .login-page { background: #0a0c12; }
 
-html.dark .bg::before {
+html.dark .bg::before,
+html.dark .glass-bg::before {
   background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
 }
 
-html.dark .bg::after { background-image: radial-gradient(circle, rgba(255, 255, 255, 0.12) 1px, transparent 1.2px); }
+html.dark .bg::after,
+html.dark .glass-bg::after { background-image: radial-gradient(circle, rgba(255, 255, 255, 0.12) 1px, transparent 1.2px); }
 
 html.dark .b1 { opacity: 0.45; }
 html.dark .b2 { opacity: 0.4; }
 html.dark .b3 { opacity: 0.3; }
 html.dark .b4 { opacity: 0.24; }
 html.dark .arc { border-color: rgba(255, 255, 255, 0.09); }
+html.dark .glass-bg { filter: blur(14px) saturate(180%) brightness(1.12); }
 html.dark .a2, html.dark .a5 { border-color: rgba(94, 234, 212, 0.12); }
 html.dark .a3 { border-color: rgba(244, 114, 182, 0.1); }
 
