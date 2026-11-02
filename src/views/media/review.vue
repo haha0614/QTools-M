@@ -60,9 +60,13 @@
         </el-table-column>
         <el-table-column label="操作" width="220" align="center">
           <template #default="scope">
-            <el-button link type="success" size="small" @click="setPhotoState([scope.row.id], 'approved')">通过</el-button>
-            <el-button link type="danger" size="small" @click="setPhotoState([scope.row.id], 'rejected')">驳回</el-button>
-            <el-button link type="info" size="small" @click="setPhotoState([scope.row.id], 'inherit')">恢复继承</el-button>
+            <!-- P6.157：已是某状态的项，把对应按钮置灰 ——「全部」栏里点"通过"没有意义，之前还能点。 -->
+            <el-button link type="success" size="small" :disabled="scope.row.reviewState === 'approved'"
+              @click="setPhotoState([scope.row.id], 'approved')">通过</el-button>
+            <el-button link type="danger" size="small" :disabled="scope.row.reviewState === 'rejected'"
+              @click="setPhotoState([scope.row.id], 'rejected')">驳回</el-button>
+            <el-button link type="info" size="small" :disabled="!scope.row.reviewState || scope.row.reviewState === 'inherit'"
+              @click="setPhotoState([scope.row.id], 'inherit')">恢复继承</el-button>
           </template>
         </el-table-column>
       </el-table>
