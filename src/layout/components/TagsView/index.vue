@@ -731,7 +731,10 @@ $tags-bar-height: 34px;
 /* P6.172：页签条与全站统一。
    原来：未选中白底灰边、选中是若依绿 #42b983 + 一个白点 —— 与蓝色体系完全无关。
    现在：透明底 / 悬停淡底 / 选中主色淡底 + 主色文字 + 细边，去掉绿点。 */
-.tags-view-wrapper .tags-view-item {
+/* 注意：原规则是 .tags-view-container .tags-view-wrapper .tags-view-item（0,3,0），
+   所以圆角也必须用同权重 + !important 才能真正生效（实测仍是 3px）。 */
+.tags-view-container .tags-view-wrapper .tags-view-item {
+  border-radius: 8px !important;
   background: transparent;
   border-color: transparent;
   color: var(--el-text-color-regular);

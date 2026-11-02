@@ -7,6 +7,10 @@ export default {
   /**
    * 侧边栏主题 深色主题theme-dark，浅色主题theme-light
    */
+  /* P6.176：主色必须在这里给 —— 运行时 handleThemeStyle() 会用它把 --el-color-primary
+     写成行内样式，覆盖 :root 里的 #2563eb。之前默认是 #409EFF（Element 老蓝），
+     于是所有 var(--el-color-primary) 渲染出来都是"另一个蓝"。 */
+  theme: '#2563eb',
   sideTheme: 'theme-light',
 
   /**
@@ -64,4 +68,3 @@ export default {
    */
   footerContent: 'Copyright © 2026 青兔工具箱 · 管理后台 | Powered by RuoYi'
 }
-
