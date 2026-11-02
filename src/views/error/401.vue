@@ -28,12 +28,22 @@ function back() {
 </script>
 
 <style lang="scss" scoped>
+/* P6.185：异常页是独立路由（没有 layout），自己铺页面底色 + 网格 ——
+   否则浅色下玻璃卡贴在纯白上等于看不见。 */
 .qt-error {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 120px);
+  min-height: 100vh;
   padding: 24px;
+  background-color: var(--el-bg-color-page);
+  background-image:
+    radial-gradient(900px 520px at 12% 4%, var(--qt-glow-1), transparent 70%),
+    radial-gradient(820px 480px at 88% 10%, var(--qt-glow-2), transparent 70%),
+    radial-gradient(900px 560px at 46% 100%, var(--qt-glow-3), transparent 70%),
+    linear-gradient(to right, var(--qt-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--qt-grid-line) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 48px 48px, 48px 48px;
 }
 
 .qt-error-card {
