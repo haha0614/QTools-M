@@ -113,6 +113,10 @@ function setLayout() {
     background: linear-gradient(180deg, #c2d1ee 0%, #d3ddef 42%, #e2e7f0 100%);
   }
 
+  /* P6.134：暗黑模式下这块浅色底板必须消失，否则侧栏透出浅色，
+     深色界面里出现一条白色竖条（实测暗色截图就是这种情况）。 */
+  html.dark &::after { display: none; }
+
   &.mobile.openSidebar {
     position: fixed;
     top: 0;

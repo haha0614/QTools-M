@@ -396,3 +396,32 @@
     }
   }
 }
+
+/* P6.135：暗黑模式下侧栏跟着变深。
+   原来 rely on JS：Sidebar 的 getMenuBackground 依赖 settingsStore.isDark，
+   而它是 store 初始化时的快照，切换主题后不同步 —— 结果深色界面里侧栏仍按浅色渲染，
+   透明白底叠在近黑页面上变成一条浅灰竖条。这里直接用 html.dark 兜底。 */
+html.dark {
+  .sidebar-container {
+    background-color: rgba(13, 16, 20, 0.88) !important;
+
+    .el-menu {
+      background-color: transparent !important;
+    }
+
+    .el-menu-item,
+    .el-sub-menu__title {
+      color: rgba(255, 255, 255, 0.78) !important;
+    }
+
+    .el-menu-item.is-active {
+      color: #8fb4ff !important;
+      background-color: rgba(59, 130, 246, 0.18) !important;
+    }
+
+    .el-sub-menu.is-active > .el-sub-menu__title {
+      color: rgba(255, 255, 255, 0.92) !important;
+      background-color: transparent !important;
+    }
+  }
+}
