@@ -4214,15 +4214,16 @@ onBeforeUnmount(() => { stopScanPolling() })
   align-items: center;
   justify-content: center;
   min-height: 120px;
-  background: var(--el-fill-color-lighter);
+  background: transparent;
   border-radius: 4px;
   padding: 8px;
 }
 .preview-img {
+  border-radius: 10px;
   max-width: 100%;
   max-height: 70vh;
   object-fit: contain;
-  background: var(--el-fill-color-light);
+  background: transparent;
 }
 .preview-meta {
   margin: 8px 0 0;
