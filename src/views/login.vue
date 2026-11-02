@@ -7,18 +7,7 @@
       <span class="arc a5"></span><span class="arc a6"></span><span class="arc a7"></span>
     </div>
 
-    <section class="glass">
-      <!-- 折射层：卡内再画一遍放大 1.3 倍的光斑，模拟透镜 -->
-      <div class="lens" aria-hidden="true">
-        <span class="l l1"></span><span class="l l2"></span><span class="l l3"></span>
-      </div>
-      <!-- 卡内背景层：与页面背景同坐标（position: fixed 撑满视口），自身做 blur。
-           用它替代 backdrop-filter —— 侧采样不会再碰元素边缘，那条白色亮带从根上没有来源 -->
-      <div class="glass-bg" aria-hidden="true">
-        <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="blob b4"></span>
-        <span class="arc a1"></span><span class="arc a2"></span><span class="arc a3"></span><span class="arc a4"></span>
-        <span class="arc a5"></span><span class="arc a6"></span><span class="arc a7"></span>
-      </div>
+    <section class="glass" ref="cardRef">
       <div class="spec" aria-hidden="true"></div>
       <div class="grain" aria-hidden="true"></div>
 
@@ -95,6 +84,7 @@ import { encrypt, decrypt } from "@/utils/jsencrypt"
 import useUserStore from '@/store/modules/user'
 import defaultSettings from '@/settings'
 import BrandMark from '@/components/BrandMark.vue'
+import '@/utils/hyalite.js'
 
 const title = import.meta.env.VITE_APP_TITLE
 const brandName = title || '青兔工具箱'
@@ -108,6 +98,9 @@ const { proxy } = getCurrentInstance()
 
 /** 密码可见性（P6.94：重做登录页时加的，纯 UI） */
 const showPassword = ref(false)
+
+/** 玻璃卡元素：hyalite 会给它算透镜位移图（SVG 滤镜），非 Chromium 内核自动退化为普通模糊 */
+const cardRef = ref(null)
 
 const loginForm = ref({
   username: "admin",
@@ -194,6 +187,34 @@ function getCookie() {
 
 getCode()
 getCookie()
+
+/**
+ * 液态玻璃（hyalite 0.5.0，MIT，单文件无依赖）。
+ *
+ * <p>它按元素的真实尺寸/圆角算一张位移图，交给 SVG 滤镜，再通过 backdrop-filter: url() 让
+ * 浏览器弯**卡片背后真实的背景**——这是 CSS 做不到的"折射"。参数按登录卡尺寸调过：
+ * bevel 30 / thickness 34 在 860×500 的卡上边缘弯曲可见且不糊；shade/rim 给棱边明暗与高光。</p>
+ *
+ * <p>失败不阻断登录：拿不到 Hyalite 或内核不支持时，CSS 里的 var(--hyalite, blur(...))
+ * 兜底成普通模糊，输入框/验证码/提交全部照常。</p>
+ */
+onMounted(() => {
+  const H = window.Hyalite
+  const el = cardRef.value
+  if (!H || !el) return
+  try {
+    H.attach(el, { bevel: 30, thickness: 34, slope: 0.85, dispersion: 1.6, shade: 0.55, rim: 1.2, blur: 5 })
+  } catch (e) {
+    console.warn('[login] hyalite attach 失败，走 CSS 兜底', e)
+  }
+})
+
+onBeforeUnmount(() => {
+  const H = window.Hyalite
+  if (H && cardRef.value) {
+    try { H.detach(cardRef.value) } catch (e) { /* 忽略 */ }
+  }
+})
 </script>
 
 <style lang='scss' scoped>
@@ -229,26 +250,8 @@ getCookie()
 /* ---------------- 背景 ---------------- */
 .bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 
-/**
- * P6.97：玻璃的模糊改成"卡内复制一份背景再模糊"，不再用 backdrop-filter。
- *
- * <p>为什么换：backdrop-filter 要侧采样元素**外面**的像素，各家 GPU/DPR 下会在边缘
- * 画出一条亮带（用户两次截到的那道白条）。改成卡内同坐标复制 + filter: blur() 之后，
- * 模糊只吃自己这层的像素，边缘不可能再出现采样残留，也不需要 @supports 兜底。</p>
- *
- * <p>position: fixed 让这层与页面背景共用视口坐标，所以两层图案严丝合缝。</p>
- */
-.glass-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  filter: blur(14px) saturate(190%) brightness(1.05);
-}
-
 /* 细网格 */
-.bg::before,
-.glass-bg::before {
+.bg::before {
   content: '';
   position: absolute;
   inset: 0;
@@ -259,8 +262,7 @@ getCookie()
 }
 
 /* 点阵（向四周淡出，避免整屏噪点） */
-.bg::after,
-.glass-bg::after {
+.bg::after {
   content: '';
   position: absolute;
   inset: 0;
@@ -313,18 +315,16 @@ getCookie()
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-  background: linear-gradient(152deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.16));
+  background: linear-gradient(152deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
+  /* hyalite 会在元素上写 --hyalite（SVG 折射滤镜）与 --hyalite-edge（棱边高光）；
+     非 Chromium 内核拿不到 --hyalite，自动退化成普通模糊，棱边高光仍由 CSS 生效 */
+  backdrop-filter: var(--hyalite, blur(14px) saturate(190%) brightness(1.05));
+  -webkit-backdrop-filter: var(--hyalite, blur(14px) saturate(190%) brightness(1.05));
   box-shadow:
-    inset 0 0 0 1px rgba(255, 255, 255, 0.6),
-    inset 0 1.5px 0 rgba(255, 255, 255, 0.95),
-    inset 0 -1px 0 rgba(255, 255, 255, 0.35);
+    var(--hyalite-edge, inset 0 0 0 1px rgba(255, 255, 255, 0.6)),
+    inset 0 1.5px 0 rgba(255, 255, 255, 0.95);
 }
 
-.lens { position: absolute; inset: 0; z-index: 1; pointer-events: none; opacity: 0.36; overflow: hidden; }
-.lens .l { position: absolute; border-radius: 50%; filter: blur(16px) saturate(160%); transform: scale(1.3); }
-.l1 { width: 280px; height: 280px; left: -50px; top: -40px; background: radial-gradient(circle, #818cf8, #4f46e5); }
-.l2 { width: 240px; height: 240px; right: -60px; top: 60px; background: radial-gradient(circle, #22d3ee, #0e7490); }
-.l3 { width: 300px; height: 300px; left: 120px; bottom: -90px; background: radial-gradient(circle, #f9a8d4, #db2777); }
 
 .spec,
 .grain { position: absolute; inset: 0; z-index: 3; pointer-events: none; }
@@ -527,30 +527,29 @@ getCookie()
 /* ---------------- 暗色：黑玻璃 ---------------- */
 html.dark .login-page { background: #0a0c12; }
 
-html.dark .bg::before,
-html.dark .glass-bg::before {
+html.dark .bg::before {
   background-image:
     linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
     linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
 }
 
-html.dark .bg::after,
-html.dark .glass-bg::after { background-image: radial-gradient(circle, rgba(255, 255, 255, 0.12) 1px, transparent 1.2px); }
+html.dark .bg::after { background-image: radial-gradient(circle, rgba(255, 255, 255, 0.12) 1px, transparent 1.2px); }
 
 html.dark .b1 { opacity: 0.45; }
 html.dark .b2 { opacity: 0.4; }
 html.dark .b3 { opacity: 0.3; }
 html.dark .b4 { opacity: 0.24; }
 html.dark .arc { border-color: rgba(255, 255, 255, 0.09); }
-html.dark .glass-bg { filter: blur(14px) saturate(180%) brightness(1.12); }
+
 html.dark .a2, html.dark .a5 { border-color: rgba(94, 234, 212, 0.12); }
 html.dark .a3 { border-color: rgba(244, 114, 182, 0.1); }
 
 html.dark .glass { box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6); }
 
 html.dark .glass::before {
-  background: linear-gradient(152deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.03));
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12), inset 0 1.5px 0 rgba(255, 255, 255, 0.22);
+  /* 暗色底本来就深，玻璃若只有 .10 的白会读成"一块黑板"，所以这里抬到 .20/.08 */
+  background: linear-gradient(152deg, rgba(255, 255, 255, 0.20), rgba(255, 255, 255, 0.08));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14), inset 0 1.5px 0 rgba(255, 255, 255, 0.26);
 }
 
 html.dark .cover { background: linear-gradient(158deg, rgba(37, 99, 235, 0.5), rgba(13, 148, 136, 0.42)); }
