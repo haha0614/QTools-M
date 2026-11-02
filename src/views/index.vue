@@ -259,7 +259,7 @@ const mediaPhotoRows = computed(() => [...(mediaStats.topPhotos || [])].reverse(
 
 // 媒体站 5 个小指标卡
 const mediaCards = computed(() => [
-  { key: "playCount", label: "播放量", value: mediaStats.playCount, icon: "VideoPlay", color: "#409eff" },
+  { key: "playCount", label: "播放量", value: mediaStats.playCount, icon: "VideoPlay", color: "#2563eb" },
   { key: "photoClickCount", label: "图片点击量", value: mediaStats.photoClickCount, icon: "Picture", color: "#67c23a" },
   { key: "pageViewCount", label: "浏览量", value: mediaStats.pageViewCount, icon: "View", color: "#e6a23c" },
   { key: "totalPlayMs", label: "累计观看时长", value: formatPlayMs(mediaStats.totalPlayMs), icon: "Timer", color: "#909399" },
@@ -273,7 +273,7 @@ const mediaExtraCards = computed(() => [
     label: "完播率",
     value: formatPercent(mediaStats.completionRate),
     icon: "Odometer",
-    color: "#409eff",
+    color: "#2563eb",
     hint: `播放完成 ${mediaStats.completedPlayCount ?? 0} / ${mediaStats.playEndCount ?? 0}`,
     tip: `播放完成 ${mediaStats.completedPlayCount ?? 0} / ${mediaStats.playEndCount ?? 0}（完播次数 / 播放结束事件数）`
   },
@@ -336,7 +336,7 @@ function formatPercent(value) {
 
 // 顶部四个指标卡（值随接口刷新）
 const cards = computed(() => [
-  { key: "totalVisits", label: "累计访问量", value: overview.totalVisits, icon: "DataLine", color: "#409eff" },
+  { key: "totalVisits", label: "累计访问量", value: overview.totalVisits, icon: "DataLine", color: "#2563eb" },
   { key: "todayVisits", label: "今日访问量", value: overview.todayVisits, icon: "TrendCharts", color: "#67c23a" },
   { key: "totalTools", label: "工具总数", value: overview.totalTools, icon: "Grid", color: "#e6a23c" },
   { key: "enabledTools", label: "启用中的工具", value: overview.enabledTools, icon: "CircleCheck", color: "#909399" }
@@ -368,21 +368,54 @@ async function load() {
   }
 }
 
+/**
+ * P6.111：图表配色从 CSS 变量里取，不再让 echarts 用自带默认色板。
+ *
+ * <p>echarts 默认第一色是 #5470c6，既不等于 Element 的 #409eff，也不等于我们统一的
+ * #2563eb —— 页面上因此长期存在"第三种蓝"。这里在 setOption 里把色板、坐标轴、
+ * 网格线一起指定；切主题后重新 renderCharts 即可跟着变。</p>
+ */
+function chartTheme() {
+  const css = getComputedStyle(document.documentElement)
+  const pick = (name, fallback) => (css.getPropertyValue(name) || "").trim() || fallback
+  return {
+    palette: [
+      pick("--el-color-primary", "#2563eb"),
+      pick("--el-color-success", "#67c23a"),
+      pick("--el-color-warning", "#e6a23c"),
+      pick("--el-color-danger", "#f56c6c"),
+      pick("--el-color-primary-light-3", "#6692f1")
+    ],
+    sub: pick("--el-text-color-secondary", "#909399"),
+    line: pick("--el-border-color-lighter", "#ebeef5")
+  }
+}
+
 /** 绘制两张图：左折线（近 N 天趋势）、右横条（工具访问排行） */
 function renderCharts() {
+  const theme = chartTheme()
   const trend = overview.dailyVisits || []
   if (trendRef.value) {
     trendChart = trendChart || echarts.init(trendRef.value)
     trendChart.setOption({
+      color: theme.palette,
       tooltip: { trigger: "axis" },
       grid: { left: 40, right: 16, top: 24, bottom: 32 },
       xAxis: {
         type: "category",
         boundaryGap: false,
         // 只显示 MM-DD，年份在提示框里再补
-        data: trend.map(item => String(item.date || "").slice(5))
+        data: trend.map(item => String(item.date || "").slice(5)),
+        axisLine: { lineStyle: { color: theme.line } },
+        axisLabel: { color: theme.sub },
+        axisTick: { show: false }
       },
-      yAxis: { type: "value", minInterval: 1 },
+      yAxis: {
+        type: "value",
+        minInterval: 1,
+        axisLabel: { color: theme.sub },
+        splitLine: { lineStyle: { color: theme.line } }
+      },
       series: [
         {
           name: "访问量",
@@ -402,12 +435,20 @@ function renderCharts() {
     // 横向条形图默认从下往上画，反转后第一名在最上方
     const rows = [...top].reverse()
     rankChart.setOption({
+      color: theme.palette,
       tooltip: { trigger: "axis", axisPointer: { type: "shadow" } },
       grid: { left: 8, right: 40, top: 16, bottom: 16, containLabel: true },
-      xAxis: { type: "value", minInterval: 1 },
+      xAxis: {
+        type: "value",
+        minInterval: 1,
+        axisLabel: { color: theme.sub },
+        splitLine: { lineStyle: { color: theme.line } }
+      },
       yAxis: {
         type: "category",
-        data: rows.map(item => item.toolName || "-")
+        data: rows.map(item => item.toolName || "-"),
+        axisLine: { lineStyle: { color: theme.line } },
+        axisLabel: { color: theme.sub }
       },
       series: [
         {
@@ -415,7 +456,7 @@ function renderCharts() {
           type: "bar",
           barMaxWidth: 18,
           itemStyle: { borderRadius: [0, 4, 4, 0] },
-          label: { show: true, position: "right" },
+          label: { show: true, position: "right", color: theme.sub },
           data: rows.map(item => item.visitCount ?? 0)
         }
       ]
