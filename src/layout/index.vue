@@ -96,6 +96,22 @@ function setLayout() {
     mask-image: linear-gradient(to right, transparent 0, transparent 200px, #000 260px);
   }
 
+  /* P6.126：侧栏背后垫一层深色面板。
+     半透明深色叠在**浅色**页面上会被洗成灰（实测从 y≈210 往下明显变灰），
+     玻璃必须叠在"同色系、有明暗变化"的背景上才成立。
+     这层只铺侧栏宽度，且是纯色渐变，不会给 blur 提供高频细节。 */
+  &::after {
+    content: '';
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 200px;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(180deg, #1c2230 0%, #141821 52%, #0f1218 100%);
+  }
+
   &.mobile.openSidebar {
     position: fixed;
     top: 0;

@@ -77,7 +77,7 @@ const activeMenu = computed(() => {
      侧栏背后只剩平滑柔光，backdrop-filter 出来就是干净的水玻璃。 */
   backdrop-filter: blur(20px) saturate(150%);
   -webkit-backdrop-filter: blur(20px) saturate(150%);
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 200px);
+  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 220px);
   box-shadow:
     inset -1px 0 0 rgba(255, 255, 255, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.10);
