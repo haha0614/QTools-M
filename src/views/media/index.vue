@@ -4806,9 +4806,11 @@ onBeforeUnmount(() => { stopScanPolling() })
    要点：弹窗实色浅底（半透明叠遮罩会变灰板）；网格干净、不要每格都描边；
    文件名默认隐藏，悬停才出现，避免整屏重复文件名。 */
 :deep(.photos-dialog .el-dialog__body) { padding: 0 0 8px; }
-.photos-head { padding: 14px 20px 12px; border-bottom: 1px solid var(--shell-border); }
+/* P6.165：三条横条不再各自铺底色 —— 弹窗本身是玻璃，横条再压一层就不透，看着像三块拼上去的板。
+   现在统一：透明底 + 发丝线分隔。 */
+.photos-head { padding: 14px 20px 12px; background: transparent; border-bottom: 1px solid var(--shell-border); }
 .photos-head-tip { font-size: 12px; color: var(--el-text-color-secondary); }
-.photo-filter { padding: 10px 20px; border-bottom: 1px solid var(--shell-border); background: rgba(37, 99, 235, .035); }
+.photo-filter { padding: 10px 20px; background: transparent; border-bottom: 1px solid var(--shell-border); }
 .photo-grid { padding: 16px 20px 6px; gap: 14px; }
 .photo-item { padding: 0; border: 0; background: transparent; border-radius: 8px; }
 .photo-item img { height: 140px; border-radius: 8px; }
@@ -4816,7 +4818,8 @@ onBeforeUnmount(() => { stopScanPolling() })
 .photo-item.picked img { box-shadow: 0 0 0 2px var(--el-color-primary); }
 .photo-name { opacity: 0; transition: opacity .12s; font-size: 11px; }
 .photo-item:hover .photo-name { opacity: 1; }
-:deep(.photos-dialog .el-dialog__footer) { padding: 10px 20px; }
+:deep(.photos-dialog .el-dialog__footer) { padding: 10px 20px; background: transparent; border-top: 1px solid var(--shell-border); }
+.photo-batch { background: transparent; }
 </style>
 
 
