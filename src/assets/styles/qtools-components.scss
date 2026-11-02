@@ -114,9 +114,9 @@
    放在同一张玻璃卡里像几套东西。统一成：半透明白 45% + 发丝线 + 10px 圆角。 */
 .person-card,
 .rating-policy-card,
-.rv-card,
-.rv-tools {
-  background: rgba(255, 255, 255, 0.45) !important;
+.rv-card {
+  /* 暗色下必须换成"微提亮"的深底，写死半透明白会变成一块灰白板（P6.177 实测） */
+  background: var(--qt-inner-block) !important;
   border: 1px solid var(--shell-border) !important;
   border-radius: 10px !important;
   box-shadow: none !important;
@@ -229,7 +229,7 @@
     /* P6.151：固定列降到 30% 白 + 强模糊。
        固定列是浮层，必须遮挡横向滚动的内容，但白度越高越像"贴了一块板"；
        30% + 28px 模糊：滑过的文字被糊成雾团，色调贴近周围。 */
-    background-color: rgba(255, 255, 255, 0.30);
+    background-color: var(--qt-fixed-cell);
     backdrop-filter: blur(28px) saturate(160%);
     -webkit-backdrop-filter: blur(28px) saturate(160%);
   }
@@ -245,7 +245,7 @@
   tr.hover-row > td.el-table-fixed-column--right,
   tr.hover-row > td.el-table__cell.is-first-column,
   tr.hover-row > td.el-table__cell.is-last-column {
-    background-color: var(--el-color-primary-light-9) !important;
+    background-color: var(--qt-fixed-cell-hover) !important;
   }
 }
 
@@ -253,6 +253,8 @@
    之前这条规则写进了 .el-dialog 的嵌套块里，编译成 .el-dialog .photos-dialog .el-dialog__body，
    永远匹配不到；于是 body 仍带 16px 内距，筛选条离顶部空出一截。 */
 /* 注意：要和全局的 .el-dialog .el-dialog__body（同权重、后出现）竞争，这里把类名叠到三连。 */
+.rv-tools { background: var(--qt-inner-bar) !important; }
+
 .el-dialog.photos-dialog .el-dialog__body { padding: 0; max-height: 62vh; overflow: auto; outline: none; }
 .el-dialog.photos-dialog .el-dialog__body::-webkit-scrollbar { width: 6px; }
 .el-dialog.photos-dialog .el-dialog__body::-webkit-scrollbar-thumb { background: var(--el-border-color); border-radius: 3px; }
@@ -408,6 +410,14 @@
   border-color: transparent;
 
   &:hover { background: linear-gradient(180deg, #6fb0fb, #2f6ce8); }
+}
+
+/* P6.178：暗色下渐变顶端 #60a5fa 太亮，在一片深色里非常扎眼；
+   换成低一档的蓝，保持主按钮的辨识度但不刺目。 */
+html.dark .el-button--primary:not(.is-plain):not(.is-link):not(.is-text) {
+  background: linear-gradient(180deg, #4f8bf0, #1e4fbc);
+
+  &:hover { background: linear-gradient(180deg, #5c96f2, #2560c9); }
 }
 
 /* 卡片里再套的小卡保持实心，避免玻璃叠玻璃把数字糊掉 */
