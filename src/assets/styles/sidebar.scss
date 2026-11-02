@@ -255,7 +255,7 @@
       .submenu-title-noDropdown:hover,
       .el-sub-menu__title:hover {
         background-color: rgba(15, 23, 42, 0.045);
-        color: #0f172a !important;
+        color: var(--qt-menu-hover-text, #0f172a) !important;
       }
 
       /* P6.129：二级菜单项不再铺 #fafafa —— 那层底色让上下两级像"两块拼起来"，
@@ -279,7 +279,10 @@
          这里只让叶子项高亮：父级保持普通文字色、背景透明。 */
       .el-sub-menu.is-active > .el-sub-menu__title {
         background-color: transparent !important;
-        color: #0f172a !important;
+        /* P6.186：用变量而不是写死深色 —— 侧栏的 sideTheme 固定为 theme-light，
+           这条规则在暗色 App 里同样生效；写死 #0f172a 会变成"深字叠深底"，
+           表现为"选中子项后父项消失"（实测 computed color = rgb(15,23,42)）。 */
+        color: var(--qt-menu-active-text, #0f172a) !important;
       }
     }
   }
@@ -438,3 +441,4 @@ html.dark {
     }
   }
 }
+

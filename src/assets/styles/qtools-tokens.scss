@@ -82,6 +82,9 @@ html.dark {
   --qt-inner-block: rgba(255, 255, 255, 0.45);
   /* 加载遮罩：亮色用半透明白，暗色必须换成半透明深色，否则暗色下整片发白 */
   --qt-loading-mask: rgba(255, 255, 255, 0.68);
+  /* 侧栏菜单文字（侧栏 sideTheme 固定为浅色，但 App 可能是暗色，必须用变量区分） */
+  --qt-menu-active-text: #0f172a;
+  --qt-menu-hover-text: #0f172a;
   /* 查询类工具条比分组块再淡一档，避免与卡片糊在一起 */
   --qt-inner-bar: rgba(255, 255, 255, 0.28);
   --qt-fixed-cell: rgba(255, 255, 255, 0.30);
@@ -116,6 +119,8 @@ html.dark {
   --qt-dialog-surface: rgba(22, 23, 27, 0.80);
   --qt-inner-block: rgba(255, 255, 255, 0.06);
   --qt-loading-mask: rgba(12, 14, 18, 0.62);
+  --qt-menu-active-text: rgba(255, 255, 255, 0.92);
+  --qt-menu-hover-text: #ffffff;
   --qt-inner-bar: rgba(255, 255, 255, 0.04);
   --qt-fixed-cell: rgba(26, 28, 34, 0.82);
   --qt-fixed-cell-hover: #1f2530;
