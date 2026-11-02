@@ -416,9 +416,10 @@ $tags-bar-height: 34px;
   }
 
   .tags-view-wrapper {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     height: 100%;
+    /* P6.110：滚动区吃掉剩余宽度，右侧箭头/下拉贴住右边，消除右侧那块空白 */
 
     .tags-view-item {
       display: inline-flex;
@@ -489,8 +490,21 @@ $tags-bar-height: 34px;
     }
   }
 
+  /* P6.110：刷新按钮原来固定 60px、背景是默认的白块，和页签条其余部分不一致，
+     看着像"右边多出一块空白"。改成与导航按钮同款：透明底 + 发丝分隔 + 悬停上色。 */
   .tags-refresh-btn {
-    width: 60px;
+    width: auto;
+    min-width: 64px;
+    padding: 0 10px;
+    gap: 4px;
+    font-size: 12.5px;
+    background: transparent;
+    border-radius: 0;
+    /* 空间紧张时不许被压扁/折行（上一版出现过"刷/新"竖排） */
+    flex-shrink: 0;
+    white-space: nowrap;
+
+    .el-icon { font-size: 13px; }
   }
 
   .contextmenu {

@@ -4092,11 +4092,17 @@ onBeforeUnmount(() => { stopScanPolling() })
   justify-content: space-between;
   margin: 4px 0 8px;
 }
+/* P6.110：左簇可收缩，右簇整体不换行 —— 原来右簇 flex-wrap: wrap 会让"重复文件"
+   单独掉到下一行，看着像漏了个按钮 */
 .media-toolbar-left {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   align-items: baseline;
+  /* P6.110：给左簇一个下限，空间不够时让"右簇整体"换到第二行，
+     而不是把左簇压扁、右簇挤出容器被裁掉（上一版就是这样把"重复文件"切了一半） */
+  flex: 1 1 320px;
+  min-width: 300px;
 }
 .media-page-title {
   font-size: 16px;
@@ -4109,8 +4115,11 @@ onBeforeUnmount(() => { stopScanPolling() })
 .media-toolbar-right {
   display: flex;
   gap: 8px;
+  /* P6.110：空间不够时右簇自己换行并右对齐（原来 nowrap 会被容器裁掉半个按钮） */
   flex-wrap: wrap;
+  justify-content: flex-end;
   align-items: center;
+  flex: 0 1 auto;
 }
 /* P5.12：派生资源汇总条 / 两个下拉 / 空态文案的样式都在子组件里（scoped），页面不再持有 */
 /* P5.10-B：工具栏「已选 N 项」 */
