@@ -76,6 +76,8 @@
       white-space: nowrap !important;
       height: 44px !important;
       line-height: 44px !important;
+      /* P6.104：菜单字号统一 13px（与登录页/内容区同一套字号阶梯） */
+      font-size: 13px !important;
     }
 
     .el-menu-item .el-menu-tooltip__trigger {
@@ -86,7 +88,8 @@
     .sub-menu-title-noDropdown,
     .el-sub-menu__title {
       &:hover {
-        background-color: rgba(0, 0, 0, 0.06);
+        /* 暗色侧栏上用 rgba(0,0,0,.06) 等于没有——改用统一的 --menu-hover */
+        background-color: var(--menu-hover);
       }
     }
 
@@ -99,7 +102,7 @@
       min-width: vars.$base-sidebar-width !important;
 
       &:hover {
-        background-color: rgba(0, 0, 0, 0.06);
+        background-color: var(--menu-hover);
       }
     }
 
@@ -114,8 +117,9 @@
 
     // theme-dark 深色主题
     &.theme-dark {
-      box-shadow: 2px 0 8px rgba(0, 0, 0, 0.4);
-      border-right: none;
+      /* P6.104：暗色主题原来又加回投影并取消边框，覆盖了上面的发丝线 */
+      box-shadow: none;
+      border-right: 1px solid var(--shell-border);
 
       .el-menu-item.is-active {
         position: relative;
