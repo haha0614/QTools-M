@@ -123,7 +123,9 @@
       top: 0;
       width: 51%;
       height: 100%;
-      background: #7171C6;
+      /* P6.144：启动遮罩原来是若依默认的紫 #7171C6，与蓝色体系完全无关，
+         每次打开后台第一眼就是它 —— 换成主色渐变。 */
+      background: linear-gradient(135deg, #1e4fbc 0%, #2563eb 60%, #3b82f6 100%);
       z-index: 1000;
       -webkit-transform: translateX(0);
       -ms-transform: translateX(0);
