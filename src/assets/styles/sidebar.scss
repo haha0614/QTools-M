@@ -70,7 +70,10 @@
       width: 100% !important;
     }
 
-    .el-menu-item, .menu-title {
+    /* P6.131：.el-sub-menu__title（带子菜单的一级项）之前不在这个规则里，
+       于是它保持 EP 默认 56px / 14px，而普通菜单项是 34px / 12.5px ——
+       侧栏里"媒体管理""工具管理"比别的项高一截，就是这里漏了。 */
+    .el-menu-item, .el-sub-menu__title, .menu-title {
       overflow: hidden !important;
       text-overflow: ellipsis !important;
       white-space: nowrap !important;
@@ -256,6 +259,14 @@
 
       .el-sub-menu .el-menu-item.is-active {
         color: #2563eb !important;
+      }
+
+      /* P6.131：带子菜单的一级项在子项被选中时也带上了底色/主色，
+         于是 媒体管理 和 媒体库 两行同时"高亮"，看着像两个选中项。
+         这里只让叶子项高亮：父级保持普通文字色、背景透明。 */
+      .el-sub-menu.is-active > .el-sub-menu__title {
+        background-color: transparent !important;
+        color: #0f172a !important;
       }
     }
   }
