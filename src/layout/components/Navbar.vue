@@ -134,71 +134,70 @@ function lockScreen() {
   router.push('/lock')
 }
 
-/* 主题切换的圆形揭示：自绘覆盖层，不再用 View Transition。
-   P6.197 —— 实测证据：startViewTransition 之后 transition.finished 从不 resolve
-   （trace 一行都没打印），Chromium 因此一直持有伪元素快照层；那层亮色快照盖在页面上
-   就是白屏，同时截图接口连续 30s 超时。
-   现在自己画：
-     1. 切换前把 .app-wrapper 的底色 + 网格柔光拷到覆盖层（等于"旧主题的一张底图"）；
-     2. 立刻切换主题（下面已经是新主题）；
-     3. 覆盖层以点击点为圆心收缩到 0 —— 旧主题从圆心退开，新主题显出来。
-   动画时长、缓动、方向都可控，没有任何快照机制参与。 */
+/* 主题切换：View Transition 版本（真快照，动画里能看到页面内容）。
+   P6.199 —— 之前判定"finished 从不 resolve"是在一个被反复实验玩脏的标签页里测的，
+   结论不成立。这里只保留两条确定的修复：
+     1. 旧实现 catch 里又切一次主题（等于切回去）—— 现在用 toggled 标记，只切一次；
+     2. 连点会打断进行中的 transition —— 切换期间忽略点击。 */
 let themeSwitching = false
 
 function toggleTheme(event) {
   if (themeSwitching) return
-
   const x = event?.clientX ?? window.innerWidth / 2
   const y = event?.clientY ?? window.innerHeight / 2
+  const wasDark = settingsStore.isDark
+  const root = document.documentElement
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
-  if (reduced) {
+  let released = false
+  const release = () => {
+    if (released) return
+    released = true
+    root.classList.remove("theme-switching")
+    themeSwitching = false
+  }
+  /* 兜底：transition.finished 若因某种原因不 resolve，不能把开关永久锁死
+     （实测有过第二次点击被忽略的情况）。900ms 后强制释放。 */
+  setTimeout(release, 900)
+
+  if (reduced || !document.startViewTransition) {
     settingsStore.toggleTheme()
     return
   }
 
-  const source = document.querySelector(".app-wrapper") || document.body
-  const cs = getComputedStyle(source)
-
-  /* 用 transform: scale 做圆形收缩（合成层动画），不用 clip-path ——
-     clip-path 每帧都要重新光栅化整块全屏区域，实测切完立刻截图 30s 拿不到帧。
-     圆盘本身按半径先画满全屏，之后只做缩放。 */
-  const diameter = Math.ceil(2 * Math.hypot(window.innerWidth, window.innerHeight))
-  const disc = document.createElement("div")
-  disc.className = "theme-wipe"
-  disc.style.width = diameter + "px"
-  disc.style.height = diameter + "px"
-  disc.style.borderRadius = "50%"
-  disc.style.left = x - diameter / 2 + "px"
-  disc.style.top = y - diameter / 2 + "px"
-  disc.style.backgroundColor = cs.backgroundColor
-  disc.style.backgroundImage = cs.backgroundImage
-  disc.style.backgroundSize = cs.backgroundSize
-  disc.style.backgroundPosition = `${diameter / 2 - x}px ${diameter / 2 - y}px`
-
   themeSwitching = true
-  /* 切换的 460ms 内关掉模糊与过渡：全站十几处 backdrop-filter 同时换主题时
-     会一次性重建合成层，是这一下卡顿的主要来源。 */
-  document.documentElement.classList.add("theme-switching")
-  document.body.appendChild(disc)
-  settingsStore.toggleTheme()
+  root.classList.add("theme-switching")
+  let toggled = false
 
-  const done = () => {
-    disc.remove()
-    document.documentElement.classList.remove("theme-switching")
-    themeSwitching = false
+  try {
+    const transition = document.startViewTransition(async () => {
+      toggled = true
+      settingsStore.toggleTheme()
+      await nextTick()
+    })
+
+    transition.finished.finally(release)
+
+    transition.ready
+      .then(() => {
+        const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
+        const clipPath = [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`]
+        root.animate(
+          { clipPath: !wasDark ? [...clipPath].reverse() : clipPath },
+          {
+            duration: 460,
+            easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+            fill: "forwards",
+            pseudoElement: !wasDark ? "::view-transition-old(root)" : "::view-transition-new(root)"
+          }
+        )
+      })
+      .catch(release)
+  } catch (err) {
+    console.warn("[theme] view transition unavailable:", err)
+    if (!toggled) settingsStore.toggleTheme()
+    release()
   }
-
-  requestAnimationFrame(() => {
-    const anim = disc.animate(
-      [
-        { transform: "scale(1)", opacity: 1 },
-        { transform: "scale(0)", opacity: 1 }
-      ],
-      { duration: 460, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "forwards" }
-    )
-    anim.finished.then(done).catch(done)
-  })
 }
 </script>
 
