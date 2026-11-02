@@ -61,20 +61,32 @@
 
 .dark::view-transition-old(root) {
   z-index: 2147483646;
-  background: var(--bg-color-dark); 
 }
 
 .dark::view-transition-new(root) {
   z-index: 1;
-  background: var(--bg-color);
 }
 
 ::view-transition-old(root) {
   z-index: 1;
-  background: var(--bg-color);
 }
 
 ::view-transition-new(root) {
   z-index: 2147483646;
-  background: var(--bg-color-dark);
+}
+
+/* P6.200：这四个规则原来还各自带一句 background（亮/暗底色）。
+   伪元素的背景是立即绘制的，而快照图可能晚一两帧才到 ——
+   暗转亮时 old 层恰好拿到「亮色」底色，于是先白一下。
+   背景对揭示效果没有作用（快照本身不透明），全部去掉。 */
+/* P6.200：圆形揭示的"首帧裁剪"。
+   从 startViewTransition 拍照到 transition.ready 之间有几帧，伪元素是未裁剪的整屏，
+   暗转亮时就会先白一下。这里在拍照前由 JS 在 <html> 上写好 --wipe-* 与方向类，
+   让第一帧就落在正确的裁剪几何上，WAAPI 动画随后从同一值继续。 */
+html.theme-expand::view-transition-new(root) {
+  clip-path: circle(0px at var(--wipe-x, 50%) var(--wipe-y, 50%));
+}
+
+html.theme-shrink::view-transition-old(root) {
+  clip-path: circle(var(--wipe-r, 200vmax) at var(--wipe-x, 50%) var(--wipe-y, 50%));
 }

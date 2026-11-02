@@ -153,7 +153,7 @@ function toggleTheme(event) {
   const release = () => {
     if (released) return
     released = true
-    root.classList.remove("theme-switching")
+    root.classList.remove("theme-switching", "theme-expand", "theme-shrink")
     themeSwitching = false
   }
   /* 兜底：transition.finished 若因某种原因不 resolve，不能把开关永久锁死
@@ -167,6 +167,18 @@ function toggleTheme(event) {
 
   themeSwitching = true
   root.classList.add("theme-switching")
+
+  /* P6.200：暗转亮会闪一下白 —— 原因是从 startViewTransition 拍照到
+     transition.ready 之间有几帧，此时 ::view-transition-new(root)（亮色快照）
+     是**未被裁剪**的整屏，于是先白一下，我们的圆形动画才开始接管。
+     这里在拍照前就把起点裁剪写进 CSS（变量 + expand/shrink 类），
+     让第一帧就是 circle(0)，WAAPI 动画随后从同一个值继续，视觉上无缝。 */
+  const endR = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
+  root.style.setProperty("--wipe-x", x + "px")
+  root.style.setProperty("--wipe-y", y + "px")
+  root.style.setProperty("--wipe-r", endR + "px")
+  root.classList.add(wasDark ? "theme-expand" : "theme-shrink")
+
   let toggled = false
 
   try {
@@ -180,8 +192,7 @@ function toggleTheme(event) {
 
     transition.ready
       .then(() => {
-        const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
-        const clipPath = [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`]
+        const clipPath = [`circle(0px at ${x}px ${y}px)`, `circle(${endR}px at ${x}px ${y}px)`]
         root.animate(
           { clipPath: !wasDark ? [...clipPath].reverse() : clipPath },
           {
