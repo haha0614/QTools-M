@@ -7,13 +7,9 @@
       <span class="arc a5"></span><span class="arc a6"></span><span class="arc a7"></span>
     </div>
 
-    <section class="glass" ref="cardRef" :class="{ 'glass-webgl': glassReady }">
+    <section class="glass">
       <div class="spec" aria-hidden="true"></div>
       <div class="grain" aria-hidden="true"></div>
-
-      <!-- WebGL 折射层（dashersw/liquid-glass-js, MIT）：画在表单下面，
-           拿不到 WebGL 时它不渲染，CSS 的 blur 兜底仍然在 -->
-      <div class="glass-canvas" ref="glassHost" aria-hidden="true"></div>
 
       <!-- 左：有色玻璃封面 -->
       <aside class="cover">
@@ -103,12 +99,7 @@ const { proxy } = getCurrentInstance()
 /** 密码可见性（P6.94：重做登录页时加的，纯 UI） */
 const showPassword = ref(false)
 
-/** WebGL 液态玻璃（dashersw/liquid-glass-js, MIT）。创建失败就保持 CSS 玻璃 */
-const glassHost = ref(null)
-const glassReady = ref(false)
 
-/** 玻璃卡元素：hyalite 会给它算透镜位移图（SVG 滤镜），非 Chromium 内核自动退化为普通模糊 */
-const cardRef = ref(null)
 
 
 const loginForm = ref({
@@ -194,76 +185,6 @@ function getCookie() {
   }
 }
 
-getCode()
-getCookie()
-
-/**
- * 玻璃渲染：dashersw/liquid-glass-js 的 Container。
- *
- * <p>它用 html2canvas 抓整页快照当纹理，再用 WebGL 着色器做折射——折射的是**真实页面像素**，
- * 所以边缘的网格会真的弯。放在表单下面一层，表单本身仍是普通 DOM。</p>
- *
- * <p>懒加载：html2canvas 有 ~199KB，只在真正需要时才 import；失败/不支持时静默回退 CSS 玻璃。</p>
- */
-onMounted(async () => {
-  const host = glassHost.value
-  if (!host) return
-  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
-  try {
-    // html2canvas 是 UMD：被 Vite 当 CJS 处理后不会挂到 window，
-    // 而 container.js 里是裸调用 html2canvas(...)，所以这里手动补一个全局
-    const h2c = await import('@/utils/liquidglass/html2canvas.min.js')
-    const realH2C = h2c.default || h2c
-    /**
-     * 包一层 html2canvas：只在它内部的**克隆文档**里把登录卡隐藏掉。
-     *
-     * <p>为什么：库是 html2canvas(document.body) 抓整页，会把登录卡自己拍进去，
-     * 折射时出现双重影像。上一版的做法是在真实页面上把卡片 opacity 置 0 ——
-     * 用户能看到"一张空白玻璃卡闪一下"。onclone 只改克隆，屏幕上没有任何变化。</p>
-     */
-    window.html2canvas = (el, opts) => realH2C(el, {
-      ...(opts || {}),
-      onclone: (doc) => {
-        const card = doc.querySelector('.glass')
-        if (card) card.style.visibility = 'hidden'
-      }
-    })
-    window.html2canvas.__real = realH2C
-    const mod = await import('@/utils/liquidglass/container.js')
-    const Container = mod.default || window.Container
-    if (!Container) return
-    const c = new Container({ borderRadius: 28, type: 'rounded', tintOpacity: 0.16 })
-    host.appendChild(c.element)
-    // 这个库从 .element 的 rect 量尺寸；没带它自己的 glass.css 时 element 是 auto 高度，
-    // 会量出 860x0（实测 canvas height=0，整块画不出来）。这里显式铺满宿主。
-    Object.assign(c.element.style, {
-      position: 'absolute',
-      inset: '0',
-      width: '100%',
-      height: '100%',
-      padding: '0',
-      display: 'block'
-    })
-    const rect = host.getBoundingClientRect()
-    if (c.canvas) {
-      // 只改 CSS 尺寸：直接写 canvas.width/height 会重置绘图缓冲并清空画面（库之后不再重绘）
-      c.canvas.style.width = '100%'
-      c.canvas.style.height = '100%'
-      c.canvas.style.display = 'block'
-      c.canvas.style.borderRadius = '28px'
-    }
-    // 等库把整页快照拍完，再让出 CSS 模糊层
-    const t0 = Date.now()
-    while (!Container.pageSnapshot && Date.now() - t0 < 4000) {
-      await new Promise((r) => setTimeout(r, 100))
-    }
-    glassReady.value = true
-
-    console.info('[login] WebGL 玻璃已就绪', c.canvas.width + 'x' + c.canvas.height)
-  } catch (e) {
-    console.warn('[login] WebGL 玻璃不可用，走 CSS 玻璃', e)
-  }
-})
 
 /**
  * 液态玻璃（hyalite 0.5.0，MIT，单文件无依赖）。
@@ -350,27 +271,7 @@ onMounted(async () => {
 .a7 { width: 820px; height: 820px; right: calc(50% - 760px); bottom: calc(50% - 260px); border-color: rgba(15, 23, 42, 0.06); }
 
 /* ---------------- 玻璃卡 ---------------- */
-.glass-canvas {
-  position: absolute;
-  inset: 0;
-  z-index: 1;
-  pointer-events: none;
-  border-radius: 28px;
-  overflow: hidden;
-}
 
-/* canvas 的尺寸由库按元素 rect 写 px，这里不要再覆盖成 100%（会量出 0 高） */
-.glass-canvas :deep(canvas) { display: block; }
-
-/**
- * 画布就绪后淡入，而不是把 CSS 模糊层一把关掉。
- *
- * <p>原来切 glass-webgl 时会同时移除 ::before 的模糊与底色，用户看到的是
- * "先一张柔和卡，1 秒后突然换一张折射卡"的跳变（两次截图对比明显）。
- * 现在 CSS 玻璃始终在底下，画布用 450ms 淡入覆盖，视觉上是渐变而不是闪替。</p>
- */
-.glass-canvas { opacity: 0; transition: opacity 0.45s ease; }
-.glass-webgl .glass-canvas { opacity: 1; }
 
 .glass {
   position: relative;
@@ -619,7 +520,7 @@ onMounted(async () => {
   .glass { box-shadow: 0 24px 60px rgba(24, 32, 48, 0.18); }
   .glass::before { background: rgba(255, 255, 255, 0.94); }
   .cover { background: linear-gradient(158deg, #2563eb, #0d9488); }
-  .lens, .spec, .grain { display: none; }
+  .spec, .grain { display: none; }
 }
 
 /* ---------------- 暗色：黑玻璃 ---------------- */
