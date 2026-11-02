@@ -51,6 +51,23 @@
           </template>
         </el-table-column>
         <el-table-column label="路径" prop="relPath" min-width="320" :show-overflow-tooltip="true" />
+        <!-- P6.158：判定时看得到"这张照片自己的分级"和"所属册的分级" ——
+             否则可能在「大众级册」里放行一张限制级照片。 -->
+        <el-table-column label="照片分级" width="110" align="center">
+          <template #default="scope">
+            <el-tag size="small" :type="ratingTagType(scope.row.contentRating)" effect="plain">
+              {{ ratingLabel(scope.row.contentRating) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="所属册分级" width="110" align="center">
+          <template #default="scope">
+            <el-tag v-if="albumRatingOf(scope.row)" size="small" :type="ratingTagType(albumRatingOf(scope.row))" effect="plain">
+              {{ ratingLabel(albumRatingOf(scope.row)) }}
+            </el-tag>
+            <span v-else class="rv-hint">—</span>
+          </template>
+        </el-table-column>
         <el-table-column label="状态" width="100" align="center">
           <template #default="scope">
             <el-tag size="small" :type="scope.row.reviewState === 'pending' ? 'warning' : (scope.row.reviewState === 'rejected' ? 'danger' : 'success')">
@@ -392,6 +409,7 @@ import {
   listReviewPhotos, setReviewPhotoState
 } from '@/api/media'
 import PhotoAutoRateDialog from './PhotoAutoRateDialog.vue'
+import { ratingLabel, ratingTagType } from './ratingOptions'
 
 const { proxy } = getCurrentInstance()
 
@@ -417,6 +435,32 @@ const photoSelection = ref([])
 const photoState = ref('pending')
 const photoQuery = reactive({ page: 1, size: 40 })
 
+/* P6.158：判定照片时要知道"它所属的册是什么级别 / 什么审核状态" ——
+   否则可能在「大众级册」里放行限制级照片。照片行接口只带册名，
+   这里用相册列表接口建一张 id → {分级, 状态} 的映射，一次性加载。 */
+const albumInfo = reactive({})
+let albumInfoLoaded = false
+
+async function ensureAlbumInfo() {
+  if (albumInfoLoaded) return
+  albumInfoLoaded = true
+  try {
+    // 分页参数是 pageNum/pageSize（同目录其它调用一致的写法）
+    const res = await listAlbums({ pageNum: 1, pageSize: 200, hidden: 'all' })
+    const list = (res && (res.rows || res.data)) || []
+    for (const a of list) {
+      albumInfo[a.id] = { rating: a.contentRating || a.rating, state: a.reviewState }
+    }
+  } catch (e) {
+    albumInfoLoaded = false
+  }
+}
+
+function albumRatingOf(row) {
+  const a = row && row.albumId != null ? albumInfo[row.albumId] : null
+  return a ? a.rating : null
+}
+
 /** 缩略图：内容寻址优先（归档/换册都不会张冠李戴） */
 function photoThumb(row) {
   return row && row.contentHash ? '/api/media/thumb/p/' + row.contentHash : ''
@@ -433,6 +477,7 @@ async function loadPhotos() {
     })
     photoRows.value = (res && res.rows) || []
     photoTotal.value = (res && res.total) || 0
+    ensureAlbumInfo()
   } catch (e) {
     photoRows.value = []
     photoTotal.value = 0
