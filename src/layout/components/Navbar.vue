@@ -12,9 +12,15 @@
       <template v-if="appStore.device !== 'mobile'">
         <header-search id="header-search" class="right-menu-item" />
 
-        <!-- P6.192：移除「源码地址 / 文档地址」两个图标 ——
-             它们链的是若依官网与若依源码仓库（doc.ruoyi.vip / gitee.com/y_project/RuoYi-Vue），
-             与本项目无关，点开就是别人的页面。 -->
+        <!-- P6.193：源码 / 文档入口保留，但改成指向本项目自己的仓库与文档目录
+             （原来链的是若依官网 doc.ruoyi.vip 与若依源码 gitee.com/y_project/RuoYi-Vue）。 -->
+        <el-tooltip content="源码仓库" effect="dark" placement="bottom">
+          <ruo-yi-git id="ruoyi-git" class="right-menu-item hover-effect" />
+        </el-tooltip>
+
+        <el-tooltip content="项目文档" effect="dark" placement="bottom">
+          <ruo-yi-doc id="ruoyi-doc" class="right-menu-item hover-effect" />
+        </el-tooltip>
 
         <screenfull id="screenfull" class="right-menu-item hover-effect" />
 
@@ -69,6 +75,8 @@ import Logo from './Sidebar/Logo'
 import Hamburger from '@/components/Hamburger'
 import Screenfull from '@/components/Screenfull'
 import HeaderSearch from '@/components/HeaderSearch'
+import RuoYiGit from '@/components/RuoYi/Git'
+import RuoYiDoc from '@/components/RuoYi/Doc'
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import useLockStore from '@/store/modules/lock'
