@@ -47,7 +47,12 @@
           <template #default="scope">
             <span v-if="scope.row.albumTitle">{{ scope.row.albumTitle }}</span>
             <el-tag v-else size="small" type="info">未归类</el-tag>
-            <span class="rv-seq">#{{ scope.row.seq }}</span>
+            <!-- P6.160：seq >= 1000000 是"停泊位"（scan-media.js 的 PARK_BASE）：
+                 文件在最近一次扫描时不在磁盘上，行被挪到 seq+1000000，把真实序号让出来。
+                 这里不该直接显示 1000008 这种内部数值，改为显示原序号或"文件缺失"。 -->
+            <span v-if="scope.row.seq != null && scope.row.seq < 1000000" class="rv-seq">#{{ scope.row.seq + 1 }}</span>
+            <el-tag v-else-if="scope.row.seq != null" size="small" type="warning" effect="plain" class="rv-seq-parked"
+              :title="'该照片在最近一次扫描中不在磁盘上（序号被停泊，原序号 #' + (scope.row.seq - 999999) + '）'">文件缺失</el-tag>
           </template>
         </el-table-column>
         <el-table-column label="路径" prop="relPath" min-width="320" :show-overflow-tooltip="true" />
