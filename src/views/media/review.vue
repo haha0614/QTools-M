@@ -376,7 +376,10 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+/* P6.155：这里原来直接用 proxy.$modal.*，但 never 声明过 proxy —— 只要触发一次提示
+   （典型：照片全部通过后弹成功提示）就抛 ReferenceError，整页被 ErrorBoundary 接走。
+   同目录 person/studio 都写了 getCurrentInstance，唯独这里漏了。 */
+import { computed, getCurrentInstance, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   getReviewSummary, listReview, setReviewState, listRatingReview, decideRatingReview,
@@ -385,6 +388,8 @@ import {
   listReviewPhotos, setReviewPhotoState
 } from '@/api/media'
 import PhotoAutoRateDialog from './PhotoAutoRateDialog.vue'
+
+const { proxy } = getCurrentInstance()
 
 const MEDIA_BASE = import.meta.env.VITE_APP_BASE_API || ''
 
