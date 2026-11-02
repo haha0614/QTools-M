@@ -34,6 +34,34 @@
   .el-card__body { padding: 16px; }
 }
 
+/* ---------------- 按钮 ---------------- */
+/* P6.136：plain 按钮不再用"淡色糖纸"底色。
+   Element 的 is-plain 是"主色 10% 混白"，一排按钮全是浅蓝/浅绿/浅粉/浅黄，
+   与实心的主色按钮放一起，层级完全乱掉。改成：白底 + 中性细边 + 类型色文字。 */
+/* EP 在 .el-button--primary.is-plain 上直接写 background-color（不是走变量），
+   所以必须用同权重后置 + !important 才能真正覆盖 */
+.el-button.is-plain {
+  background-color: var(--el-bg-color) !important;
+  border-color: var(--el-border-color) !important;
+
+  &:hover:not(.is-disabled) {
+    background-color: var(--qt-primary-weaker) !important;
+    border-color: var(--el-color-primary-light-5) !important;
+  }
+
+  &.is-disabled {
+    background-color: var(--el-fill-color-light) !important;
+    border-color: var(--el-border-color-lighter) !important;
+  }
+}
+
+/* 查询区与工具栏之间一条发丝线，避免表单和按钮糊成一团 */
+.app-container .el-form--inline {
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--shell-border);
+}
+
 /* ---------------- 表格 ---------------- */
 .el-table {
   --el-table-border-color: var(--shell-border);

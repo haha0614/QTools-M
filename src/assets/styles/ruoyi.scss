@@ -388,7 +388,9 @@
 .tree-sidebar-manage-wrap {
   display: flex;
   gap: 0;
-  min-height: calc(100vh - 130px);
+  /* P6.137：原来 min-height 撑满视口，右侧内容卡改成随内容高之后，
+     左侧树面板还是一条拖到页面底部的白色长条。两边一起跟随内容。 */
+  align-items: flex-start;
   padding: 0 !important;
   overflow: hidden;
 }
@@ -404,7 +406,9 @@
   .content-inner {
     margin: 12px;
     padding: 14px 16px;
-    height: calc(100% - 24px);
+    /* P6.136：原来是 height: calc(100% - 24px)，卡片被强行拉满视口，
+       只有一条数据时下面一大片空白。改成随内容高度。 */
+    height: auto;
     /* 卡片比原来窄了 24px，表格列宽总和可能超出去 —— 允许横向滚动，别把右侧"操作"裁掉 */
     overflow: auto;
     background: var(--el-bg-color);
