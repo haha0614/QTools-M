@@ -397,12 +397,19 @@
   flex: 1;
   min-width: 0;
   overflow: hidden;
-  background: #fff;
+  /* P6.113：原来整块纯白，空表格时右侧/底部就是一大片白，像"没画完"。
+     改成透明，让内容以卡片形式浮在页面底色上，空白成了留白而不是空洞。 */
+  background: transparent;
 
   .content-inner {
-    padding: 12px 16px;
-    height: 100%;
-    overflow-y: auto;
+    margin: 12px;
+    padding: 14px 16px;
+    height: calc(100% - 24px);
+    /* 卡片比原来窄了 24px，表格列宽总和可能超出去 —— 允许横向滚动，别把右侧"操作"裁掉 */
+    overflow: auto;
+    background: var(--el-bg-color);
+    border: 1px solid var(--shell-border);
+    border-radius: 10px;
   }
 }
 

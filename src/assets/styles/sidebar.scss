@@ -80,6 +80,18 @@
       font-size: 13px !important;
     }
 
+    /* P6.113：选中/悬停的底色块原来贴边、直角，看着像一条色带；
+       改成 6px 圆角 + 左右 8px 留白，与卡片圆角语言一致 */
+    .el-menu-item,
+    .el-sub-menu__title {
+      border-radius: 6px;
+      margin: 2px 8px;
+    }
+
+    /* 选项内的图标与文字跟着缩进走 */
+    .el-menu-item .svg-icon,
+    .el-sub-menu__title .svg-icon { margin-left: 2px; }
+
     .el-menu-item .el-menu-tooltip__trigger {
       display: inline-block !important;
     }
