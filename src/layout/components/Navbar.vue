@@ -134,20 +134,71 @@ function lockScreen() {
   router.push('/lock')
 }
 
-function toggleTheme() {
-  /* P6.195：去掉 View Transition 的圆形揭示动画。
-     真机复现：切换时控制台报
-       TypeError: not granted
-       InvalidStateError: Transition was aborted because of invalid state. Document hidden
-     随后整页白屏（截图接口一度 30s 超时）。
-     原因是 startViewTransition 会给整页拍快照，而本站大量卡片带 backdrop-filter，
-     快照与全屏模糊合成层叠加时 Chromium 画不完整；transition 被中断时伪元素快照
-     还留在屏幕上，就是那块白。
-     现在改成瞬时切换，切换的 300ms 内用 .theme-switching 关掉模糊与过渡，
-     让重绘只做一次简单合成。少一个动画，换掉一个必现的白屏。 */
-  document.documentElement.classList.add('theme-switching')
+/* 主题切换的圆形揭示：自绘覆盖层，不再用 View Transition。
+   P6.197 —— 实测证据：startViewTransition 之后 transition.finished 从不 resolve
+   （trace 一行都没打印），Chromium 因此一直持有伪元素快照层；那层亮色快照盖在页面上
+   就是白屏，同时截图接口连续 30s 超时。
+   现在自己画：
+     1. 切换前把 .app-wrapper 的底色 + 网格柔光拷到覆盖层（等于"旧主题的一张底图"）；
+     2. 立刻切换主题（下面已经是新主题）；
+     3. 覆盖层以点击点为圆心收缩到 0 —— 旧主题从圆心退开，新主题显出来。
+   动画时长、缓动、方向都可控，没有任何快照机制参与。 */
+let themeSwitching = false
+
+function toggleTheme(event) {
+  if (themeSwitching) return
+
+  const x = event?.clientX ?? window.innerWidth / 2
+  const y = event?.clientY ?? window.innerHeight / 2
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+
+  if (reduced) {
+    settingsStore.toggleTheme()
+    return
+  }
+
+  const source = document.querySelector(".app-wrapper") || document.body
+  const cs = getComputedStyle(source)
+
+  /* 用 transform: scale 做圆形收缩（合成层动画），不用 clip-path ——
+     clip-path 每帧都要重新光栅化整块全屏区域，实测切完立刻截图 30s 拿不到帧。
+     圆盘本身按半径先画满全屏，之后只做缩放。 */
+  const diameter = Math.ceil(2 * Math.hypot(window.innerWidth, window.innerHeight))
+  const disc = document.createElement("div")
+  disc.className = "theme-wipe"
+  disc.style.width = diameter + "px"
+  disc.style.height = diameter + "px"
+  disc.style.borderRadius = "50%"
+  disc.style.left = x - diameter / 2 + "px"
+  disc.style.top = y - diameter / 2 + "px"
+  disc.style.backgroundColor = cs.backgroundColor
+  disc.style.backgroundImage = cs.backgroundImage
+  disc.style.backgroundSize = cs.backgroundSize
+  disc.style.backgroundPosition = `${diameter / 2 - x}px ${diameter / 2 - y}px`
+
+  themeSwitching = true
+  /* 切换的 460ms 内关掉模糊与过渡：全站十几处 backdrop-filter 同时换主题时
+     会一次性重建合成层，是这一下卡顿的主要来源。 */
+  document.documentElement.classList.add("theme-switching")
+  document.body.appendChild(disc)
   settingsStore.toggleTheme()
-  setTimeout(() => document.documentElement.classList.remove('theme-switching'), 300)
+
+  const done = () => {
+    disc.remove()
+    document.documentElement.classList.remove("theme-switching")
+    themeSwitching = false
+  }
+
+  requestAnimationFrame(() => {
+    const anim = disc.animate(
+      [
+        { transform: "scale(1)", opacity: 1 },
+        { transform: "scale(0)", opacity: 1 }
+      ],
+      { duration: 460, easing: "cubic-bezier(0.4, 0, 0.2, 1)", fill: "forwards" }
+    )
+    anim.finished.then(done).catch(done)
+  })
 }
 </script>
 

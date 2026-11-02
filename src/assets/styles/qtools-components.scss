@@ -452,3 +452,13 @@ html.theme-switching *::after {
 html.theme-switching .app-wrapper {
   background-attachment: scroll !important;
 }
+/* P6.197：主题切换的揭示覆盖层（见 Navbar.toggleTheme）。
+   颜色由 JS 在切换前从 .app-wrapper 拷贝成行内样式，这里只管层级与命中。 */
+.theme-wipe {
+  position: fixed;
+  z-index: 3000;
+  pointer-events: none;
+  /* 只用合成层动画（transform: scale），不碰 clip-path / 背景重绘 */
+  will-change: transform;
+  transform-origin: center center;
+}
