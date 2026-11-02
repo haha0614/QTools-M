@@ -255,8 +255,12 @@
 .el-dialog {
   border-radius: 14px;
   border: 1px solid var(--qt-glass-border);
-  background: var(--el-bg-color);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+  /* P6.156：弹窗不再是纯白板 —— 半透明表面 + 模糊，透出后面被压暗模糊的页面。
+     0.82 的白度仍然保证长表单/表格可读。 */
+  background: var(--qt-dialog-surface);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.24), inset 0 1px 0 var(--qt-glass-inner);
   overflow: hidden;
 
   .el-dialog__header {
@@ -279,12 +283,13 @@
   .el-dialog__footer {
     padding: 12px 20px;
     border-top: 1px solid var(--shell-border);
-    background: rgba(15, 23, 42, 0.015);
+    background: rgba(15, 23, 42, 0.02);
   }
 }
 
 .el-overlay {
-  background-color: rgba(15, 23, 42, 0.42);
+  /* 遮罩别压太暗：弹窗本身是半透明的，遮罩越黑弹窗越"灰"，反而脏 */
+  background-color: rgba(15, 23, 42, 0.34);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }

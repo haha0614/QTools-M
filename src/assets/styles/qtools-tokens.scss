@@ -73,6 +73,9 @@ html.dark {
   --qt-grid-line: rgba(37, 99, 235, 0.075);
 
   --qt-glass-surface: linear-gradient(152deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.34));
+  /* P6.156：弹窗表面 —— 比页面卡更实（0.82）保证长表单可读，但仍带一点通透，
+     大面积弹窗（照片选择器那种）不再是"一块死白板" */
+  --qt-dialog-surface: rgba(255, 255, 255, 0.90);
   --qt-glass-border: rgba(255, 255, 255, 0.65);
   --qt-glass-inner: rgba(255, 255, 255, 0.45);
   --qt-glass-shadow: 0 8px 24px rgba(24, 32, 48, 0.06);
@@ -99,6 +102,7 @@ html.dark {
   --qt-grid-line: rgba(255, 255, 255, 0.045);
 
   --qt-glass-surface: linear-gradient(152deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  --qt-dialog-surface: rgba(20, 21, 24, 0.86);
   --qt-glass-border: rgba(255, 255, 255, 0.12);
   --qt-glass-inner: rgba(255, 255, 255, 0.08);
   --qt-glass-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
