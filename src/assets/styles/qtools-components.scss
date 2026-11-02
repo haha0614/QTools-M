@@ -273,38 +273,41 @@
   margin: 0 auto !important;
 }
 
-/* P6.174：分段控件做成"玻璃胶囊"。
-   上一版只铺了浅灰底（主色 4.5%），在玻璃卡片上就是一块实心灰板 —— 没有材质、也不透。
-   现在：半透明白 + 自身模糊 + 内高光（与卡片同一手法），选中项为更亮的白面。 */
+/* P6.175：按钮式单选组 = 描边按钮（用户选定 A 版）。
+   白底 + 中性细边，选中转实心主色；不用容器包住，避免"盒子套盒子"。 */
 .el-radio-group {
-  padding: 2px;
-  background: rgba(255, 255, 255, 0.32);
-  backdrop-filter: blur(18px) saturate(160%);
-  -webkit-backdrop-filter: blur(18px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.55);
-  border-radius: 11px;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.75), 0 1px 2px rgba(15, 23, 42, 0.06);
+  padding: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 0;
+  box-shadow: none;
+  gap: 6px;
 }
 
 .el-radio-button__inner {
-  border: 0 !important;
-  border-radius: 9px !important;
-  background: transparent !important;
+  border: 1px solid var(--el-border-color) !important;
+  border-radius: 8px !important;
+  background: var(--el-bg-color) !important;
   box-shadow: none !important;
-  color: var(--el-text-color-secondary);
-  padding: 5px 13px;
+  color: var(--el-text-color-regular);
+  padding: 5px 14px;
   font-size: 12.5px;
   font-weight: 400;
-  transition: background .12s, color .12s;
+  transition: background .12s, color .12s, border-color .12s;
 }
 
-.el-radio-button__inner:hover { color: var(--el-text-color-primary); }
+.el-radio-button__inner:hover {
+  border-color: var(--el-color-primary-light-5) !important;
+  color: var(--el-color-primary);
+}
 
 .el-radio-button.is-active .el-radio-button__inner {
-  background: rgba(255, 255, 255, 0.92) !important;
-  color: var(--el-color-primary) !important;
-  font-weight: 600;
-  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.95) !important;
+  background: var(--el-color-primary) !important;
+  border-color: var(--el-color-primary) !important;
+  color: #fff !important;
+  font-weight: 500;
+  box-shadow: none !important;
 }
 
 /* ---------------- 弹窗 / 抽屉 ---------------- */
