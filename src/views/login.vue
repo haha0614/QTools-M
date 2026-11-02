@@ -74,6 +74,11 @@
     </section>
 
     <p class="outer-foot">{{ footerContent }}</p>
+
+    <!-- 临时对比开关：一键在「hyalite 折射」与「CSS 模糊」之间切换，确认效果后可删 -->
+    <button type="button" class="glass-switch" data-testid="glass-switch" @click="toggleGlass">
+      玻璃：{{ glassMode === 'hyalite' ? 'hyalite 折射' : 'CSS 模糊' }} ⇄
+    </button>
   </div>
 </template>
 
@@ -101,6 +106,27 @@ const showPassword = ref(false)
 
 /** 玻璃卡元素：hyalite 会给它算透镜位移图（SVG 滤镜），非 Chromium 内核自动退化为普通模糊 */
 const cardRef = ref(null)
+
+/** 临时对比开关（确认效果后连同按钮一起删） */
+const glassMode = ref('hyalite')
+const HYALITE_OPTS = { bevel: 30, thickness: 34, slope: 0.85, dispersion: 1.6, shade: 0.55, rim: 1.2, blur: 5 }
+
+function applyGlass(mode) {
+  const H = window.Hyalite
+  const el = cardRef.value
+  glassMode.value = mode
+  if (!H || !el) return
+  try {
+    if (mode === 'hyalite') H.attach(el, HYALITE_OPTS)
+    else H.detach(el)
+  } catch (e) {
+    console.warn('[login] 切换玻璃模式失败', e)
+  }
+}
+
+function toggleGlass() {
+  applyGlass(glassMode.value === 'hyalite' ? 'css' : 'hyalite')
+}
 
 const loginForm = ref({
   username: "admin",
@@ -199,14 +225,8 @@ getCookie()
  * 兜底成普通模糊，输入框/验证码/提交全部照常。</p>
  */
 onMounted(() => {
-  const H = window.Hyalite
-  const el = cardRef.value
-  if (!H || !el) return
-  try {
-    H.attach(el, { bevel: 30, thickness: 34, slope: 0.85, dispersion: 1.6, shade: 0.55, rim: 1.2, blur: 5 })
-  } catch (e) {
-    console.warn('[login] hyalite attach 失败，走 CSS 兜底', e)
-  }
+  applyGlass('hyalite')
+  if (!window.Hyalite || !window.Hyalite.supported()) glassMode.value = 'css'
 })
 
 onBeforeUnmount(() => {
@@ -315,9 +335,8 @@ onBeforeUnmount(() => {
   inset: 0;
   z-index: 0;
   border-radius: inherit;
-  background: linear-gradient(152deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.06));
-  /* hyalite 会在元素上写 --hyalite（SVG 折射滤镜）与 --hyalite-edge（棱边高光）；
-     非 Chromium 内核拿不到 --hyalite，自动退化成普通模糊，棱边高光仍由 CSS 生效 */
+  /* hyalite 把 --hyalite（SVG 折射滤镜）写在 attach 的那个元素上，
+     所以滤镜必须挂在 .glass 本体，不能挂在 ::before（挂错层会让整个面变暗） */
   backdrop-filter: var(--hyalite, blur(14px) saturate(190%) brightness(1.05));
   -webkit-backdrop-filter: var(--hyalite, blur(14px) saturate(190%) brightness(1.05));
   box-shadow:
@@ -503,6 +522,23 @@ onBeforeUnmount(() => {
 }
 
 .outer-foot { position: absolute; bottom: 14px; margin: 0; font-size: 11.5px; color: #7d8798; }
+
+.glass-switch {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 20;
+  padding: 7px 13px;
+  border-radius: 999px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-bg-color);
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+
+  &:hover { border-color: var(--el-color-primary); color: var(--el-color-primary); }
+}
 
 /* ---------------- 窄屏：竖排，封面压成一条 ---------------- */
 @media (max-width: 860px) {
