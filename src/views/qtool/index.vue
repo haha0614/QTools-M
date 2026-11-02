@@ -139,7 +139,9 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="操作" align="center" class-name="small-padding fixed-width">
+      <!-- P6.118：原来没给宽度也没固定，列宽总和超出容器时这一列被挤压，
+           右侧"详情/修改/删除"只露出半截（实测 body 1055 > wrapper 1040） -->
+      <el-table-column label="操作" align="center" width="230" fixed="right" class-name="small-padding fixed-width">
         <template #default="scope">
           <el-button link type="primary" icon="View" @click="handleViewData(scope.row)" v-hasPermi="['qtool:admin:query']">详情</el-button>
           <el-button link type="primary" icon="Edit" @click="handleUpdate(scope.row)" v-hasPermi="['qtool:admin:edit']">修改</el-button>
