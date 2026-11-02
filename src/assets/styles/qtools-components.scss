@@ -110,16 +110,16 @@
   padding: 8px 10px;
 }
 
-/* 表格容器：比卡片更"透"一些，模糊也更轻 ——
-   28px 的模糊会把背后的 48px 网格直接糊平，表格看起来就退回实心底了（用户实测反馈）。
-   这里用 6px，网格还在，只是柔化。 */
+/* 表格容器（P6.149）：向"工作室管理"那种整齐表格看齐 ——
+   关键不是更白，而是**表面要均匀**：6px 模糊下网格一半透一半不透，行与行看着深浅不一。
+   28px 把网格糊平后铺一层 56% 白，既均匀又不至于全白。 */
 .media-table {
   border: 1px solid var(--qt-glass-border);
   border-radius: 14px;
   overflow: hidden;
-  background: linear-gradient(152deg, rgba(255, 255, 255, 0.42), rgba(255, 255, 255, 0.22));
-  backdrop-filter: blur(6px) saturate(140%);
-  -webkit-backdrop-filter: blur(6px) saturate(140%);
+  background: rgba(255, 255, 255, 0.56);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
   box-shadow: inset 0 1px 0 var(--qt-glass-inner);
 }
 
@@ -207,13 +207,21 @@
   /* P6.143：透明行 + 固定列会互相打架 —— 固定列是浮在上层的一层，
      自身没底色时下层被滚动的内容会透出来（实测"操作"列与"操作原因"列文字重叠）。
      固定列一律给不透明底，牺牲一点通透换正确性。 */
+  /* 固定列要遮住下层的滚动内容，所以必须接近不透明；
+     但用纯白会和周围的半透明表格"分家"（工作室管理页的操作列就是一块突兀的白）。
+     这里用 88% 白 + 自身模糊，既挡住内容，也和卡片同一材质。 */
   .el-table-fixed-column--left,
   .el-table-fixed-column--right,
   th.el-table__cell.is-last-column,
   td.el-table__cell.is-last-column,
   th.el-table__cell.is-first-column,
   td.el-table__cell.is-first-column {
-    background-color: var(--el-bg-color);
+    /* 与容器同一条材质：同样的 56% 白 + 同样的强模糊。
+       之前给 88% 白，结果是"表格里嵌了一块更白的板"，边界一眼可见。
+       56% + 28px 模糊足以把滚动经过的文字糊成雾，同时色调与周围一致。 */
+    background-color: rgba(255, 255, 255, 0.56);
+    backdrop-filter: blur(28px) saturate(160%);
+    -webkit-backdrop-filter: blur(28px) saturate(160%);
   }
 
   /* P6.147：悬停时固定列不能用半透明的 hover 色 —— 那等于把它的实底又打开，
