@@ -4801,6 +4801,18 @@ onBeforeUnmount(() => { stopScanPolling() })
   gap: 8px;
   align-items: flex-start;
 }
+
+/* P6.159：照片选择弹窗与全站统一（头部/筛选条/缩略图卡片）。 */
+:deep(.photos-dialog .el-dialog__body) { padding: 0 0 8px; }
+.photos-head { padding: 14px 20px 12px; border-bottom: 1px solid var(--shell-border); }
+.photos-head-tip { font-size: 12px; color: var(--el-text-color-secondary); }
+.photo-filter { padding: 10px 20px; border-bottom: 1px solid var(--shell-border); }
+.photo-grid { padding: 14px 20px 4px; gap: 12px; }
+.photo-item { padding: 6px; border: 1px solid var(--shell-border); border-radius: 10px; background: rgba(255,255,255,.55); transition: border-color .12s, box-shadow .12s; }
+.photo-item:hover { border-color: var(--el-color-primary-light-5); box-shadow: var(--el-box-shadow-lighter); }
+.photo-item.picked { border-color: var(--el-color-primary); box-shadow: 0 0 0 1px var(--el-color-primary) inset; }
+.photo-item img { height: 140px; border-radius: 7px; }
+:deep(.photos-dialog .el-dialog__footer) { padding: 10px 20px; }
 </style>
 
 
