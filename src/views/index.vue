@@ -190,6 +190,7 @@ import { chartTheme } from "@/utils/chartTheme"
 import { ElMessage } from "element-plus"
 import { getStatsOverview } from "@/api/qtool/info"
 import { getMediaStats, getMediaTargetStats } from "@/api/media"
+import useSettingsStore from "@/store/modules/settings"
 
 const router = useRouter()
 
@@ -688,6 +689,25 @@ function disposeTargetChart() {
   targetChart?.dispose()
   targetChart = null
 }
+
+/* P6.180：图表只在数据到达时渲染一次，切换主题后配色不会跟着更新（暗色下仍是浅色图）。
+   这里监听 isDark：先 dispose 再重画，避免上一份 option 残留。 */
+const settingsStore = useSettingsStore()
+watch(
+  () => settingsStore.isDark,
+  async () => {
+    ;[trendChart, rankChart, mediaVideoChart, mediaPhotoChart, targetChart].forEach((c) => c && c.dispose())
+    trendChart = null
+    rankChart = null
+    mediaVideoChart = null
+    mediaPhotoChart = null
+    targetChart = null
+    await nextTick()
+    renderCharts()
+    renderMediaCharts()
+    renderTargetChart()
+  }
+)
 
 onMounted(() => {
   load()
