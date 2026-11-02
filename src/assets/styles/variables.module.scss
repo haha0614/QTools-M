@@ -9,10 +9,13 @@ $yellow: #FEC171;
 $panGreen: #30B08F;
 
 // 默认主题变量
-$menuText: #bfcbd9;
+// P6.106：侧栏底色/文字/悬停的真实来源是这几个 SCSS 变量（Sidebar/index.vue 通过
+// variables.menuBg 注入），我上一步只改了 --sidebar-bg 这个 CSS 变量 —— 而它没人引用，
+// 所以那一步是空操作。这里改的是真正生效的值。
+$menuText: rgba(255, 255, 255, 0.66);
 $menuActiveText: #409eff;
-$menuBg: #1a1f2e;
-$menuHover: #263445;
+$menuBg: #12151c;
+$menuHover: #1e232b;
 
 // 浅色主题theme-light
 $menuLightBg: #ffffff;
