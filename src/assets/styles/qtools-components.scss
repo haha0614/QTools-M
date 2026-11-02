@@ -273,6 +273,32 @@
   margin: 0 auto !important;
 }
 
+/* P6.173：按钮式单选组做成"分段控件"。
+   Element 默认是实心主色块 + 白边，看着像一排按钮；这里改成分段：
+   浅底容器 + 选中项白面 + 主色文字，与页签条同一套观感。 */
+.el-radio-group {
+  padding: 3px;
+  background: rgba(15, 23, 42, 0.045);
+  border-radius: 10px;
+}
+
+.el-radio-button__inner {
+  border: 0 !important;
+  border-radius: 8px !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--el-text-color-regular);
+  padding: 6px 14px;
+  font-weight: 400;
+}
+
+.el-radio-button.is-active .el-radio-button__inner {
+  background: var(--el-bg-color) !important;
+  color: var(--el-color-primary) !important;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12) !important;
+}
+
 /* ---------------- 弹窗 / 抽屉 ---------------- */
 /* P6.154：弹窗补齐"头/身/脚"三段 —— 原来标题和按钮都浮在白面上，
    没有分隔线、没有底衬，和卡片的语言断开。遮罩也加了轻微模糊，玻璃感延续到弹窗。 */

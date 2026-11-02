@@ -727,4 +727,24 @@ $tags-bar-height: 34px;
   min-height: calc(100vh - 34px) !important;
   overflow: auto;
 }
+
+/* P6.172：页签条与全站统一。
+   原来：未选中白底灰边、选中是若依绿 #42b983 + 一个白点 —— 与蓝色体系完全无关。
+   现在：透明底 / 悬停淡底 / 选中主色淡底 + 主色文字 + 细边，去掉绿点。 */
+.tags-view-wrapper .tags-view-item {
+  background: transparent;
+  border-color: transparent;
+  color: var(--el-text-color-regular);
+  border-radius: 8px;
+  padding: 0 10px;
+  transition: background .12s, color .12s, border-color .12s;
+}
+.tags-view-wrapper .tags-view-item:hover { background: rgba(15, 23, 42, 0.05); }
+.tags-view-container .tags-view-wrapper .tags-view-item.active {
+  background: rgba(37, 99, 235, 0.10) !important;
+  border-color: rgba(37, 99, 235, 0.22) !important;
+  color: var(--el-color-primary) !important;
+  font-weight: 600;
+}
+.tags-view-container .tags-view-wrapper .tags-view-item.active::before { content: none !important; }
 </style>
