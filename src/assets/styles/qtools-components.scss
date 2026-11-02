@@ -109,6 +109,31 @@
   background: linear-gradient(90deg, #60a5fa, #2563eb) !important;
 }
 
+/* P6.152：页面卡内的"分组块"统一材质。
+   人物卡、库根分级卡、内容审核统计卡与工具条原来各写各的（实心白 / 各有边框和圆角），
+   放在同一张玻璃卡里像几套东西。统一成：半透明白 45% + 发丝线 + 10px 圆角。 */
+.person-card,
+.rating-policy-card,
+.rv-card,
+.rv-tools {
+  background: rgba(255, 255, 255, 0.45) !important;
+  border: 1px solid var(--shell-border) !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+}
+
+/* P6.153：照片审核的缩略图原来没有任何尺寸规则，img 按原图渲染 ——
+   一行被撑到 700px 高，整页看起来"尺寸坏了"。这里给它固定尺寸 + 裁切。 */
+.rv-thumb {
+  width: 72px;
+  height: 46px;
+  display: block;
+  object-fit: cover;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+  cursor: pointer;
+}
+
 /* ---------------- 按钮 ---------------- */
 /* P6.136：plain 按钮不再用"淡色糖纸"底色。
    Element 的 is-plain 是"主色 10% 混白"，一排按钮全是浅蓝/浅绿/浅粉/浅黄，
