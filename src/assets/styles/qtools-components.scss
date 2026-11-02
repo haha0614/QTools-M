@@ -56,6 +56,54 @@
   padding: 12px 14px;
 }
 
+/* P6.141：页面内的 scoped 样式会覆盖全局，这里用 !important 把任务条也拉进同一材质 */
+.scan-panel {
+  background: var(--qt-glass-surface) !important;
+  border: 1px solid var(--qt-glass-border) !important;
+  border-radius: 14px !important;
+  box-shadow: inset 0 1px 0 var(--qt-glass-inner);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+}
+
+/* 小尺寸控件与其他控件同一圆角阶梯（预览片段那条里的小下拉、小输入） */
+.el-select--small .el-select__wrapper,
+.el-input--small .el-input__wrapper,
+.el-date-editor--small .el-input__wrapper,
+.el-input-number--small .el-input__wrapper {
+  border-radius: 8px;
+}
+
+/* 进度条：绿的 #67c23a 与蓝色体系打架，统一到主色渐变 */
+.el-progress-bar__outer { border-radius: 6px !important; }
+.el-progress-bar__inner {
+  border-radius: 6px !important;
+  background: linear-gradient(90deg, #60a5fa, #2563eb) !important;
+}
+
+/* P6.141：派生资源汇总条（预览片段 / 状态筛选）原来是一条裸条，
+   现在与其它面板同一材质，控件圆角也统一到 8px */
+.media-toolbar,
+.derive-bar {
+  background: var(--qt-glass-surface);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid var(--qt-glass-border);
+  border-radius: 14px;
+  box-shadow: inset 0 1px 0 var(--qt-glass-inner);
+}
+
+.derive-bar {
+  /* 组件自带 scoped 背景，同权重下会赢，这里必须 !important */
+  padding: 8px 12px !important;
+  margin-bottom: 12px;
+  gap: 8px;
+  background: var(--qt-glass-surface) !important;
+  border: 1px solid var(--qt-glass-border) !important;
+  border-radius: 14px !important;
+  box-shadow: inset 0 1px 0 var(--qt-glass-inner);
+}
+
 /* 工具条内部本来就自带间距，只补一点左右留白，
    给多了会把「重复文件」挤到第二行（实测 1280 宽时折行） */
 .media-toolbar {
