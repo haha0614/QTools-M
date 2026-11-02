@@ -41,6 +41,7 @@ const usePermissionStore = defineStore(
             const defaultData = JSON.parse(JSON.stringify(res.data))
             const sidebarRoutes = filterAsyncRouter(sdata)
             const rewriteRoutes = filterAsyncRouter(rdata, false, true)
+            uniquifyRouteNames(rewriteRoutes)
             const defaultRoutes = filterAsyncRouter(defaultData)
             const asyncRoutes = filterDynamicRoutes(dynamicRoutes)
             asyncRoutes.forEach(route => { router.addRoute(route) })
@@ -111,6 +112,40 @@ export function filterDynamicRoutes(routes) {
     }
   })
   return res
+}
+
+/**
+ * P6.109：给动态路由去重名字。
+ *
+ * <p>后端 getRouters 用 {@code capitalize(path)} 生成路由名，于是不同父菜单下**同名叶子**
+ * 会撞车。实例：系统管理 → 用户管理（/system/user）与 用户端 → 用户管理（/appuser/user）
+ * 路径都叫 user，两个路由的 name 都是 User；Vue Router 4 的 addRoute 遇到同名会**替换**，
+ * 后注册的 /appuser/user 顶掉了 /system/user —— 结果点"系统管理 → 用户管理"直接 404，
+ * 而 /appuser/user 正常。</p>
+ *
+ * <p>这里只改名字、不动路径：撞名时用父级路径拼一个新名字，并打一条 warn，
+ * 方便以后发现菜单配置撞车。</p>
+ */
+function uniquifyRouteNames(routes, parentPath = '') {
+  const seen = new Set()
+  const walk = (list, parent) => {
+    list.forEach(r => {
+      if (r.name) {
+        let name = r.name
+        if (seen.has(name)) {
+          const suffix = (parent ? parent + '-' : '') + r.path
+          name = 'R' + String(suffix).replace(/[^A-Za-z0-9]+/g, '')
+          console.warn('[router] 路由名重复：' + r.name + ' → ' + name + '（路径 ' + suffix + '）')
+          r.name = name
+        }
+        seen.add(name)
+      }
+      if (r.children && r.children.length) {
+        walk(r.children, parent ? parent + '-' + r.path : r.path)
+      }
+    })
+  }
+  walk(routes, parentPath)
 }
 
 export const loadView = (view) => {
