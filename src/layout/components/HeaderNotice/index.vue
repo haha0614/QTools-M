@@ -113,7 +113,7 @@ function markAllRead() {
     position: absolute;
     top: 7px;
     right: -3px;
-    background: #f56c6c;
+    background: var(--el-color-danger);
     color: #fff;
     border-radius: 10px;
     font-size: 10px;
