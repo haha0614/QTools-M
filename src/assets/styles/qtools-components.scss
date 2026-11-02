@@ -249,6 +249,15 @@
   }
 }
 
+/* P6.169：照片选择弹窗的滚动区（必须写在顶层）。
+   之前这条规则写进了 .el-dialog 的嵌套块里，编译成 .el-dialog .photos-dialog .el-dialog__body，
+   永远匹配不到；于是 body 仍带 16px 内距，筛选条离顶部空出一截。 */
+/* 注意：要和全局的 .el-dialog .el-dialog__body（同权重、后出现）竞争，这里把类名叠到三连。 */
+.el-dialog.photos-dialog .el-dialog__body { padding: 0; max-height: 62vh; overflow: auto; outline: none; }
+.el-dialog.photos-dialog .el-dialog__body::-webkit-scrollbar { width: 6px; }
+.el-dialog.photos-dialog .el-dialog__body::-webkit-scrollbar-thumb { background: var(--el-border-color); border-radius: 3px; }
+.el-dialog.photos-dialog .el-dialog__body::-webkit-scrollbar-track { background: transparent; }
+
 /* ---------------- 弹窗 / 抽屉 ---------------- */
 /* P6.154：弹窗补齐"头/身/脚"三段 —— 原来标题和按钮都浮在白面上，
    没有分隔线、没有底衬，和卡片的语言断开。遮罩也加了轻微模糊，玻璃感延续到弹窗。 */
@@ -283,7 +292,7 @@
 
   .el-dialog__body { padding: 16px 20px; }
 
-  /* P6.168：脚部不再铺那层淡灰底 —— 弹窗是玻璃，脚部一铺底就和正文分成两块；
+/* P6.168：脚部不再铺那层淡灰底 —— 弹窗是玻璃，脚部一铺底就和正文分成两块；
      只留一条发丝线（照片选择弹窗会把它也去掉，改用渐隐）。 */
   .el-dialog__footer {
     padding: 12px 20px;
