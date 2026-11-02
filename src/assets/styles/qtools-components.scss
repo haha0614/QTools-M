@@ -142,6 +142,20 @@
   }
 }
 
+/* P6.142：非树形页面（监控 / 系统工具 / 用户端）原来查询表单和表格直接铺在页面底色上，
+   与系统管理页那张"内容卡"不是一套。这里让 .app-container 自己成为那张卡，
+   树形页面（带 tree-sidebar-manage-wrap）除外，它们已有 .content-inner 卡片。 */
+.app-container:not(.tree-sidebar-manage-wrap) {
+  margin: 12px;
+  padding: 14px 16px;
+  background: var(--qt-glass-surface);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  border: 1px solid var(--qt-glass-border);
+  border-radius: 14px;
+  box-shadow: var(--qt-glass-shadow), inset 0 1px 0 var(--qt-glass-inner);
+}
+
 /* 查询区与工具栏之间一条发丝线，避免表单和按钮糊成一团 */
 .app-container .el-form--inline {
   padding-bottom: 10px;
@@ -187,6 +201,18 @@
   --el-table-bg-color: transparent;
   background-color: transparent;
   tr.el-table__row { background-color: transparent; }
+
+  /* P6.143：透明行 + 固定列会互相打架 —— 固定列是浮在上层的一层，
+     自身没底色时下层被滚动的内容会透出来（实测"操作"列与"操作原因"列文字重叠）。
+     固定列一律给不透明底，牺牲一点通透换正确性。 */
+  .el-table-fixed-column--left,
+  .el-table-fixed-column--right,
+  th.el-table__cell.is-last-column,
+  td.el-table__cell.is-last-column,
+  th.el-table__cell.is-first-column,
+  td.el-table__cell.is-first-column {
+    background-color: var(--el-bg-color);
+  }
 }
 
 /* ---------------- 弹窗 / 抽屉 ---------------- */
