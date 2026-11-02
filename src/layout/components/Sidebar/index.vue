@@ -71,6 +71,10 @@ const activeMenu = computed(() => {
 <style lang="scss" scoped>
 .sidebar-container {
   background-color: v-bind(getMenuBackground);
+  /* P6.122：外壳玻璃化 —— 底色本身已是半透明（$menuBg / $menuLightBg），这里补模糊。
+     背后必须有东西可糊：页面背景（网格 + 柔光）已挪到 .app-wrapper（layout/index.vue）。 */
+  backdrop-filter: blur(18px) saturate(140%);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
   
   .scrollbar-wrapper {
     background-color: v-bind(getMenuBackground);

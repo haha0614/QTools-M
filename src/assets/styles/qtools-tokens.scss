@@ -61,6 +61,10 @@ html.dark {
 
   /* P6.121：玻璃表面（选定方案 B）—— 卡片用半透明白 + backdrop blur，
      背景由 .app-main 铺细网格与柔光，玻璃才有东西可模糊 */
+  /* P6.122：侧栏与页签条也玻璃化 —— 它们是"外壳"，一直还是实心色块，
+     和内容区的玻璃卡放在一起就是两套材质 */
+  --tags-bg: rgba(255, 255, 255, 0.66);
+
   --qt-glow-1: rgba(99, 102, 241, 0.16);
   --qt-glow-2: rgba(34, 211, 238, 0.14);
   --qt-glow-3: rgba(219, 39, 119, 0.10);
@@ -85,6 +89,8 @@ html.dark {
   --el-color-primary-light-8: #26375f;
   --el-color-primary-light-9: #1f2b46;
   --el-color-primary-dark-2: #72a2f3;
+  --tags-bg: rgba(13, 16, 20, 0.66);
+
   --qt-glow-1: rgba(99, 102, 241, 0.20);
   --qt-glow-2: rgba(34, 211, 238, 0.14);
   --qt-glow-3: rgba(219, 39, 119, 0.12);

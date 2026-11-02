@@ -375,7 +375,10 @@ $tags-bar-height: 34px;
 .tags-view-container {
   height: $tags-bar-height;
   width: 100%;
-  background: var(--tags-bg, #fff);
+  /* P6.122：页签条和侧栏一样做成玻璃（半透明 + 模糊），不再是一块实心白 */
+  background: var(--tags-bg, rgba(255, 255, 255, 0.66));
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
   border-bottom: 1px solid var(--shell-border);
   display: flex;
   align-items: center;

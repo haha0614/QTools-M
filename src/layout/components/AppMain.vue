@@ -48,18 +48,10 @@ function addIframe() {
   width: 100%;
   position: relative;
   overflow: hidden;
-  /* P6.116：全站一直没有元素真正画页面底色 —— --el-bg-color-page 定义了却没人用，
-     所以 P6.114 的"底色压深"其实是空操作。这里补上真正的落点。
-     P6.121：选定玻璃方案 B 后，底色还要提供"可被模糊的细节"：细网格 + 三团柔光。
-     没有细节的纯色底，backdrop-filter 出来的只是磨砂白，不像玻璃。 */
-  background-color: var(--el-bg-color-page);
-  background-image:
-    radial-gradient(900px 520px at 12% 4%, var(--qt-glow-1), transparent 70%),
-    radial-gradient(820px 480px at 88% 10%, var(--qt-glow-2), transparent 70%),
-    radial-gradient(900px 560px at 45% 108%, var(--qt-glow-3), transparent 70%),
-    linear-gradient(to right, var(--qt-grid-line) 1px, transparent 1px),
-    linear-gradient(to bottom, var(--qt-grid-line) 1px, transparent 1px);
-  background-size: 100% 100%, 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+  /* P6.122：背景（网格 + 柔光）已挪到 .app-wrapper（全视口），
+     这样侧栏与页签条做 backdrop-filter 时背后才有细节可糊。
+     这里保持透明，不再自己铺底色。 */
+  background: transparent;
 }
 
 .fixed-header + .app-main {

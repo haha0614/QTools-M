@@ -71,6 +71,17 @@ function setLayout() {
   position: relative;
   height: 100%;
   width: 100%;
+  /* P6.122：页面底色与"可被模糊的细节"（细网格 + 三团柔光）挪到最外层，
+     这样侧栏、页签条做 backdrop-filter 时背后不是空白，玻璃才成立。 */
+  background-color: var(--el-bg-color-page);
+  background-image:
+    radial-gradient(900px 520px at 12% 4%, var(--qt-glow-1), transparent 70%),
+    radial-gradient(820px 480px at 88% 10%, var(--qt-glow-2), transparent 70%),
+    radial-gradient(900px 560px at 45% 108%, var(--qt-glow-3), transparent 70%),
+    linear-gradient(to right, var(--qt-grid-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--qt-grid-line) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 100% 100%, 48px 48px, 48px 48px;
+  background-attachment: fixed;
 
   &.mobile.openSidebar {
     position: fixed;
