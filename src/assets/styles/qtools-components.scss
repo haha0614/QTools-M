@@ -250,20 +250,76 @@
 }
 
 /* ---------------- 弹窗 / 抽屉 ---------------- */
+/* P6.154：弹窗补齐"头/身/脚"三段 —— 原来标题和按钮都浮在白面上，
+   没有分隔线、没有底衬，和卡片的语言断开。遮罩也加了轻微模糊，玻璃感延续到弹窗。 */
 .el-dialog {
-  border-radius: 12px;
-  border: 1px solid var(--shell-border);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.18);
+  border-radius: 14px;
+  border: 1px solid var(--qt-glass-border);
+  background: var(--el-bg-color);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
 
-  .el-dialog__header { padding: 16px 20px 8px; margin-right: 0; }
-  .el-dialog__title { font-size: 15px; font-weight: 600; }
-  .el-dialog__body { padding: 8px 20px 16px; }
-  .el-dialog__footer { padding: 0 20px 16px; }
+  .el-dialog__header {
+    padding: 14px 20px;
+    margin-right: 0;
+    border-bottom: 1px solid var(--shell-border);
+  }
+
+  .el-dialog__title { font-size: 15px; font-weight: 650; }
+
+  .el-dialog__headerbtn {
+    top: 10px;
+    right: 12px;
+    width: 32px;
+    height: 32px;
+  }
+
+  .el-dialog__body { padding: 16px 20px; }
+
+  .el-dialog__footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--shell-border);
+    background: rgba(15, 23, 42, 0.015);
+  }
+}
+
+.el-overlay {
+  background-color: rgba(15, 23, 42, 0.42);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
 }
 
 .el-drawer {
-  .el-drawer__header { margin-bottom: 12px; padding: 16px 20px 0; font-weight: 600; }
-  .el-drawer__body { padding: 0 20px 16px; }
+  /* 抽屉与弹窗同一套：头部有分隔线，身体留 16/20 */
+  .el-drawer__header {
+    margin: 0;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--shell-border);
+    font-weight: 650;
+    font-size: 15px;
+    color: var(--el-text-color-primary);
+  }
+
+  .el-drawer__body { padding: 16px 20px; }
+
+  .el-drawer__footer {
+    padding: 12px 20px;
+    border-top: 1px solid var(--shell-border);
+    background: rgba(15, 23, 42, 0.015);
+  }
+}
+
+/* 确认框（ElMessageBox）与弹窗对齐：圆角 14、头脚分隔、内容区留白 */
+.el-message-box {
+  border-radius: 14px;
+  border: 1px solid var(--qt-glass-border);
+  padding: 0;
+  overflow: hidden;
+
+  .el-message-box__header { padding: 14px 20px 12px; border-bottom: 1px solid var(--shell-border); }
+  .el-message-box__title { font-size: 15px; font-weight: 650; }
+  .el-message-box__content { padding: 16px 20px; }
+  .el-message-box__btns { padding: 12px 20px; border-top: 1px solid var(--shell-border); background: rgba(15, 23, 42, 0.015); }
 }
 
 /* ---------------- 表单控件高度 ---------------- */
