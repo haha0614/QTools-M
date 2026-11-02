@@ -3,7 +3,8 @@
     <!-- 背景装饰：4 团光斑 + 2 圈细环。细环的作用是让"玻璃后面的模糊"看得出来 -->
     <div class="bg" aria-hidden="true">
       <span class="blob b1"></span><span class="blob b2"></span><span class="blob b3"></span><span class="blob b4"></span>
-      <span class="ring ring1"></span><span class="ring ring2"></span>
+      <span class="arc a1"></span><span class="arc a2"></span><span class="arc a3"></span><span class="arc a4"></span>
+      <span class="arc a5"></span><span class="arc a6"></span><span class="arc a7"></span>
     </div>
 
     <section class="glass">
@@ -195,6 +196,13 @@ getCookie()
  *   5. 卡内再画一层放大的光斑，模拟透镜折射。
  * 不支持 backdrop-filter 的内核走 @supports 兜底（纯色板 + 正常阴影）。
  */
+/**
+ * P6.96：背景从"几团大色块"换成"细网格 + 点阵 + 多圈 1px 细弧 + 低饱和光斑"。
+ *
+ * <p>原因：backdrop-filter 只能模糊背后**已有的细节**。之前背景是几团大渐变，
+ * 模糊之后还是一模一样的几团颜色，所以卡片永远像半透明白板；
+ * 加了网格/点阵/细弧之后，卡内能看见被揉开的结构，玻璃感才成立。</p>
+ */
 .login-page {
   position: relative;
   display: flex;
@@ -203,21 +211,49 @@ getCookie()
   min-height: 100%;
   padding: 24px;
   overflow: hidden;
-  background: linear-gradient(150deg, #eef2ff 0%, #e0f2fe 46%, #eefaf3 100%);
+  background: #f6f8fc;
 }
 
 /* ---------------- 背景 ---------------- */
 .bg { position: absolute; inset: 0; z-index: 0; overflow: hidden; pointer-events: none; }
 
-.blob { position: absolute; border-radius: 50%; filter: blur(30px); }
-.b1 { width: 460px; height: 460px; left: 4%; top: 4%; background: radial-gradient(circle at 35% 35%, #a5b4fc, #4f46e5); opacity: 0.85; }
-.b2 { width: 400px; height: 400px; right: 6%; top: 10%; background: radial-gradient(circle at 60% 40%, #67e8f9, #0891b2); opacity: 0.8; }
-.b3 { width: 520px; height: 520px; left: 30%; bottom: -16%; background: radial-gradient(circle at 50% 50%, #fbcfe8, #db2777); opacity: 0.65; }
-.b4 { width: 300px; height: 300px; right: 20%; bottom: 4%; background: radial-gradient(circle at 45% 45%, #fde68a, #f59e0b); opacity: 0.6; }
+/* 细网格 */
+.bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(37, 99, 235, 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(37, 99, 235, 0.07) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
 
-.ring { position: absolute; border-radius: 50%; filter: blur(5px); }
-.ring1 { width: 560px; height: 560px; left: calc(50% - 330px); top: calc(50% - 320px); border: 10px solid rgba(99, 102, 241, 0.3); }
-.ring2 { width: 260px; height: 260px; right: 13%; top: calc(50% - 130px); border: 8px solid rgba(8, 145, 178, 0.26); }
+/* 点阵（向四周淡出，避免整屏噪点） */
+.bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(15, 23, 42, 0.16) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+  mask-image: radial-gradient(900px 640px at 50% 46%, #000 30%, transparent 78%);
+  -webkit-mask-image: radial-gradient(900px 640px at 50% 46%, #000 30%, transparent 78%);
+}
+
+.blob { position: absolute; border-radius: 50%; filter: blur(46px); }
+.b1 { width: 520px; height: 520px; left: 2%; top: -6%; background: radial-gradient(circle, #c7d2fe, #818cf8); opacity: 0.75; }
+.b2 { width: 460px; height: 460px; right: 0; top: 2%; background: radial-gradient(circle, #a5f3fc, #22d3ee); opacity: 0.6; }
+.b3 { width: 560px; height: 560px; left: 26%; bottom: -22%; background: radial-gradient(circle, #fbcfe8, #f472b6); opacity: 0.5; }
+.b4 { width: 360px; height: 360px; right: 18%; bottom: -6%; background: radial-gradient(circle, #fde68a, #fbbf24); opacity: 0.42; }
+
+/* 七圈 1px 细弧：这是"玻璃里能看到结构"的关键，不要删 */
+.arc { position: absolute; border-radius: 50%; border: 1px solid rgba(37, 99, 235, 0.16); }
+.a1 { width: 760px; height: 760px; left: calc(50% - 460px); top: calc(50% - 440px); }
+.a2 { width: 660px; height: 660px; left: calc(50% - 410px); top: calc(50% - 390px); border-color: rgba(13, 148, 136, 0.16); }
+.a3 { width: 560px; height: 560px; left: calc(50% - 360px); top: calc(50% - 340px); border-color: rgba(219, 39, 119, 0.14); }
+.a4 { width: 460px; height: 460px; left: calc(50% - 310px); top: calc(50% - 290px); border-color: rgba(37, 99, 235, 0.13); }
+.a5 { width: 360px; height: 360px; left: calc(50% - 260px); top: calc(50% - 240px); border-color: rgba(13, 148, 136, 0.13); }
+.a6 { width: 900px; height: 900px; left: calc(50% - 700px); top: calc(50% - 200px); border-color: rgba(15, 23, 42, 0.06); }
+.a7 { width: 820px; height: 820px; right: calc(50% - 760px); bottom: calc(50% - 260px); border-color: rgba(15, 23, 42, 0.06); }
 
 /* ---------------- 玻璃卡 ---------------- */
 .glass {
@@ -247,8 +283,8 @@ getCookie()
   z-index: 0;
   border-radius: inherit;
   background: linear-gradient(152deg, rgba(255, 255, 255, 0.44), rgba(255, 255, 255, 0.18));
-  backdrop-filter: blur(10px) saturate(200%) brightness(1.04) contrast(1.02);
-  -webkit-backdrop-filter: blur(10px) saturate(200%) brightness(1.04) contrast(1.02);
+  backdrop-filter: blur(14px) saturate(190%) brightness(1.05);
+  -webkit-backdrop-filter: blur(14px) saturate(190%) brightness(1.05);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.6),
     inset 0 1.5px 0 rgba(255, 255, 255, 0.95),
@@ -437,12 +473,22 @@ getCookie()
 
 /* ---------------- 暗色：黑玻璃 ---------------- */
 html.dark .login-page { background: #0a0c12; }
-html.dark .b1 { opacity: 0.5; }
-html.dark .b2 { opacity: 0.45; }
-html.dark .b3 { opacity: 0.35; }
-html.dark .b4 { opacity: 0.3; }
-html.dark .ring1 { border-color: rgba(129, 140, 248, 0.24); }
-html.dark .ring2 { border-color: rgba(34, 211, 238, 0.2); }
+
+html.dark .bg::before {
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+
+html.dark .bg::after { background-image: radial-gradient(circle, rgba(255, 255, 255, 0.12) 1px, transparent 1.2px); }
+
+html.dark .b1 { opacity: 0.45; }
+html.dark .b2 { opacity: 0.4; }
+html.dark .b3 { opacity: 0.3; }
+html.dark .b4 { opacity: 0.24; }
+html.dark .arc { border-color: rgba(255, 255, 255, 0.09); }
+html.dark .a2, html.dark .a5 { border-color: rgba(94, 234, 212, 0.12); }
+html.dark .a3 { border-color: rgba(244, 114, 182, 0.1); }
 
 html.dark .glass { box-shadow: 0 32px 80px rgba(0, 0, 0, 0.6); }
 
