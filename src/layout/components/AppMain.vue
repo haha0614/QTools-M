@@ -48,6 +48,9 @@ function addIframe() {
   width: 100%;
   position: relative;
   overflow: hidden;
+  /* P6.116：全站一直没有元素真正画页面底色 —— --el-bg-color-page 定义了却没人用，
+     所以 P6.114 的"底色压深"其实是空操作。这里补上真正的落点。 */
+  background: var(--el-bg-color-page);
 }
 
 .fixed-header + .app-main {

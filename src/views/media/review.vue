@@ -1480,6 +1480,28 @@ onMounted(() => {
   color: var(--el-text-color-regular);
 }
 .rv-rbtns button:hover { border-color: var(--el-color-primary); color: var(--el-color-primary); }
+
+/* P6.115：把"工具栏 + 表格"合并成一张卡片，与媒体库/系统管理页同一种落地方式
+   —— 之前工具条和表格直接摊在页面底色上，和已经卡片化的页面放在一起像两套东西。 */
+.rv-tools {
+  margin: 0 0 0;
+  padding: 8px 10px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--shell-border);
+  border-bottom: 0;
+  border-radius: 10px 10px 0 0;
+}
+
+.review-page :deep(.rv-table) {
+  border: 1px solid var(--shell-border);
+  border-radius: 0 0 10px 10px;
+  overflow: hidden;
+}
+
+/* 没有 .rv-tools 的模式（内容审核主表）：表格自己就是一张完整的卡 */
+.review-page :deep(.el-table):not(.rv-table) {
+  border-radius: 10px;
+}
 </style>
 
 
