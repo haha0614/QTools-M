@@ -59,6 +59,18 @@ html.dark {
   --el-color-primary-light-9: #e9effd;
   --el-color-primary-dark-2: #1e4fbc;
 
+  /* P6.121：玻璃表面（选定方案 B）—— 卡片用半透明白 + backdrop blur，
+     背景由 .app-main 铺细网格与柔光，玻璃才有东西可模糊 */
+  --qt-glow-1: rgba(99, 102, 241, 0.16);
+  --qt-glow-2: rgba(34, 211, 238, 0.14);
+  --qt-glow-3: rgba(219, 39, 119, 0.10);
+  --qt-grid-line: rgba(37, 99, 235, 0.05);
+
+  --qt-glass-surface: linear-gradient(152deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.52));
+  --qt-glass-border: rgba(255, 255, 255, 0.65);
+  --qt-glass-inner: rgba(255, 255, 255, 0.45);
+  --qt-glass-shadow: 0 8px 24px rgba(24, 32, 48, 0.06);
+
   /* 主色的 12%/16% 透明版本，用于选中态底纹（原本用 color-mix 的地方也可复用） */
   --qt-primary-weak: rgba(37, 99, 235, 0.12);
   --qt-primary-weaker: rgba(37, 99, 235, 0.08);
@@ -73,6 +85,16 @@ html.dark {
   --el-color-primary-light-8: #26375f;
   --el-color-primary-light-9: #1f2b46;
   --el-color-primary-dark-2: #72a2f3;
+  --qt-glow-1: rgba(99, 102, 241, 0.20);
+  --qt-glow-2: rgba(34, 211, 238, 0.14);
+  --qt-glow-3: rgba(219, 39, 119, 0.12);
+  --qt-grid-line: rgba(255, 255, 255, 0.045);
+
+  --qt-glass-surface: linear-gradient(152deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  --qt-glass-border: rgba(255, 255, 255, 0.12);
+  --qt-glass-inner: rgba(255, 255, 255, 0.08);
+  --qt-glass-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+
   --qt-primary-weak: rgba(79, 139, 240, 0.18);
   --qt-primary-weaker: rgba(79, 139, 240, 0.1);
 }
