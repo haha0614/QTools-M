@@ -4802,16 +4802,20 @@ onBeforeUnmount(() => { stopScanPolling() })
   align-items: flex-start;
 }
 
-/* P6.159：照片选择弹窗与全站统一（头部/筛选条/缩略图卡片）。 */
+/* P6.159 / P6.161：照片选择弹窗 —— 与页面同一套浅色语言。
+   要点：弹窗实色浅底（半透明叠遮罩会变灰板）；网格干净、不要每格都描边；
+   文件名默认隐藏，悬停才出现，避免整屏重复文件名。 */
 :deep(.photos-dialog .el-dialog__body) { padding: 0 0 8px; }
 .photos-head { padding: 14px 20px 12px; border-bottom: 1px solid var(--shell-border); }
 .photos-head-tip { font-size: 12px; color: var(--el-text-color-secondary); }
-.photo-filter { padding: 10px 20px; border-bottom: 1px solid var(--shell-border); }
-.photo-grid { padding: 14px 20px 4px; gap: 12px; }
-.photo-item { padding: 6px; border: 1px solid var(--shell-border); border-radius: 10px; background: rgba(255,255,255,.55); transition: border-color .12s, box-shadow .12s; }
-.photo-item:hover { border-color: var(--el-color-primary-light-5); box-shadow: var(--el-box-shadow-lighter); }
-.photo-item.picked { border-color: var(--el-color-primary); box-shadow: 0 0 0 1px var(--el-color-primary) inset; }
-.photo-item img { height: 140px; border-radius: 7px; }
+.photo-filter { padding: 10px 20px; border-bottom: 1px solid var(--shell-border); background: rgba(37, 99, 235, .035); }
+.photo-grid { padding: 16px 20px 6px; gap: 14px; }
+.photo-item { padding: 0; border: 0; background: transparent; border-radius: 8px; }
+.photo-item img { height: 140px; border-radius: 8px; }
+.photo-item:hover img { box-shadow: 0 0 0 2px var(--el-color-primary-light-5); }
+.photo-item.picked img { box-shadow: 0 0 0 2px var(--el-color-primary); }
+.photo-name { opacity: 0; transition: opacity .12s; font-size: 11px; }
+.photo-item:hover .photo-name { opacity: 1; }
 :deep(.photos-dialog .el-dialog__footer) { padding: 10px 20px; }
 </style>
 

@@ -73,9 +73,10 @@ html.dark {
   --qt-grid-line: rgba(37, 99, 235, 0.075);
 
   --qt-glass-surface: linear-gradient(152deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.34));
-  /* P6.156：弹窗表面 —— 比页面卡更实（0.82）保证长表单可读，但仍带一点通透，
-     大面积弹窗（照片选择器那种）不再是"一块死白板" */
-  --qt-dialog-surface: rgba(255, 255, 255, 0.90);
+  /* P6.161：弹窗改回"实色浅底"。
+     半透明弹窗叠在压暗的遮罩上只会变成灰板 —— 大面积弹窗里尤其明显，
+     和页面的浅色卡完全不是一套。可读性与一致性都要，就选实色。 */
+  --qt-dialog-surface: var(--el-bg-color);
   --qt-glass-border: rgba(255, 255, 255, 0.65);
   --qt-glass-inner: rgba(255, 255, 255, 0.45);
   --qt-glass-shadow: 0 8px 24px rgba(24, 32, 48, 0.06);
