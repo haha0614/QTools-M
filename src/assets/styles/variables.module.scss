@@ -14,7 +14,7 @@ $panGreen: #30B08F;
 // 所以那一步是空操作。这里改的是真正生效的值。
 $menuText: rgba(255, 255, 255, 0.66);
 $menuActiveText: #2563eb;
-$menuBg: rgba(18, 21, 28, 0.88);
+$menuBg: rgba(18, 21, 28, 0.94);
 $menuHover: #1e232b;
 
 // 浅色主题theme-light
@@ -80,7 +80,7 @@ $--color-info: #909399;
   --sidebar-text: rgba(255, 255, 255, 0.66);
   --menu-hover: rgba(255, 255, 255, 0.06);
 
-  --navbar-bg: #ffffff;
+  --navbar-bg: rgba(255, 255, 255, 0.66);
   --navbar-text: #303133;
   
   /* splitpanes default-theme 变量 */
@@ -114,7 +114,7 @@ html.dark {
   --menu-active-text: #{$menuActiveText};
 
   /* 顶部导航栏 */
-  --navbar-bg: #0d1014;
+  --navbar-bg: rgba(13, 16, 20, 0.72);
   --navbar-text: #ffffff;
   --navbar-hover: rgba(255, 255, 255, 0.06);
 

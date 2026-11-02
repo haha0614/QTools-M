@@ -380,6 +380,7 @@ $tags-bar-height: 34px;
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
   border-bottom: 1px solid var(--shell-border);
+  box-shadow: inset 0 1px 0 var(--qt-glass-inner);
   display: flex;
   align-items: center;
   overflow: hidden;

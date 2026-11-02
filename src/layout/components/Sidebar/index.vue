@@ -75,6 +75,8 @@ const activeMenu = computed(() => {
      背后必须有东西可糊：页面背景（网格 + 柔光）已挪到 .app-wrapper（layout/index.vue）。 */
   backdrop-filter: blur(18px) saturate(140%);
   -webkit-backdrop-filter: blur(18px) saturate(140%);
+  /* 右侧一条内高光，让侧栏边缘像玻璃的棱，而不是被裁掉的一块色板 */
+  box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.06);
   
   .scrollbar-wrapper {
     background-color: v-bind(getMenuBackground);

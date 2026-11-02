@@ -186,8 +186,13 @@ async function toggleTheme(event) {
   overflow: hidden;
   position: relative;
   background: var(--navbar-bg);
+  /* P6.123：顶栏跟侧栏/页签条统一玻璃化（之前漏了它，是最上面一条实心白） */
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
   /* P6.104：投影 → 发丝线，避免每个区块都浮起来 */
   border-bottom: 1px solid var(--shell-border);
+  /* P6.123：玻璃要有"棱"才读得出材质 —— 顶沿一条内高光，和卡片同一手法 */
+  box-shadow: inset 0 1px 0 var(--qt-glass-inner);
   display: flex;
   align-items: center;
   // padding: 0 8px;
