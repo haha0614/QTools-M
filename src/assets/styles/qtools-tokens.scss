@@ -21,8 +21,10 @@
   --el-border-color-lighter: rgba(15, 23, 42, 0.07);
   --el-border-color-extra-light: rgba(15, 23, 42, 0.05);
 
-  /* 页面底色：与登录页一致（#f6f8fc），内容卡片浮在其上 */
-  --el-bg-color-page: #f6f8fc;
+  /* 页面底色（P6.114）：#f6f8fc 比卡片只暗一点点，浅色下几乎看不出边界，
+     卡片像直接贴在白纸上。压深到 #eef1f6，卡片与留白的关系才立得住。 */
+  --el-bg-color-page: #eef1f6;
+  --shell-bg: #eef1f6;
 
   /* 字号：EP 默认 14，这里 13.5，与登录页 13/13.5 的阶梯对齐 */
   --el-font-size-base: 13.5px;
