@@ -258,6 +258,21 @@
 .el-dialog.photos-dialog .el-dialog__body::-webkit-scrollbar-thumb { background: var(--el-border-color); border-radius: 3px; }
 .el-dialog.photos-dialog .el-dialog__body::-webkit-scrollbar-track { background: transparent; }
 
+/* P6.171：弹窗垂直居中。
+   EP 默认 margin-top: 15vh，大弹窗就贴在偏上位置，下方空一大片。 */
+.el-overlay-dialog {
+  display: flex;
+  /* safe center：内容比视口高时自动退回顶部对齐，不会被 flex 居中裁掉上半截 */
+  align-items: safe center;
+  justify-content: center;
+  padding: 24px 0;
+  overflow: auto;
+}
+
+.el-dialog {
+  margin: 0 auto !important;
+}
+
 /* ---------------- 弹窗 / 抽屉 ---------------- */
 /* P6.154：弹窗补齐"头/身/脚"三段 —— 原来标题和按钮都浮在白面上，
    没有分隔线、没有底衬，和卡片的语言断开。遮罩也加了轻微模糊，玻璃感延续到弹窗。 */
