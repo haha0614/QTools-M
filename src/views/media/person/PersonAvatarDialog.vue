@@ -52,8 +52,9 @@ const MEDIA_BASE = import.meta.env.VITE_APP_BASE_API || ''
 const src = (path) => mediaSrc(path, MEDIA_BASE)
 
 /** 一次最多列多少本相册（滚到底为止），每本相册最多渲染多少张图 */
-const ALBUM_PAGE_SIZE = 12
-const PHOTO_PER_ALBUM = 24
+const ALBUM_PAGE_SIZE = 200
+/** 单册最多渲染多少张（超大相册只提示截断，不做分页按钮——那个在滚动区外没人看得见） */
+const PHOTO_HARD_CAP = 600
 /** 「从视频画面」一次列多少条视频（横向缩略条，滚到底为止） */
 const VIDEO_PAGE_SIZE = 24
 
@@ -144,9 +145,10 @@ async function loadPhotos(albumId) {
   try {
     const body = unwrap(await getAlbumPhotos(key))
     const photos = Array.isArray(body) ? body : Array.isArray(body && body.rows) ? body.rows : []
+    // P6.08：以前这里 slice(0,24)，一本 73 张的册只显示 24 张且没有任何提示（用户反馈）。
+    // 现在保留全部行、只限量渲染，网格下方给「显示更多」。
     const rows = photos
       .filter((p) => p && !p.missing)
-      .slice(0, PHOTO_PER_ALBUM)
       .map((p) => {
         const seq = Number(p.seq != null ? p.seq : p.i)
         if (!Number.isFinite(seq) || seq < 0) return { seq: -1, url: '', preview: '' }
@@ -855,7 +857,7 @@ onBeforeUnmount(() => {
                 data-role="avatar-photo-grid"
               >
                 <button
-                  v-for="photo in photoState[String(album.id)].rows"
+                  v-for="photo in photoState[String(album.id)].rows.slice(0, PHOTO_HARD_CAP)"
                   :key="album.id + '-' + photo.seq"
                   type="button"
                   class="pa-cell"
@@ -870,6 +872,15 @@ onBeforeUnmount(() => {
               <div v-else class="pa-state pa-state-sm">
                 <button class="pa-btn pa-btn-sm" type="button" @click="loadPhotos(String(album.id))">加载这本相册</button>
               </div>
+              <!-- P6.08：不再默认只给 24 张（那个「显示更多」在滚动区外，用户根本看不到）。
+                   现在全量渲染 + loading="lazy"，只对超大册提示截断。 -->
+              <p
+                v-if="photoState[String(album.id)] && photoState[String(album.id)].rows.length > PHOTO_HARD_CAP"
+                class="pa-more"
+                data-role="avatar-photo-cap"
+              >
+                本册共 {{ photoState[String(album.id)].rows.length }} 张，为保持面板流畅只渲染前 {{ PHOTO_HARD_CAP }} 张
+              </p>
             </section>
             <p v-if="albums.length < albumTotal" class="pa-more">仅列出前 {{ albums.length }} 本（共 {{ albumTotal }} 本）</p>
           </template>
@@ -1155,7 +1166,7 @@ onBeforeUnmount(() => {
   border: 2px solid transparent;
   border-radius: 6px;
   background: var(--el-fill-color-light);
-  aspect-ratio: 1;
+  aspect-ratio: 3 / 2;
   overflow: hidden;
   cursor: pointer;
 }
@@ -1172,7 +1183,7 @@ onBeforeUnmount(() => {
 .pa-cell img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 
@@ -1229,7 +1240,7 @@ onBeforeUnmount(() => {
 .pa-preview img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 
@@ -1419,7 +1430,7 @@ onBeforeUnmount(() => {
 .pa-video-cover img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   display: block;
 }
 

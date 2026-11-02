@@ -315,7 +315,7 @@ defineExpose({
     border-bottom: 1px solid var(--notice-border-color, #ebeef5);
     font-size: 16px;
     font-weight: 600;
-    color: var(--notice-title-color, #303133);
+    color: var(--notice-title-color, var(--el-text-color-primary));
   }
 
   .el-drawer__body {

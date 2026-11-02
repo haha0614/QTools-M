@@ -141,6 +141,25 @@
           </el-select>
         </template>
       </el-table-column>
+      <!-- P6.26：可见内容上限（owner 不受限） -->
+      <el-table-column label="可见内容" width="118">
+        <template #default="{ row }">
+          <!-- P6.28：owner 不受上限限制，显示「不受限」而不是一个锁死的档位（会被误会成只给到指导级） -->
+          <el-tag v-if="(row.role || 'user') === 'owner'" size="small" type="info" :data-testid="'maxrating-' + row.username">不受限</el-tag>
+          <el-select
+            v-else
+            :model-value="row.maxRating || 'guidance'"
+            size="small"
+            class="role-select"
+            :data-testid="'maxrating-' + row.username"
+            @change="(v) => handleMaxRatingChange(row, v)"
+          >
+            <el-option label="大众级" value="general" />
+            <el-option label="家长指导" value="guidance" />
+            <el-option label="限制级" value="restricted" />
+          </el-select>
+        </template>
+      </el-table-column>
       <el-table-column label="收藏数" width="58" align="right">
         <template #default="{ row }">
           <span class="num" :data-testid="'favorite-' + row.username">{{ showCount(row.favoriteCount) }}</span>
@@ -471,7 +490,8 @@ import {
   setAppUserStatus,
   batchApproveAppUsers,
   batchBanAppUsers,
-  batchUnbanAppUsers
+  batchUnbanAppUsers,
+  updateAppUserMaxRating
 } from '@/api/appUser'
 
 const { proxy } = getCurrentInstance()
@@ -661,6 +681,22 @@ function roleText(role) {
  *   · 唯一 owner 降级由后端 400 拒绝，原文（含「请先把另一个账号设为站长」）直接弹出来。
  * select 用 :model-value + @change 而不是 v-model：取消 / 失败时不必回滚本地值。
  */
+/** P6.26：改「可见内容上限」——下拉即生效，不需要二次确认（失败不写回本地） */
+async function handleMaxRatingChange(row, value) {
+  if (!row || !value || row.maxRating === value) return
+  try {
+    await updateAppUserMaxRating(row.id, value)
+    row.maxRating = value
+    ElMessage.success('「' + row.username + '」可见内容已设为' + maxRatingText(value))
+  } catch (e) {
+    ElMessage.error('设置失败：' + ((e && e.message) || '请求失败'))
+  }
+}
+
+function maxRatingText(v) {
+  return v === 'general' ? '大众级' : v === 'guidance' ? '家长指导级' : '限制级'
+}
+
 async function handleRoleChange(row, role) {
   if (!row || !role || row.role === role) return
   const next =
@@ -1291,3 +1327,4 @@ onBeforeUnmount(() => {
   }
 }
 </style>
+

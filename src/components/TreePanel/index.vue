@@ -631,14 +631,14 @@ onBeforeUnmount(() => {
 
 .collapse-button {
   font-size: 20px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
   transition: all 0.2s;
   
   &:hover {
-    color: #409eff;
+    color: var(--el-color-primary);
     background: #ecf5ff;
   }
 }
@@ -656,7 +656,7 @@ onBeforeUnmount(() => {
   .tree-title {
     font-size: 13px;
     font-weight: 600;
-    color: #303133;
+    color: var(--el-text-color-primary);
     white-space: nowrap;
     overflow: hidden;
     display: flex;
@@ -664,7 +664,7 @@ onBeforeUnmount(() => {
     gap: 5px;
 
     .el-icon {
-      color: #409eff;
+      color: var(--el-color-primary);
       font-size: 16px;
     }
   }
@@ -679,14 +679,14 @@ onBeforeUnmount(() => {
 
 .tree-action-icon {
   font-size: 20px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
   transition: all 0.2s;
 
   &:hover {
-    color: #409eff;
+    color: var(--el-color-primary);
     background: #ecf5ff;
   }
 }
@@ -735,11 +735,11 @@ onBeforeUnmount(() => {
 
   :deep(.el-tree-node.is-current > .el-tree-node__content) {
     background: #e6f0fd;
-    color: #409eff;
+    color: var(--el-color-primary);
     font-weight: 600;
 
     .node-icon {
-      color: #409eff !important;
+      color: var(--el-color-primary) !important;
     }
   }
 }

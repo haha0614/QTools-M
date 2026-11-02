@@ -39,6 +39,7 @@ $--color-primary: #2563EB;
 $--color-success: #67C23A;
 $--color-warning: #E6A23C;
 $--color-danger: #F56C6C;
+/* 注意：这条通过 :export 导出给 JS，且可能被 SCSS 函数使用 —— 保持十六进制，不要换成 var() */
 $--color-info: #909399;
 
 :export {
@@ -81,7 +82,7 @@ $--color-info: #909399;
   --menu-hover: rgba(255, 255, 255, 0.06);
 
   --navbar-bg: rgba(255, 255, 255, 0.66);
-  --navbar-text: #303133;
+  --navbar-text: var(--el-text-color-primary);
   
   /* splitpanes default-theme 变量 */
   --splitpanes-default-bg: #ffffff;
@@ -239,11 +240,11 @@ html.dark {
     &:not(.tags-view-container--chrome) .tags-view-wrapper .tags-view-item.active {
       background-color: var(--tags-card-active-bg) !important;
       border-color: var(--tags-card-active-border) !important;
-      color: var(--current-color, #409eff) !important;
+      color: var(--current-color, var(--el-color-primary)) !important;
       box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
 
       &::before {
-        background: var(--current-color, #409eff) !important;
+        background: var(--current-color, var(--el-color-primary)) !important;
       }
     }
   }
@@ -430,7 +431,7 @@ html.dark {
   /* 通知公告详情抽屉暗黑模式变量 */
   --notice-title-color: var(--el-text-color-primary);
   --notice-meta-color: var(--el-text-color-secondary);
-  --notice-meta-icon-color: var(--el-text-color-placeholder, #606266);
+  --notice-meta-icon-color: var(--el-text-color-placeholder, var(--el-text-color-regular));
   --notice-border-color: var(--el-border-color);
   --notice-body-bg: var(--el-bg-color-overlay);
   --notice-body-shadow: 0 1px 4px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.04);

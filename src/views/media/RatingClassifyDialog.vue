@@ -247,7 +247,7 @@ watch(() => props.modelValue, (visible) => {
 <style scoped>
 .rc-lead {
   margin: 0 0 10px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   font-size: 13px;
   line-height: 1.7;
 }
@@ -263,13 +263,13 @@ watch(() => props.modelValue, (visible) => {
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 .rc-limit {
   width: 110px;
 }
 .rc-note {
-  color: #909399;
+  color: var(--el-text-color-secondary);
   font-size: 12px;
 }
 .rc-alert {
@@ -280,7 +280,7 @@ watch(() => props.modelValue, (visible) => {
   align-items: center;
   gap: 8px;
   padding: 16px 0;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 .rc-stats {
   display: grid;
@@ -295,7 +295,7 @@ watch(() => props.modelValue, (visible) => {
 }
 .rc-stat-head {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 .rc-stat-body {
   display: flex;
@@ -303,18 +303,18 @@ watch(() => props.modelValue, (visible) => {
   gap: 6px;
   font-size: 14px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
   margin: 4px 0;
 }
 .rc-stat-foot {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 .rc-sub {
   margin: 14px 0 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
 }
 .rc-table {
   margin-bottom: 4px;

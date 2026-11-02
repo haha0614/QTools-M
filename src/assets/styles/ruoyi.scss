@@ -169,7 +169,7 @@
 /** 表格更多操作下拉样式 */
 .el-table .el-dropdown-link {
   cursor: pointer;
-  color: #409EFF;
+  color: var(--el-color-primary);
   margin-left: 10px;
 }
 
@@ -249,7 +249,7 @@
     margin-bottom: 6px;
     padding: 8px 12px 6px;
     font-size: 15px;
-    color: #303133;
+    color: var(--el-text-color-primary);
     background: #f8f8f8;
   }
   .section-header {
@@ -270,7 +270,7 @@
     .info-label {
       flex-shrink: 0;
       width: 200px;
-      color: #606266;
+      color: var(--el-text-color-regular);
       font-size: 13px;
       line-height: 1.6;
       padding-top: 4px;
@@ -279,7 +279,7 @@
     }
     .info-value {
       flex: 1;
-      color: #303133;
+      color: var(--el-text-color-primary);
       font-size: 13px;
       font-weight: 500;
       line-height: 1.6;
@@ -310,7 +310,7 @@
   color: #333;
   border-bottom: 1px solid #ebeef5;
 }
-.detail-card-title i { margin-right: 5px; color: #409EFF; }
+.detail-card-title i { margin-right: 5px; color: var(--el-color-primary); }
 
 .detail-row { padding: 0 8px; }
 
@@ -326,10 +326,10 @@
 .detail-label {
   flex-shrink: 0;
   width: 72px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-right: 12px;
 }
-.detail-value { color: #303133; flex: 1; word-break: break-all; }
+.detail-value { color: var(--el-text-color-primary); flex: 1; word-break: break-all; }
 .detail-location { color: #999; font-size: 12px; }
 
 .method-tag {
@@ -368,7 +368,7 @@
 }
 .code-action .el-button:hover { 
   background: #ffffff;
-  border-color: #409EFF;
+  border-color: var(--el-color-primary);
 }
 .code-pre {
   margin: 0;

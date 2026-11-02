@@ -388,7 +388,7 @@ $tags-bar-height: 34px;
   $btn-width: 28px;
   $btn-color: #71717a;
   $btn-hover-bg: #f0f2f5;
-  $btn-hover-color: #303133;
+  $btn-hover-color: var(--el-text-color-primary);
   $btn-disabled-color: #c0c4cc;
   $divider: 1px solid var(--shell-border);
 
@@ -540,7 +540,7 @@ $tags-bar-height: 34px;
     --chrome-strip-bg: #ffffff;
     --chrome-strip-border: var(--el-border-color-lighter, #e4e7ed);
     --chrome-tab-active-bg: var(--el-color-primary-light-9);
-    --chrome-tab-text: var(--el-text-color-regular, #606266);
+    --chrome-tab-text: var(--el-text-color-regular, var(--el-text-color-regular));
     --chrome-tab-text-active: var(--el-color-primary);
     --chrome-wing-r: 10px;
 
@@ -625,7 +625,7 @@ $tags-bar-height: 34px;
         &:hover:not(.active) {
           background: var(--el-fill-color-light, #f5f7fa) !important;
           border-radius: 6px 6px 0 0;
-          color: var(--el-text-color-primary, #303133);
+          color: var(--el-text-color-primary, var(--el-text-color-primary));
         }
 
         &.active {

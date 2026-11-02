@@ -266,7 +266,7 @@ watch(() => props.modelValue, (visible) => {
 <style scoped>
 .tn-lead {
   margin: 0 0 10px;
-  color: #606266;
+  color: var(--el-text-color-regular);
   font-size: 13px;
   line-height: 1.7;
 }
@@ -278,7 +278,7 @@ watch(() => props.modelValue, (visible) => {
   margin-bottom: 10px;
 }
 .tn-note {
-  color: #909399;
+  color: var(--el-text-color-secondary);
   font-size: 12px;
 }
 .tn-alert {
@@ -288,7 +288,7 @@ watch(() => props.modelValue, (visible) => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   font-size: 13px;
   padding: 24px 0;
 }
@@ -305,24 +305,24 @@ watch(() => props.modelValue, (visible) => {
 }
 .tn-stat-head {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-bottom: 4px;
 }
 .tn-stat-body {
   font-size: 13px;
-  color: #303133;
+  color: var(--el-text-color-primary);
   line-height: 1.7;
 }
 .tn-stat-foot {
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   margin-top: 4px;
   word-break: break-all;
 }
 .tn-sub {
   font-size: 13px;
   font-weight: 600;
-  color: #303133;
+  color: var(--el-text-color-primary);
   margin: 12px 0 6px;
 }
 .tn-table {
@@ -348,13 +348,13 @@ watch(() => props.modelValue, (visible) => {
   flex: 0 0 56px;
   font-size: 12.5px;
   font-weight: 600;
-  color: #606266;
+  color: var(--el-text-color-regular);
 }
 .tn-facet-count {
   width: 34px;
   flex: 0 0 34px;
   font-size: 12px;
-  color: #909399;
+  color: var(--el-text-color-secondary);
 }
 .tn-facet-names {
   display: flex;
@@ -373,14 +373,14 @@ watch(() => props.modelValue, (visible) => {
   overflow: auto;
   font-size: 12px;
   line-height: 1.6;
-  color: #606266;
+  color: var(--el-text-color-regular);
   background: #fafafa;
   padding: 8px;
   border-radius: 4px;
 }
 .tn-foot-note {
   float: left;
-  color: #909399;
+  color: var(--el-text-color-secondary);
   font-size: 12px;
   line-height: 32px;
 }

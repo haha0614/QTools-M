@@ -133,3 +133,12 @@ export function batchUnbanAppUsers(ids) {
     data: { ids }
   })
 }
+
+// P6.26：设置账号的可见内容上限（general / guidance / restricted；owner 不受限）
+export function updateAppUserMaxRating(id, maxRating) {
+  return request({
+    url: BASE + '/' + id + '/max-rating',
+    method: 'put',
+    data: { maxRating }
+  })
+}
