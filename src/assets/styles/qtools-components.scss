@@ -438,3 +438,17 @@ html.dark .el-button--primary:not(.is-plain):not(.is-link):not(.is-text) {
 /* 卡片里再套的小卡保持实心，避免玻璃叠玻璃把数字糊掉 */
 .el-card .el-card,
 .stat-card .stat-card { background: var(--el-bg-color) !important; backdrop-filter: none; }
+/* P6.194：主题切换期间的降级 —— 见 Navbar.toggleTheme。
+   全屏 backdrop-filter + View Transition 的 clip-path 会让 Chromium 画不完整（白屏）。
+   切换的 900ms 内关掉模糊、固定背景与过渡，结束后自动恢复。 */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+html.theme-switching .app-wrapper {
+  background-attachment: scroll !important;
+}

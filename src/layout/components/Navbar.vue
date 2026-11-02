@@ -134,44 +134,20 @@ function lockScreen() {
   router.push('/lock')
 }
 
-async function toggleTheme(event) {
-  const x = event?.clientX || window.innerWidth / 2
-  const y = event?.clientY || window.innerHeight / 2
-  const wasDark = settingsStore.isDark
-
-  const isReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  const isSupported = document.startViewTransition && !isReducedMotion
-
-  if (!isSupported) {
-    settingsStore.toggleTheme()
-    return
-  }
-
-  try {
-    const transition = document.startViewTransition(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 10))
-      settingsStore.toggleTheme()
-      await nextTick()
-    })
-    await transition.ready
-
-    const endRadius = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
-    const clipPath = [`circle(0px at ${x}px ${y}px)`, `circle(${endRadius}px at ${x}px ${y}px)`]
-    document.documentElement.animate(
-      {
-        clipPath: !wasDark ? [...clipPath].reverse() : clipPath
-      }, {
-        duration: 650,
-        easing: "cubic-bezier(0.4, 0, 0.2, 1)",
-        fill: "forwards",
-        pseudoElement: !wasDark ? "::view-transition-old(root)" : "::view-transition-new(root)"
-      }
-    )
-    await transition.finished
-  } catch (error) {
-    console.warn("View transition failed, falling back to immediate toggle:", error)
-    settingsStore.toggleTheme()
-  }
+function toggleTheme() {
+  /* P6.195：去掉 View Transition 的圆形揭示动画。
+     真机复现：切换时控制台报
+       TypeError: not granted
+       InvalidStateError: Transition was aborted because of invalid state. Document hidden
+     随后整页白屏（截图接口一度 30s 超时）。
+     原因是 startViewTransition 会给整页拍快照，而本站大量卡片带 backdrop-filter，
+     快照与全屏模糊合成层叠加时 Chromium 画不完整；transition 被中断时伪元素快照
+     还留在屏幕上，就是那块白。
+     现在改成瞬时切换，切换的 300ms 内用 .theme-switching 关掉模糊与过渡，
+     让重绘只做一次简单合成。少一个动画，换掉一个必现的白屏。 */
+  document.documentElement.classList.add('theme-switching')
+  settingsStore.toggleTheme()
+  setTimeout(() => document.documentElement.classList.remove('theme-switching'), 300)
 }
 </script>
 
