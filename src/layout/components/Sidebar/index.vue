@@ -75,9 +75,12 @@ const activeMenu = computed(() => {
      P6.124 翻车的真正原因不是"侧栏不该玻璃"，而是**它背后有网格**：
      48px 网格被 blur 成横向亮带。现在网格在左侧 200px 内已被 mask 淡出，
      侧栏背后只剩平滑柔光，backdrop-filter 出来就是干净的水玻璃。 */
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-  background-image: linear-gradient(180deg, rgba(255, 255, 255, 0.07), transparent 220px);
+  backdrop-filter: blur(3px) saturate(150%);
+  -webkit-backdrop-filter: blur(3px) saturate(150%);
+  /* P6.127：这里不再叠白色渐变。
+     上一版是 rgba 白 .07 → transparent 220px，在固定像素处收尾，
+     叠在半透明底上会形成一条可见的分界（用户截图 y≈200 那条）。
+     现在纵向变化只由背后那层深色面板的渐变提供，天然平滑。 */
   box-shadow:
     inset -1px 0 0 rgba(255, 255, 255, 0.08),
     inset 0 1px 0 rgba(255, 255, 255, 0.10);

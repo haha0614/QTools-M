@@ -92,11 +92,26 @@ function setLayout() {
       linear-gradient(to right, var(--qt-grid-line) 1px, transparent 1px),
       linear-gradient(to bottom, var(--qt-grid-line) 1px, transparent 1px);
     background-size: 48px 48px, 48px 48px;
-    -webkit-mask-image: linear-gradient(to right, transparent 0, transparent 184px, #000 244px);
-    mask-image: linear-gradient(to right, transparent 0, transparent 184px, #000 244px);
+    /* P6.132：网格不再在侧栏后面淡出 —— 让侧栏"透出"它才是真的透明感。
+       过去糊成横条是因为 blur 18-20px，这里侧栏只留 3px 轻模糊。 */
   }
 
-  /* P6.129：侧栏改为浅色后，背后那层深色面板不再需要 —— 已删除。 */
+  /* P6.132：侧栏背后垫一层"平滑的浅色渐变"。
+     侧栏是半透明白（rgba(255,255,255,.62)），但如果背后是单一浅色，
+     透明就看不出来 —— 玻璃的"透"必须由背后的明暗变化体现，
+     而这块背景又不能有高频细节（网格会被 blur 糊成条纹，见 P6.124）。
+     所以用大面积平滑渐变：顶部偏冷、底部偏灰。 */
+  &::after {
+    content: '';
+    position: fixed;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 184px;
+    pointer-events: none;
+    z-index: 0;
+    background: linear-gradient(180deg, #c2d1ee 0%, #d3ddef 42%, #e2e7f0 100%);
+  }
 
   &.mobile.openSidebar {
     position: fixed;

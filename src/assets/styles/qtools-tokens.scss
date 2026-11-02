@@ -23,7 +23,9 @@
 
   /* 页面底色（P6.114）：#f6f8fc 比卡片只暗一点点，浅色下几乎看不出边界，
      卡片像直接贴在白纸上。压深到 #eef1f6，卡片与留白的关系才立得住。 */
-  --el-bg-color-page: #eef1f6;
+  /* P6.133：页面底色压深 + 卡片更透。原来页面 #eef1f6 + 卡片白到 0.72，
+     整屏几乎都是白的（vision_colors 实测主色 #f8f8f8 占 26%）。 */
+  --el-bg-color-page: #e2e8f3;
   --shell-bg: #eef1f6;
 
   /* 字号：EP 默认 14，这里 13.5，与登录页 13/13.5 的阶梯对齐 */
@@ -68,9 +70,9 @@ html.dark {
   --qt-glow-1: rgba(99, 102, 241, 0.16);
   --qt-glow-2: rgba(34, 211, 238, 0.14);
   --qt-glow-3: rgba(219, 39, 119, 0.10);
-  --qt-grid-line: rgba(37, 99, 235, 0.05);
+  --qt-grid-line: rgba(37, 99, 235, 0.075);
 
-  --qt-glass-surface: linear-gradient(152deg, rgba(255, 255, 255, 0.72), rgba(255, 255, 255, 0.52));
+  --qt-glass-surface: linear-gradient(152deg, rgba(255, 255, 255, 0.58), rgba(255, 255, 255, 0.34));
   --qt-glass-border: rgba(255, 255, 255, 0.65);
   --qt-glass-inner: rgba(255, 255, 255, 0.45);
   --qt-glass-shadow: 0 8px 24px rgba(24, 32, 48, 0.06);
