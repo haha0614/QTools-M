@@ -151,13 +151,29 @@ function easeOutCubic(t) {
    注意不能读 body 的 background —— 本项目只有 .app-wrapper 铺了底色，
    body/html 是透明的，读出来是 rgba(0,0,0,0)，铺上去就是白底板（正好复现白屏）。
    这里直接读 token 变量。 */
-function readDarkPageBg() {
+/* 取某个主题下 .app-wrapper 的完整背景（底色 + 柔光 + 网格）。
+   只取纯色会让遮罩外变成一块"死黑"，看起来就是黑屏；
+   把网格柔光一起拷过来，暗色那边才像真实的暗色页面。 */
+function readSurface(wrapper, forceDark) {
   const root = document.documentElement
   const had = root.classList.contains("dark")
-  root.classList.add("dark")
-  const v = getComputedStyle(root).getPropertyValue("--el-bg-color-page").trim()
-  if (!had) root.classList.remove("dark")
-  return v || "#0b0d10"
+  if (forceDark) root.classList.add("dark")
+  const cs = getComputedStyle(wrapper)
+  const surface = {
+    color: cs.backgroundColor || "#0b0d10",
+    image: cs.backgroundImage,
+    size: cs.backgroundSize,
+    attachment: cs.backgroundAttachment
+  }
+  if (forceDark && !had) root.classList.remove("dark")
+  return surface
+}
+
+function paintUnderlay(el, surface) {
+  el.style.backgroundColor = surface.color
+  el.style.backgroundImage = surface.image === "none" ? "" : surface.image
+  el.style.backgroundSize = surface.size
+  el.style.backgroundAttachment = "fixed"
 }
 
 function toggleTheme(event) {
@@ -176,13 +192,13 @@ function toggleTheme(event) {
   }
 
   const maxR = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
-  /* 两个方向的"遮罩外"都是暗色：收方向是切过去后的暗色，放方向是切之前的暗色。 */
-  const darkBg = readDarkPageBg()
+  /* 遮罩外要露出来的那一侧：收方向是"切过去后的深色"，放方向是"切之前的深色" —— 都是深色。 */
+  const darkSurface = readSurface(wrapper, true)
 
   themeSwitching = true
   root.classList.add("theme-switching")
-  root.style.backgroundColor = darkBg
-  document.body.style.backgroundColor = darkBg
+  paintUnderlay(root, darkSurface)
+  paintUnderlay(document.body, darkSurface)
 
   const setMask = (radius) => {
     const v = `radial-gradient(circle ${radius}px at ${x}px ${y}px, #000 99%, transparent 100%)`
@@ -202,8 +218,10 @@ function toggleTheme(event) {
   const start = performance.now()
   const tick = (now) => {
     const t = Math.min(1, (now - start) / WIPE_MS)
-    const p = easeOutCubic(t)
-    const radius = wasDark ? maxR * p : maxR * (1 - p)
+    /* 收方向用"慢起快收"（t³）：圆在前半程保持较大，最后才收干净 ——
+       线性的感觉是一开始就塌成一小块，看起来像黑屏。
+       放方向仍用 easeOut，张开时先快后稳。 */
+    const radius = wasDark ? maxR * easeOutCubic(t) : maxR * (1 - t * t * t)
 
     setMask(radius)
 
@@ -218,8 +236,12 @@ function toggleTheme(event) {
     wrapper.style.maskImage = ""
     wrapper.style.webkitMaskImage = ""
     document.body.style.backgroundColor = ""
-    root.style.backgroundColor = ""
-    document.body.style.backgroundColor = ""
+    for (const el of [root, document.body]) {
+      el.style.backgroundColor = ""
+      el.style.backgroundImage = ""
+      el.style.backgroundSize = ""
+      el.style.backgroundAttachment = ""
+    }
     root.classList.remove("theme-switching")
     themeSwitching = false
   }
