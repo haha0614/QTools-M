@@ -1,0 +1,41 @@
+/**
+ * P6.107 · 全站视觉 token（统一设计语言的第一层）
+ *
+ * 为什么从 Element Plus 的变量下手：后台 90% 的观感来自 EP 的默认值——
+ * 默认圆角 4px、边框是实心灰 #dcdfe6、字号 14px、卡片带投影。
+ * 登录页用的是另一套语言：圆角 10/12/14、边框是 1px 半透明发丝线、
+ * 字号阶梯 20/14/13/12、几乎不用投影。
+ *
+ * 这里只改"结构类"变量（圆角/边框/底色/字号），不动主色——
+ * 主色要不要统一成登录页那种蓝，需要单独确认（会改动全站按钮颜色）。
+ */
+
+:root {
+  /* 圆角：输入框/按钮 8，小控件 6，卡片由各自样式给 10 */
+  --el-border-radius-base: 8px;
+  --el-border-radius-small: 6px;
+
+  /* 边框：实心灰 → 半透明发丝线（和登录页 .glass 的边框同一套） */
+  --el-border-color: rgba(15, 23, 42, 0.12);
+  --el-border-color-light: rgba(15, 23, 42, 0.09);
+  --el-border-color-lighter: rgba(15, 23, 42, 0.07);
+  --el-border-color-extra-light: rgba(15, 23, 42, 0.05);
+
+  /* 页面底色：与登录页一致（#f6f8fc），内容卡片浮在其上 */
+  --el-bg-color-page: #f6f8fc;
+
+  /* 字号：EP 默认 14，这里 13.5，与登录页 13/13.5 的阶梯对齐 */
+  --el-font-size-base: 13.5px;
+
+  /* 投影只留极淡一层，避免"每个区块都浮起来" */
+  --el-box-shadow-light: 0 1px 2px rgba(16, 24, 40, 0.04);
+}
+
+html.dark {
+  --el-border-color: rgba(255, 255, 255, 0.14);
+  --el-border-color-light: rgba(255, 255, 255, 0.10);
+  --el-border-color-lighter: rgba(255, 255, 255, 0.08);
+  --el-border-color-extra-light: rgba(255, 255, 255, 0.06);
+  --el-bg-color-page: #0b0d10;
+  --el-box-shadow-light: 0 1px 2px rgba(0, 0, 0, 0.35);
+}

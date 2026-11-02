@@ -4,6 +4,8 @@
 @use './sidebar.scss';
 @use './btn.scss';
 @use './ruoyi.scss';
+/* P6.107：全站 token 放在最后引入，覆盖前面的 EP 默认变量 */
+@use './qtools-tokens.scss';
 
 body {
   height: 100%;
