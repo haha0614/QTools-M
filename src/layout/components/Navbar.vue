@@ -243,20 +243,27 @@ async function toggleTheme(event) {
       outline: none;
     }
 
+    /* P6.190：右侧图标簇统一热区 —— 原来每个图标 padding 8px、行高撑满 50px，
+       悬停变色是一整条竖条，而且图标之间没有节奏。改成 32×32 圆角热区。 */
     .right-menu-item {
-      display: inline-block;
-      padding: 0 8px;
-      height: 100%;
-      font-size: 18px;
-      color: #5a5e66;
-      vertical-align: text-bottom;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      margin-left: 2px;
+      border-radius: 8px;
+      font-size: 17px;
+      color: var(--el-text-color-regular);
+      vertical-align: middle;
 
       &.hover-effect {
         cursor: pointer;
         transition: background 0.3s;
 
         &:hover {
-          background: rgba(0, 0, 0, 0.025);
+          background: rgba(15, 23, 42, 0.06);
+          color: var(--el-text-color-primary);
         }
       }
 
@@ -274,7 +281,13 @@ async function toggleTheme(event) {
       }
     }
 
+    /* P6.190：功能图标与账号区之间加一条发丝线，账号区自成一块 */
     .avatar-container {
+      margin-left: 8px;
+      padding-left: 10px;
+      border-left: 1px solid var(--shell-border);
+      width: auto;
+      padding-right: 2px;
       margin-right: 0px;
       padding-right: 0px;
 
@@ -291,12 +304,20 @@ async function toggleTheme(event) {
           border-radius: 50%;
         }
 
-        .user-nickname{
-          position: relative;
-          left: 0px;
-          bottom: 10px;
-          font-size: 14px;
-          font-weight: bold;
+        /* P6.190：原来是 14px 粗体 + relative 偏移（bottom:10px），
+           和 30px 头像不在一条基线上；改成常规字重、居中显示，窄屏隐藏只留头像。 */
+        .user-nickname {
+          font-size: 13px;
+          font-weight: 500;
+          color: var(--el-text-color-primary);
+          max-width: 96px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        @media (max-width: 1400px) {
+          .user-nickname { display: none; }
         }
 
         i {
