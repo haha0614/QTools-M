@@ -68,6 +68,7 @@
 import { getCache } from '@/api/monitor/cache'
 import * as echarts from 'echarts'
 import { chartTheme } from '@/utils/chartTheme'
+import useSettingsStore from '@/store/modules/settings'
 
 const cache = ref([])
 const commandstats = ref(null)
@@ -97,6 +98,9 @@ function getList() {
           roseType: "radius",
           radius: [15, 95],
           center: ["50%", "38%"],
+          /* P6.179：默认 label 是深灰，暗色下几乎看不见 */
+          label: { color: theme.sub },
+          labelLine: { lineStyle: { color: theme.line } },
           data: response.data.commandStats,
           animationEasing: "cubicInOut",
           animationDuration: 1000
@@ -115,7 +119,16 @@ function getList() {
           type: "gauge",
           min: 0,
           max: 1000,
+          /* P6.179：仪表盘原来完全用 ECharts 默认色（深灰刻度 + 黑字），
+             暗色模式下一片糊。这里全部改走 chartTheme()。 */
+          axisLine: { lineStyle: { color: [[1, theme.line]] } },
+          splitLine: { lineStyle: { color: theme.line } },
+          axisLabel: { color: theme.sub },
+          axisTick: { lineStyle: { color: theme.line } },
+          pointer: { itemStyle: { color: theme.palette[0] } },
+          title: { color: theme.sub },
           detail: {
+            color: theme.text,
             formatter: cache.value.info.used_memory_human
           },
           data: [
@@ -133,6 +146,10 @@ function getList() {
     })
   })
 }
+
+/* P6.179：图是一次性渲染的，切换主题后必须重画，否则暗色下仍是浅色图 */
+const settingsStore = useSettingsStore()
+watch(() => settingsStore.isDark, () => getList())
 
 getList()
 </script>
