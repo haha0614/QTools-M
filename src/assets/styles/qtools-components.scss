@@ -201,10 +201,10 @@
   td.el-table__cell.is-last-column,
   th.el-table__cell.is-first-column,
   td.el-table__cell.is-first-column {
-    /* 与容器同一条材质：同样的 56% 白 + 同样的强模糊。
-       之前给 88% 白，结果是"表格里嵌了一块更白的板"，边界一眼可见。
-       56% + 28px 模糊足以把滚动经过的文字糊成雾，同时色调与周围一致。 */
-    background-color: rgba(255, 255, 255, 0.56);
+    /* P6.151：固定列降到 30% 白 + 强模糊。
+       固定列是浮层，必须遮挡横向滚动的内容，但白度越高越像"贴了一块板"；
+       30% + 28px 模糊：滑过的文字被糊成雾团，色调贴近周围。 */
+    background-color: rgba(255, 255, 255, 0.30);
     backdrop-filter: blur(28px) saturate(160%);
     -webkit-backdrop-filter: blur(28px) saturate(160%);
   }
