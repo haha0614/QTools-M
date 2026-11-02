@@ -92,8 +92,8 @@ function setLayout() {
       linear-gradient(to right, var(--qt-grid-line) 1px, transparent 1px),
       linear-gradient(to bottom, var(--qt-grid-line) 1px, transparent 1px);
     background-size: 48px 48px, 48px 48px;
-    -webkit-mask-image: linear-gradient(to right, transparent 0, transparent 200px, #000 260px);
-    mask-image: linear-gradient(to right, transparent 0, transparent 200px, #000 260px);
+    -webkit-mask-image: linear-gradient(to right, transparent 0, transparent 184px, #000 244px);
+    mask-image: linear-gradient(to right, transparent 0, transparent 184px, #000 244px);
   }
 
   /* P6.126：侧栏背后垫一层深色面板。
@@ -106,7 +106,7 @@ function setLayout() {
     left: 0;
     top: 0;
     bottom: 0;
-    width: 200px;
+    width: 184px;
     pointer-events: none;
     z-index: 0;
     background: linear-gradient(180deg, #1c2230 0%, #141821 52%, #0f1218 100%);

@@ -74,23 +74,38 @@
       overflow: hidden !important;
       text-overflow: ellipsis !important;
       white-space: nowrap !important;
-      height: 44px !important;
-      line-height: 44px !important;
-      /* P6.104：菜单字号统一 13px（与登录页/内容区同一套字号阶梯） */
-      font-size: 13px !important;
+      /* P6.128：菜单改为紧凑密度 —— 行高 44→34、字号 13→12.5、图标与文字间距收紧，
+         8 条一级菜单不再撑满整列，视觉上"有呼吸"而不是"空又挤" */
+      height: 34px !important;
+      line-height: 34px !important;
+      font-size: 12.5px !important;
+      letter-spacing: 0.2px;
     }
 
     /* P6.113：选中/悬停的底色块原来贴边、直角，看着像一条色带；
        改成 6px 圆角 + 左右 8px 留白，与卡片圆角语言一致 */
     .el-menu-item,
     .el-sub-menu__title {
-      border-radius: 6px;
-      margin: 2px 8px;
+      border-radius: 7px;
+      margin: 1px 8px;
+      padding-left: 12px !important;
     }
 
     /* 选项内的图标与文字跟着缩进走 */
     .el-menu-item .svg-icon,
-    .el-sub-menu__title .svg-icon { margin-left: 2px; }
+    .el-sub-menu__title .svg-icon {
+      margin-left: 0;
+      margin-right: 9px;
+    }
+
+    /* P6.128：折叠箭头从视觉噪音降为提示 —— 缩小、降透明度 */
+    .el-sub-menu__icon-arrow {
+      font-size: 11px !important;
+      right: 8px !important;
+      opacity: 0.35;
+      transition: transform .2s, opacity .2s;
+    }
+    .el-sub-menu.is-opened > .el-sub-menu__title .el-sub-menu__icon-arrow { opacity: 0.65; }
 
     .el-menu-item .el-menu-tooltip__trigger {
       display: inline-block !important;
@@ -133,16 +148,24 @@
       box-shadow: none;
       border-right: 1px solid var(--shell-border);
 
+      /* P6.128：选中态从"整块蓝底"改成"淡蓝底 + 左侧 2px 主色细条"。
+         整块蓝是最土的一处：它把视线全吸走，且和内容区的主色按钮打架。 */
       .el-menu-item.is-active {
         position: relative;
+        color: #8fb4ff !important;
+        background-color: rgba(37, 99, 235, 0.14) !important;
 
         &::before {
           content: '';
           position: absolute;
-          inset: 0;
-          background-color: var(--current-color-dark-bg, rgba(64, 158, 255, 0.2));
+          left: -8px;
+          top: 50%;
+          width: 3px;
+          height: 16px;
+          transform: translateY(-50%);
+          border-radius: 0 3px 3px 0;
+          background-color: #3b82f6;
           pointer-events: none;
-          z-index: 1;
         }
       }
 
@@ -182,16 +205,21 @@
       }
 
       .el-menu-item.is-active {
-        color: var(--current-color, #409eff) !important;
+        color: #2563eb !important;
         position: relative;
+        background-color: rgba(37, 99, 235, 0.09) !important;
 
         &::before {
           content: '';
           position: absolute;
-          inset: 0;
-          background-color: var(--current-color-light, #ecf5ff);
+          left: -8px;
+          top: 50%;
+          width: 3px;
+          height: 16px;
+          transform: translateY(-50%);
+          border-radius: 0 3px 3px 0;
+          background-color: #2563eb;
           pointer-events: none;
-          z-index: 1;
         }
       }
 

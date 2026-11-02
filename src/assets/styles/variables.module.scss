@@ -12,7 +12,7 @@ $panGreen: #30B08F;
 // P6.106：侧栏底色/文字/悬停的真实来源是这几个 SCSS 变量（Sidebar/index.vue 通过
 // variables.menuBg 注入），我上一步只改了 --sidebar-bg 这个 CSS 变量 —— 而它没人引用，
 // 所以那一步是空操作。这里改的是真正生效的值。
-$menuText: rgba(255, 255, 255, 0.66);
+$menuText: rgba(255, 255, 255, 0.78);
 $menuActiveText: #2563eb;
 $menuBg: rgba(18, 21, 28, 0.72);
 $menuHover: #1e232b;
@@ -24,7 +24,7 @@ $menuLightText: #303133;
 $menuLightActiveText: #2563eb;
 
 // 基础变量
-$base-sidebar-width: 200px;
+$base-sidebar-width: 184px;
 $sideBarWidth: 200px;
 
 // 菜单暗色变量
