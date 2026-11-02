@@ -24,8 +24,8 @@
     left: 0;
     z-index: 1001;
     overflow: hidden;
-    -webkit-box-shadow: 2px 0 6px rgba(0,21,41,.35);
-    box-shadow: 0px 0px 8px 0px rgba(0, 0, 0, 0.1);
+    /* P6.104：投影换成 1px 发丝线，和登录页/内容区的分割语言一致 */
+    border-right: 1px solid var(--shell-border);
 
     // reset element-ui css
     .horizontal-collapse-transition {

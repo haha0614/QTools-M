@@ -67,11 +67,16 @@ $--color-info: #909399;
 
 // CSS变量定义
 :root {
+  /* P6.104：全站统一的"发丝线"与外壳底色（与登录页同一套语言） */
+  --shell-border: rgba(15, 23, 42, 0.08);
+  --shell-bg: #fbfbfd;
+  --shell-surface: #ffffff;
+
   /* 亮色模式变量 */
-  --sidebar-bg: #{$menuBg};
-  --sidebar-text: #{$menuText};
-  --menu-hover: #{$menuHover};
-  
+  --sidebar-bg: #12151c;
+  --sidebar-text: rgba(255, 255, 255, 0.66);
+  --menu-hover: rgba(255, 255, 255, 0.06);
+
   --navbar-bg: #ffffff;
   --navbar-text: #303133;
   
@@ -95,19 +100,23 @@ html.dark {
   /* primary */
   --primary-bg: #18212b;
 
+  --shell-border: rgba(255, 255, 255, 0.08);
+  --shell-bg: #0b0d10;
+  --shell-surface: #141414;
+
   /* 侧边栏 */
-  --sidebar-bg: #141414;
-  --sidebar-text: #ffffff;
-  --menu-hover: #2d2d2d;
+  --sidebar-bg: #0d1014;
+  --sidebar-text: rgba(255, 255, 255, 0.7);
+  --menu-hover: rgba(255, 255, 255, 0.07);
   --menu-active-text: #{$menuActiveText};
 
   /* 顶部导航栏 */
-  --navbar-bg: #141414;
+  --navbar-bg: #0d1014;
   --navbar-text: #ffffff;
-  --navbar-hover: #141414;
+  --navbar-hover: rgba(255, 255, 255, 0.06);
 
   /* 标签栏 */
-  --tags-bg: #141414;
+  --tags-bg: #0d1014;
   --tags-item-bg: #1d1e1f;
   --tags-item-border: #303030;
   --tags-item-text: #d0d0d0;

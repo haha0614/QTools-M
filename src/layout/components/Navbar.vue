@@ -186,7 +186,8 @@ async function toggleTheme(event) {
   overflow: hidden;
   position: relative;
   background: var(--navbar-bg);
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  /* P6.104：投影 → 发丝线，避免每个区块都浮起来 */
+  border-bottom: 1px solid var(--shell-border);
   display: flex;
   align-items: center;
   // padding: 0 8px;

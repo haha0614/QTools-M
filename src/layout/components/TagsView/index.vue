@@ -376,7 +376,7 @@ $tags-bar-height: 34px;
   height: $tags-bar-height;
   width: 100%;
   background: var(--tags-bg, #fff);
-  border-bottom: 1px solid var(--tags-item-border, #d8dce5);
+  border-bottom: 1px solid var(--shell-border);
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -386,7 +386,7 @@ $tags-bar-height: 34px;
   $btn-hover-bg: #f0f2f5;
   $btn-hover-color: #303133;
   $btn-disabled-color: #c0c4cc;
-  $divider: 1px solid var(--tags-item-border, #d8dce5);
+  $divider: 1px solid var(--shell-border);
 
   .tags-nav-btn {
     flex-shrink: 0;

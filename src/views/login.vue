@@ -174,6 +174,9 @@ function getCode() {
   })
 }
 
+getCode()
+getCookie()
+
 function getCookie() {
   const username = Cookies.get("username")
   const password = Cookies.get("password")
@@ -186,16 +189,6 @@ function getCookie() {
 }
 
 
-/**
- * 液态玻璃（hyalite 0.5.0，MIT，单文件无依赖）。
- *
- * <p>它按元素的真实尺寸/圆角算一张位移图，交给 SVG 滤镜，再通过 backdrop-filter: url() 让
- * 浏览器弯**卡片背后真实的背景**——这是 CSS 做不到的"折射"。参数按登录卡尺寸调过：
- * bevel 30 / thickness 34 在 860×500 的卡上边缘弯曲可见且不糊；shade/rim 给棱边明暗与高光。</p>
- *
- * <p>失败不阻断登录：拿不到 Hyalite 或内核不支持时，CSS 里的 var(--hyalite, blur(...))
- * 兜底成普通模糊，输入框/验证码/提交全部照常。</p>
- */
 
 </script>
 
