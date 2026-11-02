@@ -362,13 +362,15 @@ onMounted(async () => {
 /* canvas 的尺寸由库按元素 rect 写 px，这里不要再覆盖成 100%（会量出 0 高） */
 .glass-canvas :deep(canvas) { display: block; }
 
-/* WebGL 画布就绪后把 CSS 模糊层让开，避免两层叠加发灰 */
-.glass-webgl::before {
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
-  background: none !important;
-  box-shadow: none !important;
-}
+/**
+ * 画布就绪后淡入，而不是把 CSS 模糊层一把关掉。
+ *
+ * <p>原来切 glass-webgl 时会同时移除 ::before 的模糊与底色，用户看到的是
+ * "先一张柔和卡，1 秒后突然换一张折射卡"的跳变（两次截图对比明显）。
+ * 现在 CSS 玻璃始终在底下，画布用 450ms 淡入覆盖，视觉上是渐变而不是闪替。</p>
+ */
+.glass-canvas { opacity: 0; transition: opacity 0.45s ease; }
+.glass-webgl .glass-canvas { opacity: 1; }
 
 .glass {
   position: relative;
