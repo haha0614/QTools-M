@@ -1030,8 +1030,9 @@ const bigImgRef = ref(null)
 const bigFitW = ref(0)
 
 function onBigImgLoad() {
-  // 只在 100% 档量基数：放大后再量会把放大值当成基数，越滚越大
-  if (bigZoom.value > 1) return
+  /* 只在 100% 档量基数：放大后再量会把放大值当成基数，越滚越大；
+     缩小档带 transform，getBoundingClientRect 返回的是缩放后的宽度，同样不能量。 */
+  if (bigZoom.value !== 1) return
   const el = bigImgRef.value
   const w = el && el.getBoundingClientRect ? el.getBoundingClientRect().width : 0
   if (w > 0) bigFitW.value = w
@@ -1039,10 +1040,22 @@ function onBigImgLoad() {
 
 const bigImgStyle = computed(() => {
   const z = bigZoom.value
-  if (z <= 1) {
+  if (z === 1) {
     // P6.188：容器固定 68vh，图却被允许到 72vh —— 底部会被裁掉一截。
     // 100% 档改为跟随容器高度。
     return { maxWidth: '100%', maxHeight: '100%', width: 'auto' }
+  }
+  if (z < 1) {
+    /* P6.189：原来 z <= 1 一律返回"适配容器"的样式 —— 于是 50% 和 100% 长得一样，
+       提示写着 50% 但图片一点没缩小。缩小档用 transform（不影响布局与滚动），
+       并且仍然保留适配约束作为基准尺寸。 */
+    return {
+      maxWidth: '100%',
+      maxHeight: '100%',
+      width: 'auto',
+      transform: 'scale(' + z + ')',
+      transformOrigin: 'center center'
+    }
   }
   const base = bigFitW.value
   if (base > 0) {
