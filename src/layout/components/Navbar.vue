@@ -238,6 +238,8 @@ async function toggleTheme(event) {
     display: flex;
     align-items: center;
     margin-left: auto;
+    /* 账号块右侧留 8px，否则头像贴窗口边缘 */
+    padding-right: 8px;
 
     &:focus {
       outline: none;
@@ -281,26 +283,27 @@ async function toggleTheme(event) {
       }
     }
 
-    /* P6.190：功能图标与账号区之间加一条发丝线，账号区自成一块 */
+    /* P6.191：账号区重写 —— 上一版把 .right-menu-item 的 32×32 固定热区套到了账号块上，
+       又叠了 margin-top/right 的旧偏移，结果头像贴着窗口右边缘、比图标低 4px。
+       这里给账号块自己的尺寸与内距，头像与昵称用 flex 居中对齐。 */
     .avatar-container {
-      margin-left: 8px;
-      padding-left: 10px;
-      border-left: 1px solid var(--shell-border);
       width: auto;
-      padding-right: 2px;
-      margin-right: 0px;
-      padding-right: 0px;
+      height: 34px;
+      margin-left: 8px;
+      padding: 0 4px 0 10px;
+      border-left: 1px solid var(--shell-border);
 
       .avatar-wrapper {
-        margin-top: 10px;
-        right: 8px;
-        position: relative;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        height: 100%;
 
         .user-avatar {
           cursor: pointer;
-          width: 30px;
-          height: 30px;
-          margin-right: 8px;
+          width: 28px;
+          height: 28px;
+          margin: 0;
           border-radius: 50%;
         }
 
