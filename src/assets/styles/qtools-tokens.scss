@@ -39,3 +39,38 @@ html.dark {
   --el-bg-color-page: #0b0d10;
   --el-box-shadow-light: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
+
+/* ---------------------------------------------------------------------------
+ * P6.108 · 主色统一到 #2563eb（与登录页按钮同色）
+ *
+ * 不能只改 --el-color-primary：Element Plus 的 light-3/5/7/8/9 与 dark-2 在构建期
+ * 由 SCSS 从 $--color-primary(#409eff) 算出来，只覆盖主色会出现"深蓝按钮 + 浅蓝边框"
+ * 的错配。所以这里把整个色阶按同一公式重算：
+ *   light-N = mix(白, 主色, N*10%)   dark-2 = mix(黑, 主色, 20%)
+ * ------------------------------------------------------------------------- */
+:root {
+  --el-color-primary: #2563eb;
+  --el-color-primary-light-3: #6692f1;
+  --el-color-primary-light-5: #92b1f5;
+  --el-color-primary-light-7: #bed1f9;
+  --el-color-primary-light-8: #d3e0fb;
+  --el-color-primary-light-9: #e9effd;
+  --el-color-primary-dark-2: #1e4fbc;
+
+  /* 主色的 12%/16% 透明版本，用于选中态底纹（原本用 color-mix 的地方也可复用） */
+  --qt-primary-weak: rgba(37, 99, 235, 0.12);
+  --qt-primary-weaker: rgba(37, 99, 235, 0.08);
+}
+
+html.dark {
+  /* 暗色下主色略提亮，保证在深底上的可读性（同 EP 的做法） */
+  --el-color-primary: #4f8bf0;
+  --el-color-primary-light-3: #3f6ec0;
+  --el-color-primary-light-5: #35579a;
+  --el-color-primary-light-7: #2b4174;
+  --el-color-primary-light-8: #26375f;
+  --el-color-primary-light-9: #1f2b46;
+  --el-color-primary-dark-2: #72a2f3;
+  --qt-primary-weak: rgba(79, 139, 240, 0.18);
+  --qt-primary-weaker: rgba(79, 139, 240, 0.1);
+}

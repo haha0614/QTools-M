@@ -13,7 +13,7 @@ $panGreen: #30B08F;
 // variables.menuBg 注入），我上一步只改了 --sidebar-bg 这个 CSS 变量 —— 而它没人引用，
 // 所以那一步是空操作。这里改的是真正生效的值。
 $menuText: rgba(255, 255, 255, 0.66);
-$menuActiveText: #409eff;
+$menuActiveText: #2563eb;
 $menuBg: #12151c;
 $menuHover: #1e232b;
 
@@ -21,7 +21,7 @@ $menuHover: #1e232b;
 $menuLightBg: #ffffff;
 $menuLightHover: #f0f1f5;
 $menuLightText: #303133;
-$menuLightActiveText: #409EFF;
+$menuLightActiveText: #2563eb;
 
 // 基础变量
 $base-sidebar-width: 200px;
@@ -35,7 +35,7 @@ $base-sub-menu-background: #141824;
 $base-sub-menu-hover: rgba(255,255,255,.06);
 
 // 组件变量
-$--color-primary: #409EFF;
+$--color-primary: #2563EB;
 $--color-success: #67C23A;
 $--color-warning: #E6A23C;
 $--color-danger: #F56C6C;
@@ -457,4 +457,3 @@ html.dark {
     blockquote, blockquote * { color: var(--el-text-color-secondary) !important; }
   }
 }
-
