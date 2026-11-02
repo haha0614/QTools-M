@@ -24,9 +24,12 @@
 
       <!-- 左：有色玻璃封面 -->
       <aside class="cover">
-        <div class="cover-top">
-          <BrandMark class="cover-mark" :size="18" />
-          <span class="cover-name">{{ brandName }}</span>
+        <div class="cover-brand">
+          <span class="cover-logo"><BrandMark class="cover-mark" :size="34" /></span>
+          <span class="cover-brand-text">
+            <span class="cover-name">{{ brandShort }}</span>
+            <span class="cover-brand-sub">媒体库管理后台</span>
+          </span>
         </div>
         <div class="cover-body">
           <p class="cover-line">一个目录进来，<br><b>一本可以翻的册</b>出去。</p>
@@ -95,6 +98,8 @@ import BrandMark from '@/components/BrandMark.vue'
 
 const title = import.meta.env.VITE_APP_TITLE
 const brandName = title || '青兔工具箱'
+/** VITE_APP_TITLE 形如「青兔工具箱 · 管理后台」：左栏大字只取主名，副标另写，避免"管理后台"出现两次 */
+const brandShort = brandName.split('·')[0].trim()
 const footerContent = defaultSettings.footerContent
 const userStore = useUserStore()
 const route = useRoute()
@@ -359,9 +364,27 @@ getCookie()
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 }
 
-.cover-top { display: flex; align-items: center; gap: 9px; color: #fff; font-size: 13px; font-weight: 600; }
-.cover-mark { color: #fff; flex: 0 0 auto; }
-.cover-name { text-shadow: 0 1px 10px rgba(0, 0, 0, 0.25); }
+/* P6.98：logo 放到左栏顶部并放大 —— 图形带一块玻璃底座，与卡片语言一致 */
+.cover-brand { display: flex; align-items: center; gap: 12px; }
+
+.cover-logo {
+  flex: 0 0 auto;
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6), 0 8px 20px rgba(15, 23, 42, 0.18);
+}
+
+.cover-mark { color: #fff; flex: 0 0 auto; filter: drop-shadow(0 1px 6px rgba(0, 0, 0, 0.25)); }
+
+.cover-brand-text { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.cover-name { font-size: 14px; font-weight: 650; color: #fff; text-shadow: 0 1px 10px rgba(0, 0, 0, 0.3); }
+.cover-brand-sub { font-size: 11.5px; color: rgba(255, 255, 255, 0.78); letter-spacing: 0.4px; }
 
 .cover-line {
   margin: 0;
@@ -484,7 +507,9 @@ getCookie()
 /* ---------------- 窄屏：竖排，封面压成一条 ---------------- */
 @media (max-width: 860px) {
   .glass { flex-direction: column; height: auto; max-height: none; width: min(420px, 94vw); }
-  .cover { flex: 0 0 auto; padding: 18px 22px; border-right: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.45); }
+  .cover { flex: 0 0 auto; padding: 16px 22px; border-right: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.45); }
+  .cover-logo { width: 44px; height: 44px; border-radius: 13px; }
+  .cover-brand-sub { display: none; }
   .cover-line { display: none; }
   .cover-chip { display: none; }
   .form { padding: 26px 22px 22px; }
