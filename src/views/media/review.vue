@@ -1040,7 +1040,9 @@ function onBigImgLoad() {
 const bigImgStyle = computed(() => {
   const z = bigZoom.value
   if (z <= 1) {
-    return { maxWidth: '100%', maxHeight: '72vh', width: 'auto' }
+    // P6.188：容器固定 68vh，图却被允许到 72vh —— 底部会被裁掉一截。
+    // 100% 档改为跟随容器高度。
+    return { maxWidth: '100%', maxHeight: '100%', width: 'auto' }
   }
   const base = bigFitW.value
   if (base > 0) {
@@ -1454,7 +1456,9 @@ onMounted(() => {
      实测放大后 scrollTop 恒为 0 —— 垂直方向拖不动就是这个原因。
      block + text-align: center 既能居中，两个方向的 overflow 又都能正常滚动。 */
   display: block; text-align: center;
-  height: 68vh; background: #000; border-radius: 4px; overflow: auto;
+  /* P6.188：原来背景写死 #000 —— 与全站材质无关，浅色下像开了一个黑洞；
+     换成主题里的浅灰/深灰填充色。 */
+  height: 68vh; background: var(--el-fill-color-lighter); border-radius: 8px; overflow: auto;
 }
 .pv-big-wrap { position: relative; }
 .pv-big img { -webkit-user-drag: none; user-drag: none; }
