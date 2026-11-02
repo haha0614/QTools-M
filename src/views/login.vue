@@ -7,7 +7,8 @@
       <span class="arc a5"></span><span class="arc a6"></span><span class="arc a7"></span>
     </div>
 
-    <section class="glass" ref="cardRef" :class="{ 'glass-webgl': glassReady }">
+    <section class="glass" ref="cardRef"
+      :class="{ 'glass-webgl': glassReady, 'glass-capturing': glassCapturing }">
       <div class="spec" aria-hidden="true"></div>
       <div class="grain" aria-hidden="true"></div>
 
@@ -106,6 +107,8 @@ const showPassword = ref(false)
 /** WebGL 液态玻璃（dashersw/liquid-glass-js, MIT）。创建失败就保持 CSS 玻璃 */
 const glassHost = ref(null)
 const glassReady = ref(false)
+/** 抓快照期间把卡片内容藏起来，否则 html2canvas 会把卡片自己也拍进去（双重影像） */
+const glassCapturing = ref(false)
 
 /** 玻璃卡元素：hyalite 会给它算透镜位移图（SVG 滤镜），非 Chromium 内核自动退化为普通模糊 */
 const cardRef = ref(null)
@@ -217,19 +220,37 @@ onMounted(async () => {
     const mod = await import('@/utils/liquidglass/container.js')
     const Container = mod.default || window.Container
     if (!Container) return
+    glassCapturing.value = true
+    await new Promise((r) => requestAnimationFrame(() => r(null)))
     const c = new Container({ borderRadius: 28, type: 'rounded', tintOpacity: 0.16 })
     host.appendChild(c.element)
+    // 这个库从 .element 的 rect 量尺寸；没带它自己的 glass.css 时 element 是 auto 高度，
+    // 会量出 860x0（实测 canvas height=0，整块画不出来）。这里显式铺满宿主。
+    Object.assign(c.element.style, {
+      position: 'absolute',
+      inset: '0',
+      width: '100%',
+      height: '100%',
+      padding: '0',
+      display: 'block'
+    })
     const rect = host.getBoundingClientRect()
-    const dpr = Math.min(window.devicePixelRatio || 1, 2)
     if (c.canvas) {
-      c.canvas.width = Math.max(2, Math.round(rect.width * dpr))
-      c.canvas.height = Math.max(2, Math.round(rect.height * dpr))
+      // 只改 CSS 尺寸：直接写 canvas.width/height 会重置绘图缓冲并清空画面（库之后不再重绘）
       c.canvas.style.width = '100%'
       c.canvas.style.height = '100%'
       c.canvas.style.display = 'block'
       c.canvas.style.borderRadius = '28px'
     }
+    // 等库把整页快照拍完（它自己往 console 打 "Page snapshot captured"，同时把结果存进静态字段）
+    const t0 = Date.now()
+    while (!Container.pageSnapshot && Date.now() - t0 < 4000) {
+      await new Promise((r) => setTimeout(r, 100))
+    }
+    glassCapturing.value = false
     glassReady.value = true
+
+    console.info('[login] WebGL 玻璃已就绪', c.canvas.width + 'x' + c.canvas.height)
   } catch (e) {
     console.warn('[login] WebGL 玻璃不可用，走 CSS 玻璃', e)
   }
@@ -329,7 +350,12 @@ onMounted(async () => {
   overflow: hidden;
 }
 
-.glass-canvas :deep(canvas) { display: block; width: 100% !important; height: 100% !important; }
+/* canvas 的尺寸由库按元素 rect 写 px，这里不要再覆盖成 100%（会量出 0 高） */
+.glass-canvas :deep(canvas) { display: block; }
+
+/* 抓快照那一刻把卡片内容藏起来（隐藏的是内容，不是布局） */
+.glass-capturing .cover,
+.glass-capturing .form { opacity: 0; }
 
 /* WebGL 画布就绪后把 CSS 模糊层让开，避免两层叠加发灰 */
 .glass-webgl::before {
