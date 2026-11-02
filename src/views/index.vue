@@ -186,6 +186,7 @@
 
 <script setup name="Index">
 import * as echarts from "echarts"
+import { chartTheme } from "@/utils/chartTheme"
 import { ElMessage } from "element-plus"
 import { getStatsOverview } from "@/api/qtool/info"
 import { getMediaStats, getMediaTargetStats } from "@/api/media"
@@ -368,30 +369,8 @@ async function load() {
   }
 }
 
-/**
- * P6.111：图表配色从 CSS 变量里取，不再让 echarts 用自带默认色板。
- *
- * <p>echarts 默认第一色是 #5470c6，既不等于 Element 的 #409eff，也不等于我们统一的
- * #2563eb —— 页面上因此长期存在"第三种蓝"。这里在 setOption 里把色板、坐标轴、
- * 网格线一起指定；切主题后重新 renderCharts 即可跟着变。</p>
- */
-function chartTheme() {
-  const css = getComputedStyle(document.documentElement)
-  const pick = (name, fallback) => (css.getPropertyValue(name) || "").trim() || fallback
-  return {
-    palette: [
-      pick("--el-color-primary", "#2563eb"),
-      pick("--el-color-success", "#67c23a"),
-      pick("--el-color-warning", "#e6a23c"),
-      pick("--el-color-danger", "#f56c6c"),
-      pick("--el-color-primary-light-3", "#6692f1")
-    ],
-    sub: pick("--el-text-color-secondary", "#909399"),
-    line: pick("--el-border-color-lighter", "#ebeef5")
-  }
-}
-
-/** 绘制两张图：左折线（近 N 天趋势）、右横条（工具访问排行） */
+/** 绘制两张图：左折线（近 N 天趋势）、右横条（工具访问排行）。
+ *  配色来自 @/utils/chartTheme（P6.117 抽成共享实现）。 */
 function renderCharts() {
   const theme = chartTheme()
   const trend = overview.dailyVisits || []

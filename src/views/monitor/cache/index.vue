@@ -67,6 +67,7 @@
 <script setup name="Cache">
 import { getCache } from '@/api/monitor/cache'
 import * as echarts from 'echarts'
+import { chartTheme } from '@/utils/chartTheme'
 
 const cache = ref([])
 const commandstats = ref(null)
@@ -79,8 +80,12 @@ function getList() {
     proxy.$modal.closeLoading()
     cache.value = response.data
 
+    const theme = chartTheme()
     const commandstatsIntance = echarts.init(commandstats.value, "macarons")
     commandstatsIntance.setOption({
+      /* P6.117：macarons 默认色板与全站主色不一致；饼图是"同一维度多分类"，
+         所以用主色梯度而不是语义色（否则大红大绿会被误读） */
+      color: theme.ramp,
       tooltip: {
         trigger: "item",
         formatter: "{a} <br/>{b} : {c} ({d}%)"
@@ -100,6 +105,7 @@ function getList() {
     })
     const usedmemoryInstance = echarts.init(usedmemory.value, "macarons")
     usedmemoryInstance.setOption({
+      color: theme.palette,
       tooltip: {
         formatter: "{b} <br/>{a} : " + cache.value.info.used_memory_human
       },
