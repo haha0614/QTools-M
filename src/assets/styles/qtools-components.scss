@@ -1,3 +1,39 @@
+/* P6.150：表格与页面内的分区不再各自铺玻璃。
+   实测：.app-container 本身已经是玻璃卡，内部再叠 .media-search / .derive-bar /
+   .scan-panel / .media-table 的玻璃，玻璃叠玻璃最后是一片平白 —— 既没层次也没玻璃感。
+   现在每页只有**一张**玻璃（页面卡），内部分区用透明 + 间距 + 发丝线分隔。 */
+.media-toolbar,
+.media-search,
+.scan-panel,
+.derive-bar,
+.media-table {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.media-search,
+.scan-panel {
+  padding: 12px 14px;
+}
+
+.media-toolbar {
+  padding: 8px 10px;
+}
+
+.derive-bar {
+  padding: 8px 12px !important;
+  margin-bottom: 12px;
+  gap: 8px;
+}
+
+.media-table {
+  border-radius: 14px;
+  overflow: hidden;
+}
+
 /**
  * P6.112 · 组件皮肤（统一设计语言第 1 层）
  *
@@ -38,9 +74,6 @@
 /* P6.139：媒体库这类页面原来只有"统计卡"是玻璃，工具条/查询区/表格都是直接铺在
    页面底色上的白块，看着像没做完。这里给这些"没有容器"的分区统一套同一种玻璃：
    半透明渐变 + 模糊 + 发丝边框 + 顶部内高光（与卡片同一套材质语言）。 */
-.media-toolbar,
-.media-search,
-.scan-panel,
 .content-inner {
   background: var(--qt-glass-surface);
   backdrop-filter: blur(28px) saturate(170%);
@@ -48,11 +81,6 @@
   border: 1px solid var(--qt-glass-border);
   border-radius: 14px;
   box-shadow: var(--qt-glass-shadow), inset 0 1px 0 var(--qt-glass-inner);
-}
-
-.media-search,
-.scan-panel,
-.content-inner {
   padding: 12px 14px;
 }
 
@@ -79,48 +107,6 @@
 .el-progress-bar__inner {
   border-radius: 6px !important;
   background: linear-gradient(90deg, #60a5fa, #2563eb) !important;
-}
-
-/* P6.141：派生资源汇总条（预览片段 / 状态筛选）原来是一条裸条，
-   现在与其它面板同一材质，控件圆角也统一到 8px */
-.media-toolbar,
-.derive-bar {
-  background: var(--qt-glass-surface);
-  backdrop-filter: blur(28px) saturate(170%);
-  -webkit-backdrop-filter: blur(28px) saturate(170%);
-  border: 1px solid var(--qt-glass-border);
-  border-radius: 14px;
-  box-shadow: inset 0 1px 0 var(--qt-glass-inner);
-}
-
-.derive-bar {
-  /* 组件自带 scoped 背景，同权重下会赢，这里必须 !important */
-  padding: 8px 12px !important;
-  margin-bottom: 12px;
-  gap: 8px;
-  background: var(--qt-glass-surface) !important;
-  border: 1px solid var(--qt-glass-border) !important;
-  border-radius: 14px !important;
-  box-shadow: inset 0 1px 0 var(--qt-glass-inner);
-}
-
-/* 工具条内部本来就自带间距，只补一点左右留白，
-   给多了会把「重复文件」挤到第二行（实测 1280 宽时折行） */
-.media-toolbar {
-  padding: 8px 10px;
-}
-
-/* 表格容器（P6.149）：向"工作室管理"那种整齐表格看齐 ——
-   关键不是更白，而是**表面要均匀**：6px 模糊下网格一半透一半不透，行与行看着深浅不一。
-   28px 把网格糊平后铺一层 56% 白，既均匀又不至于全白。 */
-.media-table {
-  border: 1px solid var(--qt-glass-border);
-  border-radius: 14px;
-  overflow: hidden;
-  background: rgba(255, 255, 255, 0.56);
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  box-shadow: inset 0 1px 0 var(--qt-glass-inner);
 }
 
 /* ---------------- 按钮 ---------------- */
@@ -201,7 +187,6 @@
   --el-table-tr-bg-color: transparent;
   /* 表格自身还有一层白底（--el-table-bg-color），不关掉的话透明行只是露出这层白 */
   --el-table-bg-color: transparent;
-  background-color: transparent;
   tr.el-table__row { background-color: transparent; }
 
   /* P6.143：透明行 + 固定列会互相打架 —— 固定列是浮在上层的一层，
