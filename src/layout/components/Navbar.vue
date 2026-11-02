@@ -12,13 +12,9 @@
       <template v-if="appStore.device !== 'mobile'">
         <header-search id="header-search" class="right-menu-item" />
 
-        <el-tooltip content="源码地址" effect="dark" placement="bottom">
-          <ruo-yi-git id="ruoyi-git" class="right-menu-item hover-effect" />
-        </el-tooltip>
-
-        <el-tooltip content="文档地址" effect="dark" placement="bottom">
-          <ruo-yi-doc id="ruoyi-doc" class="right-menu-item hover-effect" />
-        </el-tooltip>
+        <!-- P6.192：移除「源码地址 / 文档地址」两个图标 ——
+             它们链的是若依官网与若依源码仓库（doc.ruoyi.vip / gitee.com/y_project/RuoYi-Vue），
+             与本项目无关，点开就是别人的页面。 -->
 
         <screenfull id="screenfull" class="right-menu-item hover-effect" />
 
@@ -29,9 +25,9 @@
           </div>
         </el-tooltip>
 
-        <el-tooltip content="布局大小" effect="dark" placement="bottom">
-          <size-select id="size-select" class="right-menu-item hover-effect" />
-        </el-tooltip>
+        <!-- P6.192：移除「布局大小」（字号切换）——
+             它通过 Cookies(size) 改 Element 的全局 size，会把定好的 32px 控件高度、
+             13.5px 基础字号整体打乱；本项目没有依赖这个开关的地方。 -->
 
         <el-tooltip content="消息通知" effect="dark" placement="bottom">
           <header-notice id="header-notice" class="right-menu-item hover-effect" />
@@ -72,10 +68,7 @@ import TopBar from './TopBar'
 import Logo from './Sidebar/Logo'
 import Hamburger from '@/components/Hamburger'
 import Screenfull from '@/components/Screenfull'
-import SizeSelect from '@/components/SizeSelect'
 import HeaderSearch from '@/components/HeaderSearch'
-import RuoYiGit from '@/components/RuoYi/Git'
-import RuoYiDoc from '@/components/RuoYi/Doc'
 import useAppStore from '@/store/modules/app'
 import useUserStore from '@/store/modules/user'
 import useLockStore from '@/store/modules/lock'
