@@ -657,4 +657,20 @@ $lighterBlue: #409EFF;
     }
   }
 }
+
+/* P6.119：表单构建器只做"轻量对齐"，不动它的三栏布局（编辑器有它自己的空间关系）。
+   统一的是颜色与圆角：分割线走 --shell-border，面板/组件块圆角与全站 8px 一致。 */
+.container {
+  .left-board,
+  .right-board {
+    border-color: var(--shell-border);
+  }
+  .components-item,
+  .components-body {
+    border-radius: 8px;
+  }
+  .components-item:hover {
+    border-color: var(--el-color-primary-light-5);
+  }
+}
 </style>
