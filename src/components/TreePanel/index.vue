@@ -551,8 +551,13 @@ onBeforeUnmount(() => {
 .tree-sidebar {
   flex-shrink: 0;
   width: 220px;
-  background: #fff;
-  border-right: 1px solid #e8eaed;
+  /* P6.138：与右侧内容卡同一张卡的样式 —— 同圆角、同发丝线、同外边距 12px。
+     原来它是"贴边竖条 + 硬编码白色"，和浮在页面底上的内容卡不是一套，
+     暗色模式下还会保持白色。 */
+  background: var(--el-bg-color);
+  border: 1px solid var(--shell-border);
+  border-radius: 10px;
+  margin: 12px 0 0 12px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -644,8 +649,8 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   padding: 0 10px;
   height: 40px;
-  border-bottom: 1px solid #e8eaed;
-  background: #f7f8fa;
+  border-bottom: 1px solid var(--shell-border);
+  background: transparent;
   flex-shrink: 0;
 
   .tree-title {
@@ -689,6 +694,11 @@ onBeforeUnmount(() => {
 .tree-search {
   padding: 10px 10px 4px;
   flex-shrink: 0;
+
+  /* 与内容区输入框同一圆角阶梯（--el-border-radius-base / 8px） */
+  :deep(.el-input__wrapper) {
+    border-radius: 8px;
+  }
 }
 
 .tree-wrap {
