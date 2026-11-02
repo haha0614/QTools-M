@@ -1,26 +1,14 @@
 <template>
-  <div class="wscn-http404-container">
-    <div class="wscn-http404">
-      <div class="pic-404">
-        <img class="pic-404__parent" src="@/assets/404_images/404.png" alt="404">
-        <img class="pic-404__child left" src="@/assets/404_images/404_cloud.png" alt="404">
-        <img class="pic-404__child mid" src="@/assets/404_images/404_cloud.png" alt="404">
-        <img class="pic-404__child right" src="@/assets/404_images/404_cloud.png" alt="404">
-      </div>
-      <div class="bullshit">
-        <div class="bullshit__oops">
-          404错误!
-        </div>
-        <div class="bullshit__headline">
-          {{ message }}
-        </div>
-        <div class="bullshit__info">
-          对不起，您正在寻找的页面不存在。尝试检查URL的错误，然后按浏览器上的刷新按钮或尝试在我们的应用程序中找到其他内容。
-        </div>
-        <router-link to="/index" class="bullshit__return-home">
-          返回首页
-        </router-link>
-      </div>
+  <!-- P6.183：404 与全站统一 —— 原来用若依那套 404 插画 + 蓝底，与门面语言无关。
+       现在：一张玻璃卡 + 大号 404 数字 + 一句人话 + 主按钮，沿用卡片材质。 -->
+  <div class="qt-error">
+    <div class="qt-error-card">
+      <div class="qt-error-code">404</div>
+      <h1 class="qt-error-title">{{ message }}</h1>
+      <p class="qt-error-sub">
+        页面不存在或已被移动。检查一下地址，或者从这里回去。
+      </p>
+      <router-link to="/index" class="qt-error-btn">返回首页</router-link>
     </div>
   </div>
 </template>
@@ -32,196 +20,61 @@ let message = computed(() => {
 </script>
 
 <style lang="scss" scoped>
-.wscn-http404-container{
-  transform: translate(-50%,-50%);
-  position: absolute;
-  top: 40%;
-  left: 50%;
+.qt-error {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 120px);
+  padding: 24px;
 }
-.wscn-http404 {
-  position: relative;
-  width: 1200px;
-  padding: 0 50px;
-  overflow: hidden;
-  .pic-404 {
-    position: relative;
-    float: left;
-    width: 600px;
-    overflow: hidden;
-    &__parent {
-      width: 100%;
-    }
-    &__child {
-      position: absolute;
-      &.left {
-        width: 80px;
-        top: 17px;
-        left: 220px;
-        opacity: 0;
-        animation-name: cloudLeft;
-        animation-duration: 2s;
-        animation-timing-function: linear;
-        animation-fill-mode: forwards;
-        animation-delay: 1s;
-      }
-      &.mid {
-        width: 46px;
-        top: 10px;
-        left: 420px;
-        opacity: 0;
-        animation-name: cloudMid;
-        animation-duration: 2s;
-        animation-timing-function: linear;
-        animation-fill-mode: forwards;
-        animation-delay: 1.2s;
-      }
-      &.right {
-        width: 62px;
-        top: 100px;
-        left: 500px;
-        opacity: 0;
-        animation-name: cloudRight;
-        animation-duration: 2s;
-        animation-timing-function: linear;
-        animation-fill-mode: forwards;
-        animation-delay: 1s;
-      }
-      @keyframes cloudLeft {
-        0% {
-          top: 17px;
-          left: 220px;
-          opacity: 0;
-        }
-        20% {
-          top: 33px;
-          left: 188px;
-          opacity: 1;
-        }
-        80% {
-          top: 81px;
-          left: 92px;
-          opacity: 1;
-        }
-        100% {
-          top: 97px;
-          left: 60px;
-          opacity: 0;
-        }
-      }
-      @keyframes cloudMid {
-        0% {
-          top: 10px;
-          left: 420px;
-          opacity: 0;
-        }
-        20% {
-          top: 40px;
-          left: 360px;
-          opacity: 1;
-        }
-        70% {
-          top: 130px;
-          left: 180px;
-          opacity: 1;
-        }
-        100% {
-          top: 160px;
-          left: 120px;
-          opacity: 0;
-        }
-      }
-      @keyframes cloudRight {
-        0% {
-          top: 100px;
-          left: 500px;
-          opacity: 0;
-        }
-        20% {
-          top: 120px;
-          left: 460px;
-          opacity: 1;
-        }
-        80% {
-          top: 180px;
-          left: 340px;
-          opacity: 1;
-        }
-        100% {
-          top: 200px;
-          left: 300px;
-          opacity: 0;
-        }
-      }
-    }
-  }
-  .bullshit {
-    position: relative;
-    float: left;
-    width: 300px;
-    padding: 30px 0;
-    overflow: hidden;
-    &__oops {
-      font-size: 32px;
-      font-weight: bold;
-      line-height: 40px;
-      color: #1482f0;
-      opacity: 0;
-      margin-bottom: 20px;
-      animation-name: slideUp;
-      animation-duration: 0.5s;
-      animation-fill-mode: forwards;
-    }
-    &__headline {
-      font-size: 20px;
-      line-height: 24px;
-      color: #222;
-      font-weight: bold;
-      opacity: 0;
-      margin-bottom: 10px;
-      animation-name: slideUp;
-      animation-duration: 0.5s;
-      animation-delay: 0.1s;
-      animation-fill-mode: forwards;
-    }
-    &__info {
-      font-size: 13px;
-      line-height: 21px;
-      color: grey;
-      opacity: 0;
-      margin-bottom: 30px;
-      animation-name: slideUp;
-      animation-duration: 0.5s;
-      animation-delay: 0.2s;
-      animation-fill-mode: forwards;
-    }
-    &__return-home {
-      display: block;
-      float: left;
-      width: 110px;
-      height: 36px;
-      background: #1482f0;
-      border-radius: 100px;
-      text-align: center;
-      color: #ffffff;
-      opacity: 0;
-      font-size: 14px;
-      line-height: 36px;
-      cursor: pointer;
-      animation-name: slideUp;
-      animation-duration: 0.5s;
-      animation-delay: 0.3s;
-      animation-fill-mode: forwards;
-    }
-    @keyframes slideUp {
-      0% {
-        transform: translateY(60px);
-        opacity: 0;
-      }
-      100% {
-        transform: translateY(0);
-        opacity: 1;
-      }
-    }
-  }
+
+.qt-error-card {
+  width: min(520px, 92vw);
+  padding: 40px 36px;
+  text-align: center;
+  border-radius: 16px;
+  border: 1px solid var(--qt-glass-border);
+  background: var(--qt-glass-surface);
+  backdrop-filter: blur(28px) saturate(170%);
+  -webkit-backdrop-filter: blur(28px) saturate(170%);
+  box-shadow: var(--qt-glass-shadow), inset 0 1px 0 var(--qt-glass-inner);
 }
+
+.qt-error-code {
+  font-size: 72px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 2px;
+  background: linear-gradient(180deg, var(--el-color-primary), var(--el-color-primary-light-5));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.qt-error-title {
+  margin: 14px 0 8px;
+  font-size: 18px;
+  font-weight: 650;
+  color: var(--el-text-color-primary);
+}
+
+.qt-error-sub {
+  margin: 0 0 22px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--el-text-color-secondary);
+}
+
+.qt-error-btn {
+  display: inline-block;
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  color: #fff;
+  text-decoration: none;
+  background: linear-gradient(180deg, #60a5fa, #2563eb);
+  transition: filter .12s;
+}
+
+.qt-error-btn:hover { filter: brightness(1.06); }
 </style>

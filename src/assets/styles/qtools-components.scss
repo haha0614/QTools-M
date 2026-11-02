@@ -312,6 +312,21 @@
   box-shadow: none !important;
 }
 
+/* ---------------- 空状态 / 加载 ---------------- */
+/* P6.183：空状态去掉 EP 默认插画（一张灰色立方体图），只留一句人话 ——
+   与整套材质比，插画是最跳的一处。 */
+.el-empty { padding: 28px 0; }
+.el-empty__image { display: none; }
+.el-empty__description p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+/* 加载遮罩跟随主题（原来固定半透明白，暗色下整片发白） */
+.el-loading-mask { background-color: var(--qt-loading-mask); }
+.el-loading-spinner .path { stroke: var(--el-color-primary); }
+
 /* ---------------- 弹窗 / 抽屉 ---------------- */
 /* P6.154：弹窗补齐"头/身/脚"三段 —— 原来标题和按钮都浮在白面上，
    没有分隔线、没有底衬，和卡片的语言断开。遮罩也加了轻微模糊，玻璃感延续到弹窗。 */
