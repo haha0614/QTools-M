@@ -134,81 +134,96 @@ function lockScreen() {
   router.push('/lock')
 }
 
-/* 主题切换：View Transition 版本（真快照，动画里能看到页面内容）。
-   P6.199 —— 之前判定"finished 从不 resolve"是在一个被反复实验玩脏的标签页里测的，
-   结论不成立。这里只保留两条确定的修复：
-     1. 旧实现 catch 里又切一次主题（等于切回去）—— 现在用 toggled 标记，只切一次；
-     2. 连点会打断进行中的 transition —— 切换期间忽略点击。 */
+/* 主题切换的圆形揭示：对**活的 DOM** 做遮罩动画，不用 View Transition 快照。
+   P6.201 —— 快照方案在这个项目里反复出问题（首帧白闪、被中断后整页发白），
+   因为全站十几处 backdrop-filter 让快照合成很不稳定。现在改为：
+     亮 → 暗（收）：内容保持亮色，遮罩从全屏收到 0；遮罩外的区域先铺成暗色；
+     暗 → 亮（放）：先切到亮色，遮罩从 0 放到全屏；遮罩外先铺成暗色。
+   两种情况下圆形边界内都是**真实页面内容**，不经过任何快照。 */
 let themeSwitching = false
+const WIPE_MS = 460
+
+function easeOutCubic(t) {
+  return 1 - Math.pow(1 - t, 3)
+}
+
+/* 取深色主题的页面底色。
+   注意不能读 body 的 background —— 本项目只有 .app-wrapper 铺了底色，
+   body/html 是透明的，读出来是 rgba(0,0,0,0)，铺上去就是白底板（正好复现白屏）。
+   这里直接读 token 变量。 */
+function readDarkPageBg() {
+  const root = document.documentElement
+  const had = root.classList.contains("dark")
+  root.classList.add("dark")
+  const v = getComputedStyle(root).getPropertyValue("--el-bg-color-page").trim()
+  if (!had) root.classList.remove("dark")
+  return v || "#0b0d10"
+}
 
 function toggleTheme(event) {
   if (themeSwitching) return
+
   const x = event?.clientX ?? window.innerWidth / 2
   const y = event?.clientY ?? window.innerHeight / 2
   const wasDark = settingsStore.isDark
   const root = document.documentElement
+  const wrapper = document.querySelector(".app-wrapper") || document.body
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches
 
-  let released = false
-  const release = () => {
-    if (released) return
-    released = true
-    root.classList.remove("theme-switching", "theme-expand", "theme-shrink")
-    themeSwitching = false
-  }
-  /* 兜底：transition.finished 若因某种原因不 resolve，不能把开关永久锁死
-     （实测有过第二次点击被忽略的情况）。900ms 后强制释放。 */
-  setTimeout(release, 900)
-
-  if (reduced || !document.startViewTransition) {
+  if (reduced) {
     settingsStore.toggleTheme()
     return
   }
 
+  const maxR = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
+  /* 两个方向的"遮罩外"都是暗色：收方向是切过去后的暗色，放方向是切之前的暗色。 */
+  const darkBg = readDarkPageBg()
+
   themeSwitching = true
   root.classList.add("theme-switching")
+  root.style.backgroundColor = darkBg
+  document.body.style.backgroundColor = darkBg
 
-  /* P6.200：暗转亮会闪一下白 —— 原因是从 startViewTransition 拍照到
-     transition.ready 之间有几帧，此时 ::view-transition-new(root)（亮色快照）
-     是**未被裁剪**的整屏，于是先白一下，我们的圆形动画才开始接管。
-     这里在拍照前就把起点裁剪写进 CSS（变量 + expand/shrink 类），
-     让第一帧就是 circle(0)，WAAPI 动画随后从同一个值继续，视觉上无缝。 */
-  const endR = Math.hypot(Math.max(x, window.innerWidth - x), Math.max(y, window.innerHeight - y))
-  root.style.setProperty("--wipe-x", x + "px")
-  root.style.setProperty("--wipe-y", y + "px")
-  root.style.setProperty("--wipe-r", endR + "px")
-  root.classList.add(wasDark ? "theme-expand" : "theme-shrink")
-
-  let toggled = false
-
-  try {
-    const transition = document.startViewTransition(async () => {
-      toggled = true
-      settingsStore.toggleTheme()
-      await nextTick()
-    })
-
-    transition.finished.finally(release)
-
-    transition.ready
-      .then(() => {
-        const clipPath = [`circle(0px at ${x}px ${y}px)`, `circle(${endR}px at ${x}px ${y}px)`]
-        root.animate(
-          { clipPath: !wasDark ? [...clipPath].reverse() : clipPath },
-          {
-            duration: 460,
-            easing: "cubic-bezier(0.4, 0, 0.2, 1)",
-            fill: "forwards",
-            pseudoElement: !wasDark ? "::view-transition-old(root)" : "::view-transition-new(root)"
-          }
-        )
-      })
-      .catch(release)
-  } catch (err) {
-    console.warn("[theme] view transition unavailable:", err)
-    if (!toggled) settingsStore.toggleTheme()
-    release()
+  const setMask = (radius) => {
+    const v = `radial-gradient(circle ${radius}px at ${x}px ${y}px, #000 99%, transparent 100%)`
+    wrapper.style.maskImage = v
+    wrapper.style.webkitMaskImage = v
   }
+
+  // 暗 → 亮：先切主题（内容是亮色），遮罩从小放大 —— 放
+  if (wasDark) {
+    settingsStore.toggleTheme()
+    setMask(0)
+  } else {
+    // 亮 → 暗：内容先保持亮色，遮罩从全屏收到 0 —— 收
+    setMask(maxR)
+  }
+
+  const start = performance.now()
+  const tick = (now) => {
+    const t = Math.min(1, (now - start) / WIPE_MS)
+    const p = easeOutCubic(t)
+    const radius = wasDark ? maxR * p : maxR * (1 - p)
+
+    setMask(radius)
+
+    if (t < 1) {
+      requestAnimationFrame(tick)
+      return
+    }
+
+    // 收方向到这里才真正切主题
+    if (!wasDark) settingsStore.toggleTheme()
+
+    wrapper.style.maskImage = ""
+    wrapper.style.webkitMaskImage = ""
+    document.body.style.backgroundColor = ""
+    root.style.backgroundColor = ""
+    document.body.style.backgroundColor = ""
+    root.classList.remove("theme-switching")
+    themeSwitching = false
+  }
+  requestAnimationFrame(tick)
 }
 </script>
 
