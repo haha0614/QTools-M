@@ -7,8 +7,7 @@
       <span class="arc a5"></span><span class="arc a6"></span><span class="arc a7"></span>
     </div>
 
-    <section class="glass" ref="cardRef"
-      :class="{ 'glass-webgl': glassReady, 'glass-capturing': glassCapturing }">
+    <section class="glass" ref="cardRef" :class="{ 'glass-webgl': glassReady }">
       <div class="spec" aria-hidden="true"></div>
       <div class="grain" aria-hidden="true"></div>
 
@@ -107,8 +106,6 @@ const showPassword = ref(false)
 /** WebGL 液态玻璃（dashersw/liquid-glass-js, MIT）。创建失败就保持 CSS 玻璃 */
 const glassHost = ref(null)
 const glassReady = ref(false)
-/** 抓快照期间把卡片内容藏起来，否则 html2canvas 会把卡片自己也拍进去（双重影像） */
-const glassCapturing = ref(false)
 
 /** 玻璃卡元素：hyalite 会给它算透镜位移图（SVG 滤镜），非 Chromium 内核自动退化为普通模糊 */
 const cardRef = ref(null)
@@ -216,12 +213,25 @@ onMounted(async () => {
     // html2canvas 是 UMD：被 Vite 当 CJS 处理后不会挂到 window，
     // 而 container.js 里是裸调用 html2canvas(...)，所以这里手动补一个全局
     const h2c = await import('@/utils/liquidglass/html2canvas.min.js')
-    window.html2canvas = window.html2canvas || h2c.default || h2c
+    const realH2C = h2c.default || h2c
+    /**
+     * 包一层 html2canvas：只在它内部的**克隆文档**里把登录卡隐藏掉。
+     *
+     * <p>为什么：库是 html2canvas(document.body) 抓整页，会把登录卡自己拍进去，
+     * 折射时出现双重影像。上一版的做法是在真实页面上把卡片 opacity 置 0 ——
+     * 用户能看到"一张空白玻璃卡闪一下"。onclone 只改克隆，屏幕上没有任何变化。</p>
+     */
+    window.html2canvas = (el, opts) => realH2C(el, {
+      ...(opts || {}),
+      onclone: (doc) => {
+        const card = doc.querySelector('.glass')
+        if (card) card.style.visibility = 'hidden'
+      }
+    })
+    window.html2canvas.__real = realH2C
     const mod = await import('@/utils/liquidglass/container.js')
     const Container = mod.default || window.Container
     if (!Container) return
-    glassCapturing.value = true
-    await new Promise((r) => requestAnimationFrame(() => r(null)))
     const c = new Container({ borderRadius: 28, type: 'rounded', tintOpacity: 0.16 })
     host.appendChild(c.element)
     // 这个库从 .element 的 rect 量尺寸；没带它自己的 glass.css 时 element 是 auto 高度，
@@ -242,12 +252,11 @@ onMounted(async () => {
       c.canvas.style.display = 'block'
       c.canvas.style.borderRadius = '28px'
     }
-    // 等库把整页快照拍完（它自己往 console 打 "Page snapshot captured"，同时把结果存进静态字段）
+    // 等库把整页快照拍完，再让出 CSS 模糊层
     const t0 = Date.now()
     while (!Container.pageSnapshot && Date.now() - t0 < 4000) {
       await new Promise((r) => setTimeout(r, 100))
     }
-    glassCapturing.value = false
     glassReady.value = true
 
     console.info('[login] WebGL 玻璃已就绪', c.canvas.width + 'x' + c.canvas.height)
@@ -352,10 +361,6 @@ onMounted(async () => {
 
 /* canvas 的尺寸由库按元素 rect 写 px，这里不要再覆盖成 100%（会量出 0 高） */
 .glass-canvas :deep(canvas) { display: block; }
-
-/* 抓快照那一刻把卡片内容藏起来（隐藏的是内容，不是布局） */
-.glass-capturing .cover,
-.glass-capturing .form { opacity: 0; }
 
 /* WebGL 画布就绪后把 CSS 模糊层让开，避免两层叠加发灰 */
 .glass-webgl::before {
