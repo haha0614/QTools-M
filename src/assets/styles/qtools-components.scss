@@ -258,9 +258,12 @@
   /* P6.156：弹窗不再是纯白板 —— 半透明表面 + 模糊，透出后面被压暗模糊的页面。
      0.82 的白度仍然保证长表单/表格可读。 */
   background: var(--qt-dialog-surface);
-  backdrop-filter: blur(30px) saturate(180%);
-  -webkit-backdrop-filter: blur(30px) saturate(180%);
-  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(34px) saturate(200%);
+  -webkit-backdrop-filter: blur(34px) saturate(200%);
+  box-shadow:
+    0 24px 64px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.45);
   overflow: hidden;
 
   .el-dialog__header {
@@ -289,8 +292,9 @@
 
 .el-overlay {
   /* 浅色磨砂遮罩：弹窗玻璃化后，压黑的遮罩会把它染灰 */
+  /* 遮罩几乎不压暗、也不模糊：玻璃要"看得见背后"，背后被糊成灰白就失去意义 */
   background-color: var(--qt-overlay);
-  backdrop-filter: blur(4px);
+  backdrop-filter: saturate(120%);
   backdrop-filter: blur(2px);
   -webkit-backdrop-filter: blur(2px);
 }

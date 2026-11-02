@@ -76,8 +76,8 @@ html.dark {
   /* P6.163：弹窗玻璃化 —— 关键是**遮罩也要改成浅色**。
      之前半透明弹窗叠在压暗的遮罩上只会变灰板，所以退回实色；
      现在把遮罩换成"浅色磨砂"（light scrim），半透明白弹窗叠上去才是亮的玻璃。 */
-  --qt-dialog-surface: rgba(255, 255, 255, 0.74);
-  --qt-overlay: rgba(226, 232, 240, 0.55);
+  --qt-dialog-surface: rgba(255, 255, 255, 0.58);
+  --qt-overlay: rgba(226, 232, 240, 0.22);
   --qt-glass-border: rgba(255, 255, 255, 0.65);
   --qt-glass-inner: rgba(255, 255, 255, 0.45);
   --qt-glass-shadow: 0 8px 24px rgba(24, 32, 48, 0.06);
