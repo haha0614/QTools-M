@@ -7,9 +7,13 @@
       <span class="arc a5"></span><span class="arc a6"></span><span class="arc a7"></span>
     </div>
 
-    <section class="glass" ref="cardRef">
+    <section class="glass" ref="cardRef" :class="{ 'glass-webgl': glassReady }">
       <div class="spec" aria-hidden="true"></div>
       <div class="grain" aria-hidden="true"></div>
+
+      <!-- WebGL 折射层（dashersw/liquid-glass-js, MIT）：画在表单下面，
+           拿不到 WebGL 时它不渲染，CSS 的 blur 兜底仍然在 -->
+      <div class="glass-canvas" ref="glassHost" aria-hidden="true"></div>
 
       <!-- 左：有色玻璃封面 -->
       <aside class="cover">
@@ -98,6 +102,10 @@ const { proxy } = getCurrentInstance()
 
 /** 密码可见性（P6.94：重做登录页时加的，纯 UI） */
 const showPassword = ref(false)
+
+/** WebGL 液态玻璃（dashersw/liquid-glass-js, MIT）。创建失败就保持 CSS 玻璃 */
+const glassHost = ref(null)
+const glassReady = ref(false)
 
 /** 玻璃卡元素：hyalite 会给它算透镜位移图（SVG 滤镜），非 Chromium 内核自动退化为普通模糊 */
 const cardRef = ref(null)
@@ -190,6 +198,44 @@ getCode()
 getCookie()
 
 /**
+ * 玻璃渲染：dashersw/liquid-glass-js 的 Container。
+ *
+ * <p>它用 html2canvas 抓整页快照当纹理，再用 WebGL 着色器做折射——折射的是**真实页面像素**，
+ * 所以边缘的网格会真的弯。放在表单下面一层，表单本身仍是普通 DOM。</p>
+ *
+ * <p>懒加载：html2canvas 有 ~199KB，只在真正需要时才 import；失败/不支持时静默回退 CSS 玻璃。</p>
+ */
+onMounted(async () => {
+  const host = glassHost.value
+  if (!host) return
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  try {
+    // html2canvas 是 UMD：被 Vite 当 CJS 处理后不会挂到 window，
+    // 而 container.js 里是裸调用 html2canvas(...)，所以这里手动补一个全局
+    const h2c = await import('@/utils/liquidglass/html2canvas.min.js')
+    window.html2canvas = window.html2canvas || h2c.default || h2c
+    const mod = await import('@/utils/liquidglass/container.js')
+    const Container = mod.default || window.Container
+    if (!Container) return
+    const c = new Container({ borderRadius: 28, type: 'rounded', tintOpacity: 0.16 })
+    host.appendChild(c.element)
+    const rect = host.getBoundingClientRect()
+    const dpr = Math.min(window.devicePixelRatio || 1, 2)
+    if (c.canvas) {
+      c.canvas.width = Math.max(2, Math.round(rect.width * dpr))
+      c.canvas.height = Math.max(2, Math.round(rect.height * dpr))
+      c.canvas.style.width = '100%'
+      c.canvas.style.height = '100%'
+      c.canvas.style.display = 'block'
+      c.canvas.style.borderRadius = '28px'
+    }
+    glassReady.value = true
+  } catch (e) {
+    console.warn('[login] WebGL 玻璃不可用，走 CSS 玻璃', e)
+  }
+})
+
+/**
  * 液态玻璃（hyalite 0.5.0，MIT，单文件无依赖）。
  *
  * <p>它按元素的真实尺寸/圆角算一张位移图，交给 SVG 滤镜，再通过 backdrop-filter: url() 让
@@ -274,6 +320,25 @@ getCookie()
 .a7 { width: 820px; height: 820px; right: calc(50% - 760px); bottom: calc(50% - 260px); border-color: rgba(15, 23, 42, 0.06); }
 
 /* ---------------- 玻璃卡 ---------------- */
+.glass-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  border-radius: 28px;
+  overflow: hidden;
+}
+
+.glass-canvas :deep(canvas) { display: block; width: 100% !important; height: 100% !important; }
+
+/* WebGL 画布就绪后把 CSS 模糊层让开，避免两层叠加发灰 */
+.glass-webgl::before {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background: none !important;
+  box-shadow: none !important;
+}
+
 .glass {
   position: relative;
   z-index: 2;
