@@ -4808,9 +4808,36 @@ onBeforeUnmount(() => { stopScanPolling() })
 :deep(.photos-dialog .el-dialog__body) { padding: 0 0 8px; }
 /* P6.165：三条横条不再各自铺底色 —— 弹窗本身是玻璃，横条再压一层就不透，看着像三块拼上去的板。
    现在统一：透明底 + 发丝线分隔。 */
-.photos-head { padding: 14px 20px 12px; background: transparent; border-bottom: 1px solid var(--shell-border); }
+/* P6.166：去掉头/筛选条的两条硬线 —— 两条发丝线挨在一起非常别扭，
+   改为「筛选条下方一条自上而下的渐隐」，滚动的缩略图从这里淡出，
+   分区靠渐隐而不是靠线。 */
+.photos-head { padding: 14px 20px 12px; background: transparent; border-bottom: 0; }
+/* P6.167：筛选条吸顶 + 自身模糊，滚动时缩略图从它的下边缘渐变淡出，
+   而不是撞在一条硬线上；也不再是浮在内容上的另一块板。 */
+.photo-filter {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 20px;
+  background: transparent;
+  backdrop-filter: blur(10px) saturate(150%);
+  -webkit-backdrop-filter: blur(10px) saturate(150%);
+}
+.photo-filter::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: -12px;
+  height: 12px;
+  pointer-events: none;
+  background: linear-gradient(to bottom, rgba(15, 23, 42, .06), transparent);
+}
+/* 滚动区不再像嵌进来的另一个盒子：去掉自己的描边/焦点框，滚动条做细 */
+:deep(.photos-dialog .el-dialog__body) { padding: 0; max-height: 62vh; overflow: auto; outline: none; box-shadow: none; border: 0; }
+:deep(.photos-dialog .el-dialog__body:focus) { outline: none; }
+:deep(.photos-dialog .el-dialog__body)::-webkit-scrollbar { width: 6px; }
+:deep(.photos-dialog .el-dialog__body)::-webkit-scrollbar-thumb { background: var(--el-border-color); border-radius: 3px; }
+:deep(.photos-dialog .el-dialog__body)::-webkit-scrollbar-track { background: transparent; }
 .photos-head-tip { font-size: 12px; color: var(--el-text-color-secondary); }
-.photo-filter { padding: 10px 20px; background: transparent; border-bottom: 1px solid var(--shell-border); }
 .photo-grid { padding: 16px 20px 6px; gap: 14px; }
 .photo-item { padding: 0; border: 0; background: transparent; border-radius: 8px; }
 .photo-item img { height: 140px; border-radius: 8px; }
