@@ -34,7 +34,7 @@
          现在按张数倒序取第一页，并给出「已显示 X / Y 本 + 加载更多」。 -->
     <div v-if="mode === 'move'" class="relocate-more">
       <span>按张数倒序 · 已显示 {{ options.length }} / {{ total }} 本</span>
-      <el-button v-if="options.length < total" link type="primary" size="small"
+      <el-button v-if="hasMore" link type="primary" size="small"
         :loading="loading" data-testid="relocate-more" @click="loadMore">加载更多</el-button>
       <span v-else-if="total > 0" class="relocate-more-done">已全部加载</span>
     </div>
@@ -126,10 +126,16 @@ function open(nextMode, photoIds, currentAlbumId) {
   if (mode.value === 'move') searchTargets('')
 }
 
-const PAGE_SIZE = 50
+/* P6.255：一页 50 装不下整个库（当前 160 本），用户滚到底以为“列表就这么点”。
+   一次取 200：小库直接全量到位，「加载更多」留给以后册数上千时兜底。 */
+const PAGE_SIZE = 200
 const page = ref(1)
-const total = ref(0)
+const total = ref(0)          // 展示用：已排除“当前所在册”
+const rawTotal = ref(0)       // 服务端总数（含当前册）
+const loadedRaw = ref(0)      // 已拉取的原始行数（含当前册）
 const keyword = ref('')
+
+const hasMore = computed(() => loadedRaw.value < rawTotal.value)
 
 /* 拉一页目标册；append=true 时接着上一页往下堆 */
 async function fetchTargets(append) {
@@ -141,8 +147,12 @@ async function fetchTargets(append) {
       hidden: 'all', sort: 'photoCount-desc'
     })
     const selfId = albumId.value
-    const rows = ((res && res.rows) || []).filter(a => String(a.id) !== String(selfId))
-    total.value = Number((res && res.total) || rows.length)
+    const rawRows = (res && res.rows) || []
+    const rows = rawRows.filter(a => String(a.id) !== String(selfId))
+    rawTotal.value = Number((res && res.total) || rawRows.length)
+    loadedRaw.value = append ? loadedRaw.value + rawRows.length : rawRows.length
+    // 目标列表里不含“当前所在册”，所以展示用的总数要减掉它（存在才减）
+    total.value = Math.max(0, rawTotal.value - (rawRows.length !== rows.length ? 1 : 0))
     options.value = append ? options.value.concat(rows) : rows
   } catch (e) {
     if (!append) options.value = []
@@ -159,7 +169,7 @@ function searchTargets(kw) {
 }
 
 function loadMore() {
-  if (options.value.length >= total.value) return
+  if (!hasMore.value) return
   page.value += 1
   return fetchTargets(true)
 }
