@@ -35,9 +35,9 @@
              它通过 Cookies(size) 改 Element 的全局 size，会把定好的 32px 控件高度、
              13.5px 基础字号整体打乱；本项目没有依赖这个开关的地方。 -->
 
-        <el-tooltip content="消息通知" effect="dark" placement="bottom">
-          <header-notice id="header-notice" class="right-menu-item hover-effect" />
-        </el-tooltip>
+        <!-- P6.211：暂时移除「消息通知」铃铛。
+             sys_notice 表当前 0 行，菜单「通知公告」在、但这颗铃铛点开永远是空的；
+             等真要给管理员发站内公告时再加回来（组件 HeaderNotice 与接口都还在）。 -->
       </template>
 
       <el-dropdown @command="handleCommand" class="avatar-container right-menu-item hover-effect" trigger="hover">

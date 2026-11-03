@@ -134,7 +134,10 @@ const behaviorRef = ref(null)
 const captchaType = ref("slider")
 const loading = ref(false)
 // 验证码开关
-const captchaEnabled = ref(true)
+/* P6.212：初值必须是 false。
+   之前初值 true，页面首帧就会挂载验证码组件并请求 /captchaSlider，
+   配置返回 false 后再卸载 —— 每次打开登录页都白发一次请求（被限流时还会弹"请求过于频繁"）。 */
+const captchaEnabled = ref(false)
 // 注册开关
 const register = ref(false)
 const redirect = ref(undefined)
