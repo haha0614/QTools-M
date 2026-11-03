@@ -137,7 +137,12 @@ export function usePhotoSelection({ rows, sortMode, onPreview, allPicked }) {
       const allOn = rangeIds.every((x) => set.has(x))
       rangeIds.forEach((x) => (allOn ? set.delete(x) : set.add(x)))
       selected.value = Array.from(set)
-      return   // 锚点保持不动，方便接着往另一个方向扩选
+      /* P6.241：锚点跟到刚点的那张。
+         原来锚点不动，第二次 Shift 点同一张时范围退化成「只有它自己」，
+         于是「1~6 全选中 → Shift 点 1」只取消了第 1 张，而不是整段取消 —— 用户实测反馈的问题。
+         跟到目标后：1(单击) → Shift 点 6 选中 1~6 → Shift 点 1 整段取消。 */
+      pickAnchor = id
+      return
     }
     const set = new Set(selected.value)
     if (set.has(id)) set.delete(id)

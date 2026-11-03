@@ -920,22 +920,30 @@ function pvIndexOf(id) {
   return pvFilteredRows.value.findIndex((p) => String(p.id) === String(id))
 }
 
-/** 把 from→to 之间（含两端）全部选上 */
+/**
+ * 把 from→to 之间（含两端）整段切换：整段都已选中 → 全部取消；否则 → 全部选上。
+ * P6.241：与媒体库图片弹窗统一 —— 锚点跟到目标，于是「1~6 全选 → Shift 点 1」能整段取消；
+ * 原来锚点不动，第二次 Shift 点同一张会退化成只切换它自己。
+ */
 function pvPickRange(fromId, toId) {
   const from = pvIndexOf(fromId)
   const to = pvIndexOf(toId)
   if (from < 0 || to < 0) return false
   const [a, b] = from <= to ? [from, to] : [to, from]
   const keys = pvFilteredRows.value.slice(a, b + 1).map((p) => String(p.id))
-  pvSelected.value = Array.from(new Set(pvSelected.value.concat(keys)))
+  const set = new Set(pvSelected.value.map(String))
+  const allOn = keys.every((k) => set.has(k))
+  if (allOn) keys.forEach((k) => set.delete(k))
+  else keys.forEach((k) => set.add(k))
+  pvSelected.value = Array.from(set)
   pvAnchorId.value = String(toId)
   return true
 }
 
 function togglePv(id, event) {
   const key = String(id)
-  // Shift+点击：从锚点连选到这里（不再单点切换，否则区间里已选中的会被取消）
-  if (event && event.shiftKey && pvAnchorId.value && pvAnchorId.value !== key) {
+  // Shift+点击：从锚点到这张整段切换（整段已选 → 整段取消），锚点随之移到这张
+  if (event && event.shiftKey && pvAnchorId.value) {
     // 锚点可能已经不在当前筛选里（切过分级）：连不上就退回单点切换
     if (pvPickRange(pvAnchorId.value, key)) return
   }
