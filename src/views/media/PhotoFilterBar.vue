@@ -1,10 +1,12 @@
 <template>
   <!-- 照片挑选的提示行 + 分级筛选条（P6.227 拆分，纯展示）。
        数据与切片逻辑仍在 index.vue：每个 chip 的数量、当前档位、是否磁盘回退态都由父级传入。 -->
-  <div class="photo-filter-wrap">
-    <p class="photo-notice" v-if="notice">{{ notice }}</p>
+  <!-- P6.228：不要包一层 div。position: sticky 的吸附范围受**父元素盒子**限制，
+       外面套一层 wrap 后筛选条的可滚动空间等于自己的高度，实测就不再吸顶了。
+       这里用多根节点（Vue 3 fragment），两个元素直接作为弹窗 body 的子元素。 -->
+  <p class="photo-notice" v-if="notice">{{ notice }}</p>
 
-    <div class="photo-filter" v-if="source !== 'disk' && hasRows" data-testid="photo-rating-filter">
+  <div class="photo-filter" v-if="source !== 'disk' && hasRows" data-testid="photo-rating-filter">
       <span class="photo-filter-label">本册分级
         <b class="photo-album-rating" :class="'ar-' + albumRating">{{ albumRatingLabel }}</b>
       </span>
@@ -18,7 +20,6 @@
       </button>
       <el-button size="small" type="primary" plain icon="MagicStick" class="photo-auto-rate"
         v-hasPermi="['media:admin:edit']" @click="emit('autoRate')">自动分级</el-button>
-    </div>
   </div>
 </template>
 
