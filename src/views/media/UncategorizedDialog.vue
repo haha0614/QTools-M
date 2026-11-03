@@ -23,7 +23,13 @@
     </div>
 
     <div v-if="dirs.length" class="uncat-dirs">
-      <div class="uncat-dirs-head">按目录归册（会同时建一条规则，之后同目录新文件自动归属）</div>
+      <div class="uncat-dirs-head">
+        <!-- P6.258：规则会改变以后扫描的行为，给一个开关；默认仍然建（保持原行为） -->
+        按目录归册
+        <el-checkbox v-model="createRule" size="small" class="uncat-rule-check" data-testid="uncat-create-rule">
+          同时建归属规则（之后同目录新文件自动归到这里）
+        </el-checkbox>
+      </div>
       <div v-for="d in dirs" :key="d.dir" class="uncat-dir-row">
         <span class="uncat-dir-name" :title="d.dir || '（媒体根）'">{{ d.dir || '（媒体根）' }}</span>
         <span class="uncat-dir-count">{{ d.photos }} 张 · {{ formatVolume(d.bytes) }}</span>
@@ -89,6 +95,7 @@ const pageSize = ref(48)
 const loading = ref(false)
 const dirs = ref([])
 const claiming = ref('')
+const createRule = ref(true)
 const selected = ref([])
 
 /* 缩略图：优先用内容寻址的缩略产物，没有就退回原图（避免整格空白） */
@@ -197,7 +204,8 @@ async function claimDir(d) {
   const guess = parts.length && parts[parts.length - 1] ? parts[parts.length - 1] : '未命名册'
   let title
   try {
-    const r = await proxy.$prompt('新册标题（该目录下 ' + d.photos + ' 张会移进去，并自动建一条归属规则）', '按目录建册', {
+    const ruleHint = createRule.value ? '，并自动建一条归属规则' : '（不建归属规则）'
+    const r = await proxy.$prompt('新册标题（该目录下 ' + d.photos + ' 张会移进去' + ruleHint + '）', '按目录建册', {
       confirmButtonText: '建册并入',
       cancelButtonText: '取消',
       inputValue: guess,
@@ -210,9 +218,10 @@ async function claimDir(d) {
   if (!title) return
   claiming.value = dir
   try {
-    const res = await claimUncategorizedDir({ dir, title })
+    const res = await claimUncategorizedDir({ dir, title, createRule: createRule.value })
+    const ruleTip = createRule.value ? '；同目录以后的扫描会自动归到这里' : '（未建规则：以后同目录新文件不会自动认领）'
     proxy.$modal.msgSuccess('已建册「' + ((res && res.title) || title) + '」，移入 '
-      + ((res && res.moved) || 0) + ' 张；同目录以后的扫描会自动归到这里')
+      + ((res && res.moved) || 0) + ' 张' + ruleTip)
     emit('changed')
     await loadUncat()
     await loadDirs()
@@ -241,7 +250,8 @@ defineExpose({ loadUncat })
 }
 .uncat-card.is-picked .uncat-check { background: var(--el-color-primary); color: #fff; }
 .uncat-dirs { margin-bottom: 10px; padding: 8px 10px; border: 1px solid var(--el-border-color-lighter); border-radius: 6px; background: var(--el-fill-color-lighter); }
-.uncat-dirs-head { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 6px; }
+.uncat-dirs-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 6px; }
+.uncat-rule-check { font-size: 12px; }
 .uncat-dir-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px dashed var(--el-border-color-lighter); }
 .uncat-dir-name { font-size: 13px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .uncat-dir-count { font-size: 12px; color: var(--el-text-color-secondary); }
