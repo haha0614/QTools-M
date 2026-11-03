@@ -10,11 +10,13 @@
     "build:prod": "vite build",
     "build:stage": "vite build --mode staging",
     "preview": "vite preview",
-    "check:menu-icons": "node scripts/check-menu-icons.mjs"
+    "check:menu-icons": "node scripts/check-menu-icons.mjs",
+    "check:globals": "node scripts/check-globals.mjs",
+    "check": "node scripts/check-menu-icons.mjs && node scripts/check-globals.mjs"
   },
   "repository": {
     "type": "git",
-    "url": "https://gitee.com/y_project/RuoYi-Vue.git"
+    "url": "https://github.com/haha0614/QTools-M.git"
   },
   "dependencies": {
     "@element-plus/icons-vue": "2.3.2",
