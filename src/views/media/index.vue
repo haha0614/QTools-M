@@ -615,6 +615,7 @@
         @photo-click="onPhotoClick"
         @card-pointer-down="onCardPointerDown"
         @sort-drag-start="onSortDragStart"
+        @sort-drag-end="sortDragIndex = -1"
         @sort-drop="onSortDrop"
         @grid-pointer-move="onGridPointerMove"
         @grid-pointer-up="onGridPointerUp"

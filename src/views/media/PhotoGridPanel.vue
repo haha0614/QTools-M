@@ -6,18 +6,22 @@
     class="photo-grid"
     :class="{ 'range-on': multiMode }"
     v-loading="loading"
+    @dragenter.prevent
+    @dragover.prevent
+    @drop.prevent
     @pointermove="emit('gridPointerMove', $event)"
     @pointerup="emit('gridPointerUp', $event)"
     @pointercancel="emit('gridPointerUp', $event)"
   >
     <div
       class="photo-item"
-      :class="{ picked: selected.includes(String(photo.id)), 'sorting': sortMode }"
+      :class="{ picked: selected.includes(String(photo.id)), 'sorting': sortMode, 'dragging': dragging === photoIndex }"
       :data-id="String(photo.id)"
       v-for="(photo, photoIndex) in rows"
       :key="photoKey(photo)"
       :draggable="sortMode"
-      @dragstart="emit('sortDragStart', photoIndex)"
+      @dragstart="onDragStart(photoIndex, photo, $event)"
+      @dragend="onDragEnd"
       @dragover.prevent
       @drop.prevent="emit('sortDrop', photoIndex)"
       @click="sortMode || emit('photoClick', photo)"
@@ -32,7 +36,7 @@
         @click.stop="emit('pick', photo, $event)"
       ></span>
       <div class="photo-thumb">
-        <img :src="mediaSrc(photo.thumbUrl)" loading="lazy" :alt="'第 ' + photo.seq + ' 张'" />
+        <img :src="mediaSrc(photo.thumbUrl)" loading="lazy" draggable="false" :alt="'第 ' + photo.seq + ' 张'" />
         <span class="photo-seq">{{ photo.seq }}</span>
         <span class="photo-range" title="从上次点选的那张，连选到这里" @click.stop="emit('pickToHere', photo)">选到此</span>
         <el-dropdown
@@ -66,7 +70,7 @@
 <script setup>
 import { mediaSrc, photoFileName } from './mediaFormat'
 
-defineProps({
+const props = defineProps({
   rows: { type: Array, default: () => [] },
   selected: { type: Array, default: () => [] },
   sortMode: { type: Boolean, default: false },
@@ -79,7 +83,33 @@ defineProps({
   photoKey: { type: Function, required: true }
 })
 const emit = defineEmits(['pick', 'pickToHere', 'rate', 'photoClick', 'cardPointerDown',
-  'sortDragStart', 'sortDrop', 'gridPointerMove', 'gridPointerUp'])
+  'sortDragStart', 'sortDragEnd', 'sortDrop', 'gridPointerMove', 'gridPointerUp'])
+
+const dragging = ref(-1)
+
+/* P6.230：屏蔽浏览器原生拖放行为。
+   原生拖拽会把 <img> 当负载 —— 拖到网格外会看到拖影、松手时浏览器可能直接打开那张图。
+   这里把负载换成纯文本标记，拖影由 CSS 控制，松手/取消都清理状态。 */
+function onDragStart(index, photo, event) {
+  if (!props.sortMode) return
+  dragging.value = index
+  const dt = event && event.dataTransfer
+  if (dt) {
+    dt.effectAllowed = 'move'
+    dt.dropEffect = 'move'
+    try {
+      dt.setData('text/plain', String((photo && photo.id) != null ? photo.id : index))
+      // 显式清掉图片/URL 形态，避免浏览器把它们当可导航内容
+      dt.setData('text/uri-list', '')
+    } catch (e) { /* 某些浏览器只允许在 dragstart 里写一次，忽略 */ }
+  }
+  emit('sortDragStart', index)
+}
+
+function onDragEnd() {
+  dragging.value = -1
+  emit('sortDragEnd')
+}
 </script>
 
 <style scoped>
@@ -109,6 +139,7 @@ const emit = defineEmits(['pick', 'pickToHere', 'rate', 'photoClick', 'cardPoint
   border-radius: 8px;
 }
 .photo-item.sorting { cursor: grab; }
+.photo-item.dragging { opacity: .45; }
 .photo-item.sorting:active { cursor: grabbing; }
 .photo-thumb { position: relative; line-height: 0; }
 .photo-item img {
