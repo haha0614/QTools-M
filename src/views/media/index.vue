@@ -518,7 +518,9 @@
     <video-player-dialog v-model="videoPlayVisible" :title="videoPlayTitle" :src="videoPlaySrc" />
     <!-- 图片浏览：用库数据（GET /album/{id}/photos）渲染，每格 = 缩略图 + seq + 文件名（relPath 末段），
          按 seq 升序；接口 404 时回退到旧的磁盘列举（photoSource='disk'），这时会在顶部提示一行 -->
-    <el-dialog v-model="photosVisible" :title="photosTitle" width="min(1120px, 94vw)" class="photos-dialog" append-to-body>
+    <!-- P6.250：排序模式下关弹窗会静默丢弃拖拽结果 —— 关闭前显式问一次 -->
+    <el-dialog v-model="photosVisible" :title="photosTitle" width="min(1120px, 94vw)" class="photos-dialog"
+      append-to-body :before-close="onPhotosBeforeClose">
       <template #header>
         <!-- 标题头：纯展示（P6.229 拆分） -->
         <photo-picker-header
@@ -585,7 +587,7 @@
           @detach="detachSelectedPhotos"
           @clear="photoSelected = []"
           @finish="exitMultiMode"
-          @close="photosVisible = false"
+          @close="requestClosePhotos"
         />
       </template>
     </el-dialog>
@@ -1203,6 +1205,37 @@ function resetAlbumQuery() {
   // P6.21：每页条数是显示偏好，不跟筛选一起重置
   clearFilters('album')
   loadAlbums()
+}
+
+/**
+ * 关弹窗前的守卫（P6.250）：排序模式下还有未保存的拖拽顺序时，
+ * 不要静默丢掉 —— 问一次「保存并关闭 / 丢弃并关闭」。
+ */
+function onPhotosBeforeClose(done) {
+  if (!photoSortMode.value) {
+    done()
+    return
+  }
+  proxy.$modal.confirm('排序模式里还有未保存的顺序，直接关闭会丢弃这次拖拽。', '顺序还没保存', {
+    confirmButtonText: '保存并关闭',
+    cancelButtonText: '丢弃并关闭',
+    distinguishCancelAndClose: true,
+    type: 'warning'
+  }).then(async () => {
+    await saveSort()
+    photoSortMode.value = false
+    done()
+  }).catch(() => {
+    /* 取消或关闭对话框：两个都当「丢弃」，但要把页面顺序还原成库里的样子 */
+    photoSortMode.value = false
+    loadPhotos()
+    done()
+  })
+}
+
+/** 底部「关闭」按钮：同样要过 before-close 的守卫（直接改 v-model 会绕过它） */
+function requestClosePhotos() {
+  onPhotosBeforeClose(() => { photosVisible.value = false })
 }
 
 function openPhotos(row) {
@@ -2792,7 +2825,9 @@ async function detachSelectedPhotos() {
     const res = await detachAlbumPhotos(ids)
     proxy.$modal.msgSuccess('已移出 ' + ((res && res.detached) || ids.length) + ' 张 → 未归类')
     photoSelected.value = []
-    applyPhotoPage()
+    /* P6.250：移出后要**重新拉取**，不能只 applyPhotoPage() ——
+       它只是从 photoRowsAll 切片，而那里面还留着刚移出的图，于是格子还在、标题仍写「共 N 条」。 */
+    loadPhotos()
     loadAlbums()
     loadStats()
   } catch (e) {

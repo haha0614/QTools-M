@@ -50,7 +50,10 @@
             <!-- P6.160：seq >= 1000000 是"停泊位"（scan-media.js 的 PARK_BASE）：
                  文件在最近一次扫描时不在磁盘上，行被挪到 seq+1000000，把真实序号让出来。
                  这里不该直接显示 1000008 这种内部数值，改为显示原序号或"文件缺失"。 -->
-            <span v-if="scope.row.seq != null && scope.row.seq < 1000000" class="rv-seq">#{{ scope.row.seq + 1 }}</span>
+            <!-- P6.250：这里显示的是**册内排序号**（库里 seq+1），不是列表位置，
+                 与「图片弹窗按位置编号」口径不同 —— 加 title 说清楚，避免被当成“第几张” -->
+            <span v-if="scope.row.seq != null && scope.row.seq < 1000000" class="rv-seq"
+              :title="'册内排序号 ' + (scope.row.seq + 1) + '（换排序 / 移动后可能变，与当前列表位置无关）'">#{{ scope.row.seq + 1 }}</span>
             <el-tag v-else-if="scope.row.seq != null" size="small" type="warning" effect="plain" class="rv-seq-parked"
               :title="'该照片在最近一次扫描中不在磁盘上（序号被停泊，原序号 #' + (scope.row.seq - 999999) + '）'">文件缺失</el-tag>
           </template>
