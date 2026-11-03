@@ -416,7 +416,7 @@ import {
   listReviewPhotos, setReviewPhotoState
 } from '@/api/media'
 import PhotoAutoRateDialog from './PhotoAutoRateDialog.vue'
-import { ratingLabel, ratingTagType } from './ratingOptions'
+import { ratingLabel, ratingShort, ratingTagType } from './ratingOptions'
 
 const { proxy } = getCurrentInstance()
 
@@ -900,12 +900,13 @@ function onDensityChange(value) {
   }
 }
 
+/* P6.237：复用共享的分级字典（原来这里手写了一套三元表达式，与 ratingOptions.js 重复） */
 function pvRatingLabel(r) {
-  return r === 'restricted' ? '限制级' : r === 'guidance' ? '家长指导级' : r === 'general' ? '大众级' : '继承相册'
+  return r ? ratingLabel(r) : '继承相册'
 }
 
 function pvRatingShort(r) {
-  return r === 'restricted' ? '限' : r === 'guidance' ? '指' : r === 'general' ? '大' : '继'
+  return r ? ratingShort(r) : '继'
 }
 
 function pvIsSelected(id) {

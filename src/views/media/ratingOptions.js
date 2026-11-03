@@ -31,6 +31,15 @@ export function ratingTagType(value) {
   return 'success'
 }
 
+/** 分级值 → 角标短字（大 / 指 / 限），空值表示「继承」 */
+export const RATING_SHORT = { general: '大', guidance: '指', restricted: '限' }
+
+/** 短字：未知或空 → 大（与 ratingLabel 同方向：脏值按最宽处理） */
+export function ratingShort(value) {
+  const key = String(value == null ? '' : value).trim().toLowerCase()
+  return RATING_SHORT[key] || RATING_SHORT.general
+}
+
 /** 行内下拉用：把 row.contentRating 归一成合法值（老行 / 未迁移库给的 null 一律当大众级） */
 export function ratingOf(row) {
   const key = String(row && row.contentRating ? row.contentRating : '').trim().toLowerCase()
