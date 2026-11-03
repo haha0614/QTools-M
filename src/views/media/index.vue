@@ -3002,6 +3002,17 @@ onBeforeUnmount(() => { stopScanPolling() })
 .album-merge-dup { color: var(--el-color-warning); }
 .album-merge-tip { margin: 0 0 12px; font-size: 13px; line-height: 1.7; color: var(--el-text-color-regular); }
 /* P6.57：排序模式：可拖 + 抓手光标 */
+/* P6.235：以下两条同样是被按行区间删样式时误删的（模板仍在用） */
+.album-suggest-tag { margin-left: 8px; transform: scale(0.9); }
+.trash-cover-ph { color: var(--el-text-color-placeholder); }
+
+/* P6.235：这两条在 P6.222 拆「未归类照片」时被我误删了（按行区间删样式，多带走了几行），
+   结果册下拉项只剩一张原始尺寸的封面图、标题和张数都被挤没了。整块按原样补回。 */
+.album-opt { display: flex; align-items: center; gap: 8px; height: 34px; }
+.album-opt-cover {
+  width: 26px; height: 26px; object-fit: cover; border-radius: 3px; flex: none;
+  background: var(--el-fill-color-light);
+}
 .album-opt-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .album-opt-count { flex: none; font-size: 12px; color: var(--el-text-color-secondary); }
 
