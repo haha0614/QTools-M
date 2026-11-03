@@ -31,9 +31,11 @@
       </div>
 
       <div class="ar-hits" v-if="samples.length">
-        <div class="ar-hit" v-for="s in samples" :key="s.id">
-          <img :src="thumbOf(s.id)" :alt="'第 ' + (Number(s.seq) + 1) + ' 张'" loading="lazy"
-            :title="'第 ' + (Number(s.seq) + 1) + ' 张 · 点击看大图'" @click="openBig(s)" />
+        <!-- P6.239：编号按**位置**（列表下标 + 1），不用库里的 seq —— seq 是历史排序号，
+             排过序后会从 6、7 开始，显示成「第 7 张」与实际不符。 -->
+        <div class="ar-hit" v-for="(s, sIdx) in samples" :key="s.id">
+          <img :src="thumbOf(s.id)" :alt="'第 ' + (sIdx + 1) + ' 张'" loading="lazy"
+            :title="'第 ' + (sIdx + 1) + ' 张 · 点击看大图'" @click="openBig(s, sIdx + 1)" />
           <span class="ar-hit-tag" :class="s.rating">{{ s.rating === 'restricted' ? '限' : '指' }}</span>
           <span class="ar-hit-score">{{ Math.round((s.porn || 0) * 100) }}%</span>
         </div>
@@ -47,9 +49,9 @@
           <el-button size="small" text type="primary" @click="decideAll('restricted')">全部标限制</el-button>
         </div>
         <div class="ar-review-grid">
-          <div class="ar-rv" v-for="r in reviewItems" :key="r.id">
-            <img :src="thumbOf(r.id)" :alt="'第 ' + (Number(r.seq) + 1) + ' 张'" loading="lazy"
-              :title="'第 ' + (Number(r.seq) + 1) + ' 张 · 点击看大图'" @click="openBig(r)" />
+          <div class="ar-rv" v-for="(r, rIdx) in reviewItems" :key="r.id">
+            <img :src="thumbOf(r.id)" :alt="'第 ' + (rIdx + 1) + ' 张'" loading="lazy"
+              :title="'第 ' + (rIdx + 1) + ' 张 · 点击看大图'" @click="openBig(r, rIdx + 1)" />
             <div class="ar-rv-actions">
               <button type="button" @click="decide(r, 'restricted')">限</button>
               <button type="button" @click="decide(r, 'guidance')">指</button>
@@ -145,12 +147,12 @@ const bigUrl = ref('')
 const bigTitle = ref('')
 const bigSample = ref(null)
 
-function openBig(sample) {
+function openBig(sample, position) {
   const url = bigMap.value.get(String(sample.id)) || thumbOf(sample.id)
   if (!url) return
   bigUrl.value = url
   bigSample.value = sample
-  bigTitle.value = '第 ' + (Number(sample.seq) + 1) + ' 张'
+  bigTitle.value = '第 ' + (position || 1) + ' 张'
   bigVisible.value = true
 }
 

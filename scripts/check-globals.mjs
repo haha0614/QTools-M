@@ -202,6 +202,14 @@ for (const file of files) {
     problems.push({ file: path.relative(ROOT, file), name: name + '()（调用了但未声明）' })
   }
 
+  /* 规则四（P6.239）：禁止用 seq 拼「第 N 张」文案。
+     依据：同一个 bug 犯过两次 —— 网格角标、大图标题都用 Number(photo.seq)+1 显示「第几张」，
+     而 seq 是历史排序列号（排过序后会从 6、7 开始），于是一张一张点下去全是错位。
+     「第几张」只能按位置算（列表下标 + 1）。 */
+  for (const m of code.matchAll(/第[^\n]{0,20}seq[^\n]{0,20}\+\s*1/g)) {
+    problems.push({ file: path.relative(ROOT, file), name: '用 seq 拼「第 N 张」文案（应改为位置号）' })
+  }
+
   for (const name of WATCH) {
     if (ALLOW.has(name) || declared.has(name)) continue
     const re = new RegExp('(^|[^\\w$.])' + name + '\\s*[.(\\[{]', 'm')
