@@ -504,60 +504,8 @@
         <el-button type="primary" :loading="albumMergeBusy" :disabled="!albumMergeTarget" @click="doAlbumMerge">确认并入</el-button>
       </template>
     </el-dialog>
-    <!-- P6.51：按图改归属 —— 移到另一本册 / 从当前册拆出一本新册；文件不动，只改归属并打 album_pinned -->
-    <el-dialog v-model="photoRelocateVisible" :title="photoRelocateMode === 'split' ? '拆出新册' : '移到另一册'"
-      width="min(560px, 92vw)" append-to-body>
-      <p class="album-merge-tip">
-        把选中的 {{ photoSelected.length }} 张改成<b>人工归属</b>：只改库里的归属，
-        不动磁盘文件，<b>以后扫描不会再按目录把它们拽回去</b>。
-      </p>
-      <el-input v-if="photoRelocateMode === 'split'" v-model="photoRelocateTitle" maxlength="300" show-word-limit
-        placeholder="新册标题（例如：马吉 · 精选）" data-testid="photo-split-title" />
-      <el-select v-else v-model="photoRelocateTarget" filterable remote clearable placeholder="搜索目标相册（标题/目录）"
-        :remote-method="searchRelocateTargets" :loading="photoRelocateLoading" style="width: 100%"
-        data-testid="photo-move-target" @change="onRelocateTargetChange">
-        <el-option v-for="a in photoRelocateOptions" :key="a.id"
-          :label="(a.title || a.id) + '（' + (a.photoCount || 0) + ' 张）'" :value="a.id">
-          <!-- P6.51：下拉项带封面，光看标题选不出册 -->
-          <div class="album-opt">
-            <img class="album-opt-cover" :src="mediaSrc(albumThumb(a))" loading="lazy" alt=""
-              @error="hideBrokenCover" />
-            <span class="album-opt-title">{{ a.title || a.id }}</span>
-            <span class="album-opt-count">{{ a.photoCount || 0 }} 张</span>
-          </div>
-        </el-option>
-      </el-select>
-      <!-- P6.51：目标册已有同内容时先报数，再让用户选「跳过 / 同时存在 / 只保留一份」 -->
-      <div v-if="photoRelocateMode === 'move' && relocatePreview.duplicates" class="relocate-dup">
-        <el-alert type="warning" :closable="false" show-icon
-          :title="'目标册已有同内容：选中的 ' + relocatePreview.moving + ' 张里有 '
-            + relocatePreview.duplicates + ' 张重复'">
-          <template #default>
-            <p>
-              全库共 {{ relocatePreview.globalCopies }} 处同内容。一张照片只属于一个系列，
-              所以同一本册里出现两份相同的图就是重复文件。
-            </p>
-          </template>
-        </el-alert>
-        <el-radio-group v-model="relocateDupPolicy" class="relocate-dup-group">
-          <el-radio value="skip">跳过重复（重复的那几张不搬）</el-radio>
-          <el-radio value="keep">同时存在（都留着，之后在重复文件页处理）</el-radio>
-          <el-radio value="replace">只保留一份（目标册里旧的那份文件移入回收站）</el-radio>
-        </el-radio-group>
-      </div>
-      <p class="album-merge-preview" v-if="photoRelocateMode === 'split'">
-        新册没有目录（不进目录册体系），扫描不会认领也不会当空壳清理；
-        封面留空，审核状态默认「待审核」，要上站请先在审核页通过。
-      </p>
-      <template #footer>
-        <el-button @click="photoRelocateVisible = false">取消</el-button>
-        <el-button type="primary" :loading="photoRelocateBusy"
-          :disabled="photoRelocateMode === 'split' ? !photoRelocateTitle.trim() : !photoRelocateTarget"
-          data-testid="photo-relocate-submit" @click="doPhotoRelocate">
-          {{ photoRelocateMode === 'split' ? '确认拆出' : '确认移动' }}
-        </el-button>
-      </template>
-    </el-dialog>
+    <!-- 按图改归属（移到另一册 / 拆出新册）：整体拆到子组件（P6.234） -->
+    <photo-relocate-dialog ref="relocateRef" v-model="photoRelocateVisible" @done="afterPhotoRelocate" />
     <!-- 相册归属规则（列表 + 新增）：整体拆到子组件（P6.220 拆分） -->
     <album-rule-dialog v-model="ruleVisible" @changed="loadAlbumRules" />
 
@@ -789,6 +737,8 @@ import PhotoFilterBar from './PhotoFilterBar.vue'
 // P6.229：图片弹窗的标题头与底部批量条（纯展示）
 import PhotoPickerHeader from './PhotoPickerHeader.vue'
 import PhotoBatchBar from './PhotoBatchBar.vue'
+// P6.234：按图改归属（移到另一册 / 拆出新册）
+import PhotoRelocateDialog from './PhotoRelocateDialog.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -2964,95 +2914,21 @@ async function detachSelectedPhotos() {
 
 /* P6.51：按图改归属 —— 移到另一册 / 拆出新册 */
 const photoRelocateVisible = ref(false)
-const photoRelocateMode = ref('move')
-const photoRelocateTarget = ref('')
-const photoRelocateTitle = ref('')
-const photoRelocateOptions = ref([])
-const photoRelocateLoading = ref(false)
-const photoRelocateBusy = ref(false)
-/** P6.51：搬入前的重复预检结果 + 冲突策略（keep 同时存在 / skip 跳过重复 / replace 只保留一份） */
-const relocatePreview = ref({ moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 })
-const relocateDupPolicy = ref('keep')
+
+/* P6.234：改归属弹窗已拆成组件，页面只保留开关与打开入口 */
+const relocateRef = ref(null)
 
 function openPhotoRelocate(mode) {
   if (!photoSelected.value.length) return
-  photoRelocateMode.value = mode
-  photoRelocateTarget.value = ''
-  photoRelocateTitle.value = ''
-  photoRelocateOptions.value = []
-  relocatePreview.value = { moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 }
-  relocateDupPolicy.value = 'keep'
-  photoRelocateVisible.value = true
-  if (mode === 'move') searchRelocateTargets('')
+  relocateRef.value && relocateRef.value.open(mode, photoSelected.value.slice(), photoQuery.albumId)
 }
 
-/** 选中目标册后立刻预检：目标册里有几张同内容（决定要不要弹三选一） */
-async function onRelocateTargetChange(target) {
-  relocatePreview.value = { moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 }
-  if (!target || !photoSelected.value.length) return
-  try {
-    const res = await previewPhotoMove(photoSelected.value.slice(), target)
-    relocatePreview.value = {
-      moving: (res && res.moving) || 0,
-      duplicates: (res && res.duplicates) || 0,
-      globalCopies: (res && res.globalCopies) || 0,
-      targetCopies: (res && res.targetCopies) || 0
-    }
-  } catch (e) {
-    relocatePreview.value = { moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 }
-  }
-}
-
-async function searchRelocateTargets(keyword) {
-  photoRelocateLoading.value = true
-  try {
-    const res = await listAlbums({ keyword: keyword || '', pageNum: 1, pageSize: 30, hidden: 'all' })
-    const selfId = (currentAlbum.value && currentAlbum.value.id) || photoQuery.albumId
-    photoRelocateOptions.value = ((res && res.rows) || []).filter((a) => a.id !== selfId)
-  } catch (e) {
-    photoRelocateOptions.value = []
-  } finally {
-    photoRelocateLoading.value = false
-  }
-}
-
-async function doPhotoRelocate() {
-  const ids = photoSelected.value.slice()
-  if (!ids.length) return
-  photoRelocateBusy.value = true
-  try {
-    const res = photoRelocateMode.value === 'split'
-      ? await splitAlbumPhotos(ids, photoRelocateTitle.value.trim())
-      : await moveAlbumPhotos(ids, photoRelocateTarget.value, relocateDupPolicy.value)
-    const moved = (res && res.moved) || 0
-    const skipped = (res && res.skipped) || 0
-    const replaced = (res && res.replaced) || 0
-    const total = ids.length
-    // 数字必须自洽：选中 N 张 = 搬移 moved + 跳过 skipped，用户一眼能对上
-    let msg
-    if (photoRelocateMode.value === 'split') {
-      msg = '已拆出新册：搬入 ' + moved + ' 张（人工归属，重扫不会再拽回）'
-    } else if (moved === 0 && skipped > 0) {
-      // 「跳过重复」把选中的全跳过了：策略生效，不是失败
-      msg = '没有搬动：选中 ' + total + ' 张，' + skipped + ' 张在目标册里都有同内容，已按「跳过重复」跳过'
-    } else if (skipped > 0) {
-      msg = '选中 ' + total + ' 张：搬移 ' + moved + ' 张、跳过重复 ' + skipped + ' 张'
-        + '（跳过的是目标册里已有同内容的）'
-    } else {
-      msg = '已移动：' + moved + ' 张（人工归属，重扫不会再拽回）'
-    }
-    if (replaced > 0) msg += '；目标册里旧的那份已进回收站 ' + replaced + ' 份'
-    proxy.$modal.msgSuccess(msg)
-    photoRelocateVisible.value = false
-    photoSelected.value = []
-    applyPhotoPage()
-    loadAlbums()
-    loadStats()
-  } catch (e) {
-    proxy.$modal.msgError('改归属失败：' + (errorText(e) || (e && e.message) || '请求失败'))
-  } finally {
-    photoRelocateBusy.value = false
-  }
+/* 改归属成功后：清选择、刷新当前页与相册/统计 */
+function afterPhotoRelocate() {
+  photoSelected.value = []
+  applyPhotoPage()
+  loadAlbums()
+  loadStats()
 }
 
 function openAlbumPersons(row) {
