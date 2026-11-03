@@ -34,8 +34,11 @@
       <div v-for="p in rows" :key="p.id" class="uncat-card" :class="{ 'is-picked': isPicked(p.id) }">
         <span class="uncat-check" :title="isPicked(p.id) ? '取消勾选' : '勾选这一张'"
           data-testid="uncat-check" @click.stop="togglePick(p.id)">{{ isPicked(p.id) ? '✓' : '' }}</span>
-        <el-image class="uncat-thumb" fit="cover" :src="mediaSrc(p.thumbUrl)"
-          :preview-src-list="[mediaSrc(p.previewUrl || p.thumbUrl)]" :initial-index="0"
+        <!-- P6.246：点图打开大图原本用 previewUrl（内容寻址的预览产物），
+             未归类照片多数只生成过缩略图、没有 preview 产物，点开就是「加载失败」。
+             改为优先用**原图**（/api/media/file?p=relPath），并把整页做成可前后翻的预览列表。 -->
+        <el-image class="uncat-thumb" fit="cover" :src="thumbSrcOf(p)"
+          :preview-src-list="previewList" :initial-index="previewIndex(p)"
           preview-teleported hide-on-click-modal>
           <template #error><span class="uncat-ph">{{ photoFileName(p.relPath).slice(0, 1) }}</span></template>
         </el-image>
@@ -75,6 +78,26 @@ const loading = ref(false)
 const dirs = ref([])
 const claiming = ref('')
 const selected = ref([])
+
+/* 缩略图：优先用内容寻址的缩略产物，没有就退回原图（避免整格空白） */
+function thumbSrcOf(p) {
+  if (p && p.thumbUrl) return mediaSrc(p.thumbUrl)
+  if (p && p.relPath) return mediaSrc('/api/media/file?p=' + encodeURIComponent(p.relPath))
+  return ''
+}
+
+/* 大图：一律走原图接口 —— 未归类照片通常没有 preview 产物，用它必然 404 */
+function bigSrcOf(p) {
+  if (p && p.relPath) return mediaSrc('/api/media/file?p=' + encodeURIComponent(p.relPath))
+  return thumbSrcOf(p)
+}
+
+const previewList = computed(() => (rows.value || []).map(p => bigSrcOf(p)).filter(Boolean))
+
+function previewIndex(p) {
+  const i = (rows.value || []).findIndex(x => x && String(x.id) === String(p && p.id))
+  return i < 0 ? 0 : i
+}
 
 function isPicked(id) {
   return selected.value.indexOf(String(id)) > -1
