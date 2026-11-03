@@ -614,14 +614,9 @@
       :saving="albumPersonSaving" @confirm="submitAlbumPersons" />
 
     <!-- 封面放大预览：视频用缩略图，相册优先大图预览、缺 preview 时降级缩略图 -->
-    <el-dialog v-model="previewVisible" :title="previewTitle" width="min(920px, 94vw)" append-to-body @closed="onPreviewClosed">
-      <div class="preview-stage">
-        <img v-if="previewSrc" class="preview-img" :src="mediaSrc(previewSrc)" :alt="previewTitle" @error="onPreviewError"
-          @load="onPreviewLoaded" />
-        <el-empty description="没有可用的预览图" v-else />
-      </div>
-      <p class="preview-meta">{{ previewMeta }}</p>
-    </el-dialog>
+    <!-- 大图查看框：抽出成通用组件，未归类/相册/视频封面共用（P6.248） -->
+    <photo-preview-dialog v-model="previewVisible" :title="previewTitle" :src="previewSrc"
+      :fallback="previewFallback" :meta="previewMeta" />
 
     <!-- P6.83：给单条视频编辑标签（多选 + 可直接输新名字新建） -->
     <el-dialog v-model="videoTagEditVisible" title="设置本视频的标签" width="min(520px, 92vw)" append-to-body>
@@ -740,6 +735,8 @@ import PhotoPickerHeader from './PhotoPickerHeader.vue'
 import PhotoBatchBar from './PhotoBatchBar.vue'
 // P6.234：按图改归属（移到另一册 / 拆出新册）
 import PhotoRelocateDialog from './PhotoRelocateDialog.vue'
+// P6.248：通用大图查看框
+import PhotoPreviewDialog from './PhotoPreviewDialog.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -847,7 +844,6 @@ const previewTitle = ref('')
 const previewSrc = ref('')
 const previewFallback = ref('')
 const previewMeta = ref('')
-const previewNatural = ref('')
 
 const scanJob = ref(null)
 const scanRunning = ref(false)
@@ -1061,24 +1057,8 @@ function openAlbumPreview(row) {
   previewVisible.value = true
 }
 
-function onPreviewLoaded(event) {
-  const img = event && event.target
-  if (img && img.naturalWidth) previewNatural.value = img.naturalWidth + '×' + img.naturalHeight
-}
 
-function onPreviewError() {
-  if (previewFallback.value && previewSrc.value !== previewFallback.value) {
-    previewSrc.value = previewFallback.value
-    previewMeta.value = '该相册没有大图预览（仅 is_big 照片才生成），已降级为缩略图'
-    return
-  }
-  previewSrc.value = ''
-  previewMeta.value = '预览图加载失败：' + previewTitle.value
-}
 
-function onPreviewClosed() {
-  previewNatural.value = ''
-}
 
 // ------------------------------------------------------------------ 统计 / 人物
 
@@ -1611,7 +1591,6 @@ function openPhotoPreview(photo) {
   previewSrc.value = mediaSrc(url)
   previewMeta.value = [photo.relPath, photo.bytes ? formatSize(photo.bytes) : '',
     photo.w && photo.h ? photo.w + '×' + photo.h : ''].filter(Boolean).join(' · ')
-  previewNatural.value = ''
   previewVisible.value = true
 }
 
@@ -3093,28 +3072,6 @@ onBeforeUnmount(() => { stopScanPolling() })
   background: var(--el-color-success);
   border-radius: 2px;
   cursor: help;
-}
-.preview-stage {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 120px;
-  background: transparent;
-  border-radius: 4px;
-  padding: 8px;
-}
-.preview-img {
-  border-radius: 10px;
-  max-width: 100%;
-  max-height: 70vh;
-  object-fit: contain;
-  background: transparent;
-}
-.preview-meta {
-  margin: 8px 0 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  word-break: break-all;
 }
 /* P6.22：图片弹窗顶部的分级筛选条——sticky，滚 96 格时一直在 */.photo-filter {
   position: sticky;

@@ -38,12 +38,9 @@
       <div v-for="p in rows" :key="p.id" class="uncat-card" :class="{ 'is-picked': isPicked(p.id) }">
         <span class="uncat-check" :title="isPicked(p.id) ? '取消勾选' : '勾选这一张'"
           data-testid="uncat-check" @click.stop="togglePick(p.id)">{{ isPicked(p.id) ? '✓' : '' }}</span>
-        <!-- P6.246：点图打开大图原本用 previewUrl（内容寻址的预览产物），
-             未归类照片多数只生成过缩略图、没有 preview 产物，点开就是「加载失败」。
-             改为优先用**原图**（/api/media/file?p=relPath），并把整页做成可前后翻的预览列表。 -->
-        <el-image class="uncat-thumb" fit="cover" :src="thumbSrcOf(p)"
-          :preview-src-list="previewList" :initial-index="previewIndex(p)"
-          preview-teleported hide-on-click-modal>
+        <!-- P6.248：点图改用页面统一的大图查看框（PhotoPreviewDialog），
+             不再用 el-image 自带的全屏查看器 —— 那套没有标题/明细、样式也与其它地方不一致。 -->
+        <el-image class="uncat-thumb" fit="cover" :src="thumbSrcOf(p)" @click="openBig(p)">
           <template #error><span class="uncat-ph">{{ photoFileName(p.relPath).slice(0, 1) }}</span></template>
         </el-image>
         <div class="uncat-name" :title="p.relPath">{{ photoFileName(p.relPath) }}</div>
@@ -55,6 +52,10 @@
     </div>
 
     <el-empty v-if="!loading && !rows.length" description="没有未归类照片" />
+
+    <!-- 大图查看框：与媒体库共用同一个组件 -->
+    <photo-preview-dialog v-model="bigVisible" :title="bigTitle" :src="bigSrc" :fallback="thumbSrcOf(currentRow || {})"
+      :meta="bigMeta" />
     <pagination v-show="total > 0" :page-sizes="[24, 48, 96]" :total="total"
       v-model:page="page" v-model:limit="pageSize" @pagination="loadUncat" />
 
@@ -68,6 +69,13 @@
 import { listUncategorizedPhotos, listUncategorizedDirs, splitAlbumPhotos, claimUncategorizedDir } from '@/api/media'
 import { errorText } from '@/utils/errorText'
 import { formatVolume, photoFileName, mediaSrc } from './mediaFormat'
+import PhotoPreviewDialog from './PhotoPreviewDialog.vue'
+
+/* 供大图查看框兜底用：当前打开的那一行（找不到就返回 null，组件里会退回空缩略图） */
+const currentRow = computed(() => {
+  const hit = (rows.value || []).find(x => x && mediaSrc(bigSrcOf(x)) === bigSrc.value)
+  return hit || null
+})
 
 defineProps({ modelValue: { type: Boolean, default: false } })
 const emit = defineEmits(['update:modelValue', 'relocate', 'relocateIds', 'changed'])
@@ -96,11 +104,18 @@ function bigSrcOf(p) {
   return thumbSrcOf(p)
 }
 
-const previewList = computed(() => (rows.value || []).map(p => bigSrcOf(p)).filter(Boolean))
+/* 大图查看框（与相册/视频封面同一套）：标题取文件名，明细给相对路径与体积 */
+const bigVisible = ref(false)
+const bigTitle = ref('')
+const bigSrc = ref('')
+const bigMeta = ref('')
 
-function previewIndex(p) {
-  const i = (rows.value || []).findIndex(x => x && String(x.id) === String(p && p.id))
-  return i < 0 ? 0 : i
+function openBig(p) {
+  if (!p) return
+  bigTitle.value = photoFileName(p.relPath)
+  bigSrc.value = bigSrcOf(p)
+  bigMeta.value = [p.relPath, p.bytes ? formatVolume(p.bytes) : ''].filter(Boolean).join(' · ')
+  bigVisible.value = true
 }
 
 function isPicked(id) {
