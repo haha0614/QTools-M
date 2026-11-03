@@ -560,55 +560,8 @@
     <album-rule-dialog v-model="ruleVisible" @changed="loadAlbumRules" />
 
     <!-- P6.52：未归类照片（album_id 为空）—— 站端不展示，可逐张移进某本册 -->
-    <el-dialog v-model="uncatVisible" title="未归类照片" width="min(1120px, 96vw)" append-to-body>
-      <div class="uncat-bar">
-        <span class="uncat-count">共 {{ uncatTotal }} 张 · 站端不展示 · 以后可以再移进别的册</span>
-        <el-button size="small" :loading="uncatLoading" data-testid="uncat-refresh" @click="loadUncat">刷新</el-button>
-        <span v-if="uncatSelected.length" class="uncat-picked">已选 {{ uncatSelected.length }} 张</span>
-        <el-button v-if="uncatSelected.length" size="small" type="primary" v-hasPermi="['media:admin:edit']"
-          data-testid="uncat-claim-picked" @click="claimPickedPhotos">建册并入（勾选的 {{ uncatSelected.length }} 张）</el-button>
-        <el-button v-if="uncatSelected.length" size="small" text @click="clearUncatPick">清空选择</el-button>
-      </div>
-
-      <!-- P6.88：规则模式下扫描不再按目录建册，新目录的照片都停在这里。
-           这里给出"按目录一键建册并入"：同时落一条归属规则，之后同目录新文件扫描时自动认领。 -->
-      <div v-if="uncatDirs.length" class="uncat-dirs">
-        <div class="uncat-dirs-head">
-          按目录归册（会同时建一条规则，之后同目录新文件自动归属）
-        </div>
-        <div v-for="d in uncatDirs" :key="d.dir" class="uncat-dir-row">
-          <span class="uncat-dir-name" :title="d.dir || '（媒体根）'">{{ d.dir || '（媒体根）' }}</span>
-          <span class="uncat-dir-count">{{ d.photos }} 张 · {{ formatVolume(d.bytes) }}</span>
-          <el-tag v-if="d.ruleCount" size="small" type="info">已有 {{ d.ruleCount }} 条规则</el-tag>
-          <span class="uncat-spacer"></span>
-          <el-button size="small" type="primary" plain :loading="uncatClaiming === d.dir"
-            v-hasPermi="['media:admin:edit']" data-testid="uncat-claim"
-            @click="claimDir(d)">建册并入</el-button>
-        </div>
-      </div>
-      <div v-loading="uncatLoading" class="uncat-grid">
-        <div v-for="p in uncatRows" :key="p.id" class="uncat-card" :class="{ 'is-picked': isUncatPicked(p.id) }">
-          <span class="uncat-check" :title="isUncatPicked(p.id) ? '取消勾选' : '勾选这一张'"
-            data-testid="uncat-check" @click.stop="toggleUncatPick(p.id)">{{ isUncatPicked(p.id) ? '✓' : '' }}</span>
-          <el-image class="uncat-thumb" fit="cover" :src="mediaSrc(p.thumbUrl)"
-            :preview-src-list="[mediaSrc(p.previewUrl || p.thumbUrl)]" :initial-index="0"
-            preview-teleported hide-on-click-modal>
-            <template #error><span class="uncat-ph">{{ photoFileName(p.relPath).slice(0, 1) }}</span></template>
-          </el-image>
-          <div class="uncat-name" :title="p.relPath">{{ photoFileName(p.relPath) }}</div>
-          <div class="uncat-actions">
-            <el-button link type="primary" size="small" v-hasPermi="['media:admin:edit']"
-              data-testid="uncat-move" @click="moveUncat(p)">移入另一册…</el-button>
-          </div>
-        </div>
-      </div>
-      <el-empty v-if="!uncatLoading && !uncatRows.length" description="没有未归类照片" />
-      <pagination v-show="uncatTotal > 0" :page-sizes="[24, 48, 96]" :total="uncatTotal"
-        v-model:page="uncatPage" v-model:limit="uncatPageSize" @pagination="loadUncat" />
-      <template #footer>
-        <el-button @click="uncatVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
+    <!-- 未归类照片：整体拆到子组件（P6.222 拆分）；「移入另一册」仍复用页面的相册弹层 -->
+    <uncategorized-dialog ref="uncatRef" v-model="uncatVisible" @relocate="onUncatRelocate" @changed="reloadAfterUncat" />
     <!-- P6.46：视频页内播放（以前是新开标签） -->
     <el-dialog v-model="videoPlayVisible" :title="videoPlayTitle" width="min(1100px, 94vw)" append-to-body
       destroy-on-close class="video-dialog">
@@ -884,6 +837,8 @@ import BatchAssignDialog from './BatchAssignDialog.vue'
 import PersonAssignDialog from './PersonAssignDialog.vue'
 // P6.220：相册归属规则（列表 + 新增）
 import AlbumRuleDialog from './AlbumRuleDialog.vue'
+// P6.222：未归类照片（列表 / 目录归册 / 建册并入）
+import UncategorizedDialog from './UncategorizedDialog.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -2413,11 +2368,10 @@ function openAlbumRules() {
   ruleVisible.value = true
 }
 
-/* 规则弹窗内部自读自写；页面只需要在规则变化后刷新一次未归类列表 */
+/* 规则弹窗内部自读自写；页面只需要在规则变化后刷新一次未归类列表。
+   未归类弹窗拆成子组件后（P6.222），通过 ref 调它自己的 loadUncat()。 */
 function loadAlbumRules() {
-  /* P6.221：这里原来写的是 loadUncategorized() —— 全仓没有这个函数，规则一改就 ReferenceError。
-     正确函数名是 loadUncat()。 */
-  loadUncat()
+  uncatRef.value?.loadUncat()
 }
 
 // ------------------------------------------------------------------ 相册改名 / 删除（P6.86）
@@ -3010,136 +2964,25 @@ async function saveSort() {
 
 /* P6.52：未归类（album_id 为空）—— 列表 + 逐张移入某册 + 批量移出 */
 const uncatVisible = ref(false)
-const uncatLoading = ref(false)
-const uncatRows = ref([])
-const uncatTotal = ref(0)
-const uncatPage = ref(1)
-const uncatPageSize = ref(48)
-/* P6.88：未归类按目录汇总 + 一键建册并入 */
-const uncatDirs = ref([])
-const uncatClaiming = ref('')
-/* P6.89：未归类里勾选若干张 → 建册并入（无规则，纯人工归属） */
-const uncatSelected = ref([])
+
+const uncatRef = ref(null)
 
 function openUncategorized() {
   uncatVisible.value = true
-  uncatPage.value = 1
-  loadUncat()
-  loadUncatDirs()
 }
 
-function isUncatPicked(id) {
-  return uncatSelected.value.indexOf(String(id)) > -1
-}
-
-function toggleUncatPick(id) {
-  const key = String(id)
-  uncatSelected.value = isUncatPicked(key)
-    ? uncatSelected.value.filter(x => x !== key)
-    : uncatSelected.value.concat([key])
-}
-
-function clearUncatPick() {
-  uncatSelected.value = []
-}
-
-/** 勾选的几张 → 建一本新册并入（不落规则：这是人工挑的，不代表整个目录） */
-async function claimPickedPhotos() {
-  const ids = uncatSelected.value.slice()
-  if (!ids.length) return
-  let title
-  try {
-    const r = await proxy.$prompt('把这 ' + ids.length + ' 张放进一本新册，标题：', '建册并入', {
-      confirmButtonText: '建册并入',
-      cancelButtonText: '取消',
-      inputValue: '未命名册',
-      inputValidator: v => (v && v.trim() ? true : '标题不能为空')
-    })
-    title = (r && r.value ? r.value : '').trim()
-  } catch (e) {
-    return
-  }
-  if (!title) return
-  try {
-    const res = await splitAlbumPhotos(ids, title)
-    const moved = (res && (res.moved != null ? res.moved : res.count)) || ids.length
-    proxy.$modal.msgSuccess('已建册「' + title + '」并入 ' + moved + ' 张')
-    uncatSelected.value = []
-    loadAlbums()
-    loadStats()
-    await loadUncat()
-    await loadUncatDirs()
-  } catch (e) {
-    proxy.$modal.msgError('建册失败：' + errorText(e))
-  }
-}
-
-async function loadUncatDirs() {
-  try {
-    const res = await listUncategorizedDirs()
-    uncatDirs.value = Array.isArray(res) ? res : ((res && res.rows) || [])
-  } catch (e) {
-    uncatDirs.value = []
-  }
-}
-
-/** 一键：按目录建册 + 建规则 + 把该目录未归类照片移进去（一次输入标题，一次确认） */
-async function claimDir(d) {
-  const dir = d && d.dir ? String(d.dir) : ''
-  const parts = dir.split('/')
-  const guess = parts.length ? parts[parts.length - 1] : '未命名册'
-  let title
-  try {
-    const r = await proxy.$prompt('新册标题（该目录下 ' + d.photos + ' 张会移进去，并自动建一条归属规则）',
-      '按目录建册', {
-        confirmButtonText: '建册并入',
-        cancelButtonText: '取消',
-        inputValue: guess,
-        inputValidator: v => (v && v.trim() ? true : '标题不能为空')
-      })
-    title = (r && r.value ? r.value : '').trim()
-  } catch (e) {
-    return
-  }
-  if (!title) return
-  uncatClaiming.value = dir
-  try {
-    const res = await claimUncategorizedDir({ dir, title })
-    proxy.$modal.msgSuccess('已建册「' + ((res && res.title) || title) + '」，移入 '
-      + ((res && res.moved) || 0) + ' 张；同目录以后的扫描会自动归到这里')
-    loadAlbums()
-    loadStats()
-    await loadUncat()
-    await loadUncatDirs()
-  } catch (e) {
-    proxy.$modal.msgError('建册失败：' + errorText(e))
-  } finally {
-    uncatClaiming.value = ''
-  }
-}
-
-async function loadUncat() {
-  uncatLoading.value = true
-  uncatSelected.value = []
-  try {
-    const res = await listUncategorizedPhotos({ page: uncatPage.value, size: uncatPageSize.value })
-    uncatRows.value = (res && res.rows) || []
-    uncatTotal.value = (res && res.total) || 0
-  } catch (e) {
-    uncatRows.value = []
-    uncatTotal.value = 0
-    proxy.$modal.msgError('读取未归类照片失败：' + (errorText(e) || (e && e.message) || '请求失败'))
-  } finally {
-    uncatLoading.value = false
-  }
-}
-
-/** 未归类卡片 → 复用「移到另一册」弹层（它读的也是 photoSelected） */
-function moveUncat(p) {
-  if (!p || p.id == null) return
+/* 未归类卡片「移入另一册」：复用相册的归属弹层（它读 photoSelected） */
+function onUncatRelocate(photo) {
+  if (!photo || photo.id == null) return
   uncatVisible.value = false
-  photoSelected.value = [String(p.id)]
+  photoSelected.value = [String(photo.id)]
   openPhotoRelocate('move')
+}
+
+/* 未归类里建册并入之后：相册与统计会变 */
+function reloadAfterUncat() {
+  loadAlbums()
+  loadStats()
 }
 
 /** 把相册里选中的几张移出本册，变成未归类 */
@@ -3336,38 +3179,9 @@ onBeforeUnmount(() => { stopScanPolling() })
 .album-suggest-tag { margin-left: 8px; transform: scale(0.9); }
 
 /* P6.52：未归类网格 */
-.uncat-bar { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
-.uncat-count { font-size: 13px; color: var(--el-text-color-secondary); }
-.uncat-grid { display: flex; flex-wrap: wrap; gap: 12px; min-height: 160px; }
-.uncat-picked { font-size: 12px; color: var(--el-color-primary); }
-.uncat-card { position: relative; }
-.uncat-card.is-picked { outline: 2px solid var(--el-color-primary); border-radius: 6px; }
-.uncat-check {
-  position: absolute; left: 6px; top: 6px; z-index: 2; width: 22px; height: 22px; border-radius: 50%;
-  background: rgba(0,0,0,.45); color: #fff; font-size: 13px; line-height: 22px; text-align: center;
-  cursor: pointer; user-select: none;
-}
-.uncat-card.is-picked .uncat-check { background: var(--el-color-primary); }
-.uncat-dirs { margin-bottom: 10px; padding: 8px 10px; border: 1px solid var(--el-border-color-lighter); border-radius: 6px; background: var(--el-fill-color-lighter); }
-.uncat-dirs-head { font-size: 12px; color: var(--el-text-color-secondary); margin-bottom: 6px; }
-.uncat-dir-row { display: flex; align-items: center; gap: 8px; padding: 4px 0; border-top: 1px dashed var(--el-border-color-lighter); }
-.uncat-dir-name { font-size: 13px; max-width: 420px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.uncat-dir-count { font-size: 12px; color: var(--el-text-color-secondary); }
-.uncat-spacer { flex: 1; }
 .uncat-card {
   width: 150px; border: 1px solid var(--el-border-color-light); border-radius: 6px;
   overflow: hidden; background: var(--el-bg-color);
-}
-.uncat-thumb { width: 100%; height: 110px; background: var(--el-fill-color-light); }
-.uncat-ph { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; color: var(--el-text-color-secondary); }
-.uncat-name { padding: 4px 6px 0; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.uncat-actions { padding: 2px 6px 6px; text-align: right; }
-
-/* P6.51：册下拉项 = 封面 + 标题 + 张数 */
-.album-opt { display: flex; align-items: center; gap: 8px; height: 34px; }
-.album-opt-cover {
-  width: 26px; height: 26px; object-fit: cover; border-radius: 3px; flex: none;
-  background: var(--el-fill-color-light);
 }
 .album-opt-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .album-opt-count { flex: none; font-size: 12px; color: var(--el-text-color-secondary); }
