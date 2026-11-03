@@ -753,6 +753,7 @@ import {
 import { mergeAlbumsSimilar } from '@/api/media'
 import { setVideoRating, setAlbumRating, setRatingBatch, setReviewState, mergeAlbums, previewAlbumMerge, moveAlbumPhotos, splitAlbumPhotos, previewPhotoMove, detachAlbumPhotos, listUncategorizedPhotos, confirmAlbums as confirmAlbumsApi, reorderAlbumPhotos } from '@/api/media'
 import { RATING_OPTIONS, ratingOf } from './ratingOptions'
+import { usePhotoSelection } from './usePhotoSelection'
 
 const route = useRoute()
 
@@ -1236,7 +1237,7 @@ function openPhotos(row) {
   // P6.17：换一本册就清空勾选与锚点，避免把上一本的选中带过来
   photoSelected.value = []
   photoRatingFilter.value = 'all'
-  pickAnchor = null
+  clearPickAnchor()
   loadPhotos()
 }
 
@@ -1291,7 +1292,7 @@ const photoSeqBase = computed(() => {
 
 function applyPhotoPage() {
   // P6.17：换页就把锚点清掉，避免跨页的「看不见的范围选择」
-  pickAnchor = null
+  clearPickAnchor()
   const size = Number(photoQuery.pageSize) || 24
   const rows = photoSource.value === 'disk' ? photoRowsAll.value : photoFilteredRows.value
   const pages = Math.max(1, Math.ceil(rows.length / size))
@@ -1432,8 +1433,29 @@ function photoRatingLabel(photo) {
   return '继承相册（' + albumPhotoRatingLabel.value + '）'
 }
 
+const photoSortMode = ref(false)
+const sortDragIndex = ref(-1)
+
+/** 本页是否已经全选（全选按钮的文案与行为都看它） */
+const allPicked = computed(() => {
+  const rows = photoList.value || []
+  if (!rows.length) return false
+  return rows.every((p) => p && p.id != null && photoSelected.value.includes(String(p.id)))
+})
+
+/* 选中状态机（勾选 / Shift 连选 / 选到此 / 长按滑动连选 / 全选本页）—— P6.240 抽成组合式函数 */
+const {
+  photoSelected, multiMode, clearAnchor: clearPickAnchor,
+  onCardPointerDown, onGridPointerMove, onGridPointerUp, onPhotoClick,
+  selectToHere, exitMultiMode, onPickClick, toggleSelectAll
+} = usePhotoSelection({
+  rows: photoList,
+  sortMode: photoSortMode,
+  onPreview: (photo) => openPhotoPreview(photo),
+  allPicked
+})
+
 /** P6.09：图片弹窗里勾选多张 → 批量设分级（ids 是 media_photo.id） */
-const photoSelected = ref([])
 
 /**
  * 勾选一张（P6.17）
@@ -1442,133 +1464,19 @@ const photoSelected = ref([])
  * 按住 Shift 点击 = 从锚点到这张之间的**本页所有图片**一起选中/取消（和资源管理器一致）。
  * 锚点跨页失效（翻页时清空），避免「从第 3 页选到第 1 页」这种看不见的范围。</p>
  */
-let pickAnchor = null
 
 /* ---------------------------------------------------------------- 触屏：长按进入多选 → 滑动连选 */
 /** 多选态（长按触发）：此时点卡片=勾选/取消，而不是打开大图 */
-const multiMode = ref(false)
-let longPressTimer = null
-let dragAnchorId = null
-let dragSelecting = false
-let suppressClick = false
 
-function onCardPointerDown(photo, event) {
-  // 排序模式下：不启用连选/长按手势，把指针让给原生拖拽
-  if (photoSortMode.value) return
-  if (!photo || photo.id == null) return
-  suppressClick = false
-  // 鼠标沿用 Shift + 勾选框，不做长按（长按鼠标很反直觉）
-  if (event && event.pointerType === 'mouse') return
-  dragAnchorId = String(photo.id)
-  clearTimeout(longPressTimer)
-  longPressTimer = setTimeout(() => {
-    multiMode.value = true
-    dragSelecting = true
-    suppressClick = true
-    const set = new Set(photoSelected.value)
-    set.add(dragAnchorId)
-    photoSelected.value = Array.from(set)
-    if (navigator.vibrate) {
-      try { navigator.vibrate(12) } catch { /* 忽略 */ }
-    }
-  }, 420)
-}
 
 /** 手指滑动：把「锚点 → 当前手指下的卡片」整段设为选中（覆盖式，符合大多数相册 App 的手感） */
-function onGridPointerMove(event) {
-  if (!dragSelecting) return
-  const el = document.elementFromPoint(event.clientX, event.clientY)
-  const card = el && el.closest ? el.closest('.photo-item') : null
-  if (!card) return
-  const id = card.getAttribute('data-id')
-  if (!id) return
-  const rows = photoList.value || []
-  const a = rows.findIndex((p) => p && String(p.id) === dragAnchorId)
-  const b = rows.findIndex((p) => p && String(p.id) === id)
-  if (a < 0 || b < 0) return
-  const from = Math.min(a, b)
-  const to = Math.max(a, b)
-  photoSelected.value = rows.slice(from, to + 1).map((p) => String(p.id))
-  if (event.cancelable) event.preventDefault()
-  suppressClick = true
-}
 
-function onGridPointerUp() {
-  clearTimeout(longPressTimer)
-  if (dragSelecting) {
-    dragSelecting = false
-    suppressClick = true
-    // 滑动结束后吞掉紧随其后的 click，避免顺手打开大图
-    setTimeout(() => { suppressClick = false }, 60)
-  }
-}
 
 /** 点卡片：多选态下 = 切换勾选；否则 = 打开预览 */
-function onPhotoClick(photo) {
-  if (suppressClick) return
-  if (multiMode.value) {
-    const id = String(photo.id)
-    const set = new Set(photoSelected.value)
-    if (set.has(id)) set.delete(id)
-    else set.add(id)
-    photoSelected.value = Array.from(set)
-    pickAnchor = id
-    return
-  }
-  // P6.30：预览不算「选中」，不更新锚点 —— 否则「选了 1 → 预览 3 → 点 7 的选到此」
-  // 会从 3 开始连选，得到 1,3,4,5,6,7（缺 2）这种断档结果。
-  openPhotoPreview(photo)
-}
 
 /** 「选到此」：从锚点（上次点过的那张）连选到这张；没有锚点就先把它设为锚点并选中 */
-function selectToHere(photo) {
-  if (!photo || photo.id == null) return
-  const rows = photoList.value || []
-  const id = String(photo.id)
-  const toIdx = rows.findIndex((p) => p && String(p.id) === id)
-  const fromIdx = pickAnchor == null ? -1 : rows.findIndex((p) => p && String(p.id) === pickAnchor)
-  if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) {
-    const set = new Set(photoSelected.value)
-    set.add(id)
-    photoSelected.value = Array.from(set)
-    pickAnchor = id
-    return
-  }
-  const from = Math.min(fromIdx, toIdx)
-  const to = Math.max(fromIdx, toIdx)
-  const set = new Set(photoSelected.value)
-  rows.slice(from, to + 1).forEach((p) => set.add(String(p.id)))
-  photoSelected.value = Array.from(set)
-}
 
-function exitMultiMode() {
-  multiMode.value = false
-  photoSelected.value = []
-  pickAnchor = null
-}
 
-function onPickClick(photo, event) {
-  if (!photo || photo.id == null) return
-  const rows = photoList.value || []
-  const id = String(photo.id)
-  const idx = rows.findIndex((p) => p && String(p.id) === id)
-  const anchorIdx = pickAnchor == null ? -1 : rows.findIndex((p) => p && String(p.id) === pickAnchor)
-  if (event && event.shiftKey && anchorIdx >= 0 && idx >= 0) {
-    const from = Math.min(anchorIdx, idx)
-    const to = Math.max(anchorIdx, idx)
-    const rangeIds = rows.slice(from, to + 1).map((p) => String(p.id))
-    const set = new Set(photoSelected.value)
-    const allOn = rangeIds.every((x) => set.has(x))
-    rangeIds.forEach((x) => (allOn ? set.delete(x) : set.add(x)))
-    photoSelected.value = Array.from(set)
-    return   // 锚点保持不动，方便接着往另一个方向扩选
-  }
-  const set = new Set(photoSelected.value)
-  if (set.has(id)) set.delete(id)
-  else set.add(id)
-  photoSelected.value = Array.from(set)
-  pickAnchor = id
-}
 
 function applyPhotoRating(rating) {
   if (!photoSelected.value.length) return
@@ -1652,26 +1560,8 @@ function submitAlbumBatchPerson(value) {
   }).finally(() => { batchSaving.value = false })
 }
 
-/** 本页是否已经全选（全选按钮的文案与行为都看它） */
-const allPicked = computed(() => {
-  const rows = photoList.value || []
-  if (!rows.length) return false
-  return rows.every((p) => p && p.id != null && photoSelected.value.includes(String(p.id)))
-})
 
 /** 全选/取消全选：只作用于当前页（1166 张一次性选中会让批量操作失去意义，也超出后端 2000 上限的余量） */
-function toggleSelectAll() {
-  const rows = photoList.value || []
-  if (!rows.length) return
-  const ids = rows.map((p) => String(p.id))
-  if (allPicked.value) {
-    photoSelected.value = photoSelected.value.filter((id) => !ids.includes(id))
-  } else {
-    const set = new Set(photoSelected.value)
-    ids.forEach((id) => set.add(id))
-    photoSelected.value = Array.from(set)
-  }
-}
 
 /** 角标下拉选了某一档：只改这一张（inherit = 回到跟随相册） */
 function setPhotoRating(photo, value) {
@@ -2817,8 +2707,6 @@ async function doAlbumMerge() {
 }
 
 /* P6.57：册内人工排序（拖拽重排当前页，退出时一次性保存） */
-const photoSortMode = ref(false)
-const sortDragIndex = ref(-1)
 
 function toggleSortMode() {
   if (photoSortMode.value) {

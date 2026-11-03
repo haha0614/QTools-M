@@ -91,6 +91,34 @@ function scriptBlocks(text) {
 function collectDeclared(code) {
   const names = new Set()
 
+  /* 解构声明：const { a, b: c } = ... / let [x, y] = ...
+     P6.240 之前没收集，导致从组合式函数里解构出来的 ref（如 photoSelected）被误报"未声明"。 */
+  for (const m of code.matchAll(/(?:const|let|var)\s*\{([\s\S]*?)\}\s*=/g)) {
+    for (const part of m[1].split(',')) {
+      const raw = part.trim()
+      if (!raw) continue
+      const alias = raw.includes(':') ? raw.split(':').pop().trim() : raw
+      const clean = alias.replace(/\s*=.*$/, '').trim()
+      if (/^[A-Za-z_$][\w$]*$/.test(clean)) names.add(clean)
+    }
+  }
+  /* 函数参数里的解构：function f({ a, b: c }) / ({ a }) => ... */
+  for (const m of code.matchAll(/(?:function\s*[\w$]*\s*|=>\s*)?\(\s*\{([\s\S]*?)\}\s*\)\s*(?:=>|\{)/g)) {
+    for (const part of m[1].split(',')) {
+      const raw = part.trim()
+      if (!raw || raw.startsWith('...')) continue
+      const alias = raw.includes(':') ? raw.split(':').pop().trim() : raw
+      const clean = alias.replace(/\s*=.*$/, '').trim()
+      if (/^[A-Za-z_$][\w$]*$/.test(clean)) names.add(clean)
+    }
+  }
+  for (const m of code.matchAll(/(?:const|let|var)\s*\[([^\]]*)\]\s*=/g)) {
+    for (const part of m[1].split(',')) {
+      const clean = part.trim().split('=')[0].trim()
+      if (/^[A-Za-z_$][\w$]*$/.test(clean)) names.add(clean)
+    }
+  }
+
   for (const m of code.matchAll(/import\s+([\s\S]*?)\s+from\s+['"][^'"]+['"]/g)) {
     const clause = m[1]
     const defaultImport = clause.match(/^\s*([A-Za-z_$][\w$]*)/)
