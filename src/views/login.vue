@@ -49,14 +49,8 @@
           </el-form-item>
 
           <el-form-item prop="code" label="验证码" v-if="captchaEnabled">
-            <div class="code-row">
-              <el-input v-model="loginForm.code" auto-complete="off" placeholder="请输入验证码"
-                class="code-input" @keyup.enter="handleLogin" />
-              <button type="button" class="code-box" title="看不清？点击换一张" @click="getCode">
-                <img v-if="codeUrl" :src="codeUrl" alt="验证码" class="code-img" />
-                <span v-else class="code-ph">加载中</span>
-              </button>
-            </div>
+            <!-- 滑块拼图验证码：拖动拼图对进缺口，通过后服务端发一次性凭证 -->
+            <SliderCaptcha ref="sliderRef" @verified="onSliderVerified" />
           </el-form-item>
 
           <div class="form-row">
@@ -79,7 +73,8 @@
 </template>
 
 <script setup>
-import { getCodeImg } from "@/api/login"
+import { getSliderCaptcha } from "@/api/login"
+import SliderCaptcha from "@/components/SliderCaptcha/index.vue"
 import Cookies from "js-cookie"
 import { encrypt, decrypt } from "@/utils/jsencrypt"
 import useUserStore from '@/store/modules/user'
@@ -116,7 +111,7 @@ const loginRules = {
   code: [{ required: true, trigger: "change", message: "请输入验证码" }]
 }
 
-const codeUrl = ref("")
+const sliderRef = ref(null)
 const loading = ref(false)
 // 验证码开关
 const captchaEnabled = ref(true)
@@ -155,26 +150,31 @@ function handleLogin() {
         router.push({ path: redirect.value || "/", query: otherQueryParams })
       }).catch(() => {
         loading.value = false
-        // 重新获取验证码
+        // 登录失败时验证码已作废，换一张
         if (captchaEnabled.value) {
-          getCode()
+          sliderRef.value?.reset()
         }
       })
     }
   })
 }
 
-function getCode() {
-  getCodeImg().then(res => {
-    captchaEnabled.value = res.captchaEnabled === undefined ? true : res.captchaEnabled
-    if (captchaEnabled.value) {
-      codeUrl.value = "data:image/gif;base64," + res.img
-      loginForm.value.uuid = res.uuid
-    }
+/* 滑块验证通过后：permit 当 code、uuid 当标识，一起交给登录接口 */
+function onSliderVerified({ uuid, permit }) {
+  loginForm.value.uuid = uuid
+  loginForm.value.code = permit
+}
+
+/* 只用来判断"是否开启验证码"，图片由组件自己取 */
+function checkCaptchaEnabled() {
+  getSliderCaptcha().then(res => {
+    captchaEnabled.value = res.data?.captchaEnabled !== false
+  }).catch(() => {
+    captchaEnabled.value = true
   })
 }
 
-getCode()
+checkCaptchaEnabled()
 getCookie()
 
 function getCookie() {
@@ -271,7 +271,9 @@ function getCookie() {
   z-index: 2;
   display: flex;
   width: min(860px, 94vw);
-  height: min(500px, 88vh);
+  /* 高度改成自适应：滑块验证码比原来那一行高，固定 500px 会把登录按钮挤出去 */
+  min-height: min(500px, 88vh);
+  height: auto;
   border-radius: 28px;
   overflow: hidden;
   isolation: isolate;
