@@ -39,6 +39,13 @@
       <span v-else-if="total > 0" class="relocate-more-done">已全部加载</span>
     </div>
 
+    <!-- P6.254：插入位置。默认「追加到末尾」保持原行为；移回原册 / 纠正误操作时选「保留原序号」 -->
+    <el-radio-group v-if="mode === 'move'" v-model="position" size="small" class="relocate-pos">
+      <span class="relocate-pos-label">插入位置</span>
+      <el-radio value="append">追加到末尾</el-radio>
+      <el-radio value="keep">保留原序号（冲突则顺延）</el-radio>
+    </el-radio-group>
+
     <div v-if="mode === 'move' && preview.duplicates" class="relocate-dup">
       <el-alert type="warning" :closable="false" show-icon
         :title="'目标册已有同内容：选中的 ' + preview.moving + ' 张里有 ' + preview.duplicates + ' 张重复'">
@@ -92,6 +99,7 @@ const loading = ref(false)
 const busy = ref(false)
 const preview = ref({ moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 })
 const dupPolicy = ref('keep')
+const position = ref('append')
 
 function albumThumb(row) {
   return (row && (row.cover || row.thumbUrl)) || ''
@@ -113,6 +121,7 @@ function open(nextMode, photoIds, currentAlbumId) {
   options.value = []
   preview.value = { moving: 0, duplicates: 0, globalCopies: 0, targetCopies: 0 }
   dupPolicy.value = 'keep'
+  position.value = 'append'
   emit('update:modelValue', true)
   if (mode.value === 'move') searchTargets('')
 }
@@ -179,7 +188,7 @@ async function submit() {
   try {
     const res = mode.value === 'split'
       ? await splitAlbumPhotos(selected, title.value.trim())
-      : await moveAlbumPhotos(selected, target.value, dupPolicy.value)
+      : await moveAlbumPhotos(selected, target.value, dupPolicy.value, position.value)
     const moved = (res && res.moved) || 0
     const skipped = (res && res.skipped) || 0
     const replaced = (res && res.replaced) || 0
@@ -212,6 +221,8 @@ defineExpose({ open })
 <style scoped>
 .album-merge-tip { margin: 0 0 10px; font-size: 13px; line-height: 1.7; color: var(--el-text-color-regular); }
 .album-merge-preview { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--el-text-color-secondary); }
+.relocate-pos { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.relocate-pos-label { font-size: 13px; color: var(--el-text-color-regular); }
 .relocate-dup { margin-top: 12px; }
 .relocate-dup-group { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
 .relocate-more { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--el-text-color-secondary); }

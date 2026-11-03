@@ -978,11 +978,11 @@ export function mergeAlbumsSimilar(source, target) {
 }
 // P6.51：按图改归属 —— 移到另一本已有册（target 必填），会打上 album_pinned=1
 // dupPolicy：keep=同时存在（默认）/ skip=跳过重复 / replace=只保留一份（旧的那份进回收站）
-export function moveAlbumPhotos(photoIds, target, dupPolicy) {
+export function moveAlbumPhotos(photoIds, target, dupPolicy, position) {
   return request({
     url: BASE + '/albums/photos/move',
     method: 'post',
-    data: { photoIds, target, dupPolicy: dupPolicy || 'keep' }
+    data: { photoIds, target, dupPolicy: dupPolicy || 'keep', position: position || 'append' }
   })
 }
 // P6.57：册内人工排序（按给定顺序重写 seq，只动这几张）
