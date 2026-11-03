@@ -609,6 +609,7 @@
         :rating-label="photoRatingLabel"
         :is-wider="photoIsWider"
         :photo-key="photoKey"
+        :start-index="photoSeqBase"
         @pick="onPickClick"
         @pick-to-here="selectToHere"
         @rate="setPhotoRating"
@@ -1331,6 +1332,13 @@ function loadPhotosFromDisk() {
 }
 
 /** 库数据一次取全册，翻页在前端切（页码越界时夹回最后一页） */
+/* 当前页第一张在列表中的位置（0 基）：网格角标序号按它 + 页内下标 + 1 显示（P6.232） */
+const photoSeqBase = computed(() => {
+  const size = Number(photoQuery.pageSize) || 24
+  const page = Number(photoQuery.pageNum) || 1
+  return (page - 1) * size
+})
+
 function applyPhotoPage() {
   // P6.17：换页就把锚点清掉，避免跨页的「看不见的范围选择」
   pickAnchor = null
@@ -2881,8 +2889,14 @@ async function saveSort() {
   const ids = photoList.value.map((p) => String(p.id)).filter((v) => v && v !== 'undefined')
   const albumId = photoQuery.albumId
   if (!ids.length || !albumId) return
-  // 当前页第一张的 seq 作为起点：翻页排序也不会把别页的顺序搅乱
-  const startSeq = Number((photoList.value[0] && photoList.value[0].seq) || 0)
+  /* P6.232：基准改成"这批要保存的 id 里最小的旧 seq"。
+     原来用 photoList[0].seq —— 而 photoList 已经按拖拽重排过，第一张可能是被拖下来的那张，
+     于是每保存一次基准就往上飘一格（用户看到角标从 2 开始、再排一次从 3 开始）。 */
+  const oldSeqs = ids.map(id => {
+    const row = photoRowsAll.value.find(p => String(p.id) === String(id)) || photoList.value.find(p => String(p.id) === String(id))
+    return Number((row && row.seq) != null ? row.seq : 0) || 0
+  })
+  const startSeq = oldSeqs.length ? Math.min.apply(null, oldSeqs) : 0
   try {
     const res = await reorderAlbumPhotos(albumId, ids, startSeq)
     proxy.$modal.msgSuccess('顺序已保存（' + ((res && res.updated) || ids.length) + ' 张）')

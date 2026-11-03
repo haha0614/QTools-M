@@ -36,8 +36,8 @@
         @click.stop="emit('pick', photo, $event)"
       ></span>
       <div class="photo-thumb">
-        <img :src="mediaSrc(photo.thumbUrl)" loading="lazy" draggable="false" :alt="'第 ' + photo.seq + ' 张'" />
-        <span class="photo-seq">{{ photo.seq }}</span>
+        <img :src="mediaSrc(photo.thumbUrl)" loading="lazy" draggable="false" :alt="'第 ' + displaySeq(photoIndex) + ' 张'" />
+        <span class="photo-seq">{{ displaySeq(photoIndex) }}</span>
         <span class="photo-range" title="从上次点选的那张，连选到这里" @click.stop="emit('pickToHere', photo)">选到此</span>
         <el-dropdown
           trigger="click"
@@ -80,12 +80,21 @@ const props = defineProps({
   ratingShort: { type: Function, required: true },
   ratingLabel: { type: Function, required: true },
   isWider: { type: Function, required: true },
-  photoKey: { type: Function, required: true }
+  photoKey: { type: Function, required: true },
+  /** 当前页第一张在列表中的位置（0 基）：序号按位置显示，第 1 页第一张永远是 1 */
+  startIndex: { type: Number, default: 0 }
 })
 const emit = defineEmits(['pick', 'pickToHere', 'rate', 'photoClick', 'cardPointerDown',
   'sortDragStart', 'sortDragEnd', 'sortDrop', 'gridPointerMove', 'gridPointerUp'])
 
 const dragging = ref(-1)
+
+/* P6.232：角标序号按**位置**显示（1 基），不再用库里的 seq。
+   原因：seq 是历史排序列号，多次排序后会出现 4、5、6 这种"不是从一开始"的角标；
+   用户要的是"第几张"。第 1 页第一张固定 1，翻页接着数。 */
+function displaySeq(indexInPage) {
+  return props.startIndex + indexInPage + 1
+}
 
 /* P6.230：屏蔽浏览器原生拖放行为。
    原生拖拽会把 <img> 当负载 —— 拖到网格外会看到拖影、松手时浏览器可能直接打开那张图。
