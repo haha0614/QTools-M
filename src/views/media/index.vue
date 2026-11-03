@@ -337,7 +337,9 @@
             </template>
           </el-table-column>
           <!-- P6.11：低频操作收进「更多」；「改人物」与「人物（多选）」重复，只留多选那个 -->
-          <el-table-column label="操作" width="120" align="center" fixed="right" class-name="small-padding fixed-width">
+          <!-- P6.224：宽度 120 → 150。原来 120 装不下「查看图片 + 更多」两个按钮，
+               加上右侧「审核」列在窄屏下压过来，⋯ 按钮实际点不到（点了没反应）。 -->
+          <el-table-column label="操作" width="150" align="center" fixed="right" class-name="small-padding fixed-width">
             <template #default="scope">
               <el-button link type="primary" icon="Picture" title="查看图片" @click="openPhotos(scope.row)" v-hasPermi="['media:admin:list']" />
               <el-dropdown trigger="click" class="row-more">
