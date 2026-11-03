@@ -587,27 +587,20 @@
           </el-button>
         </div>
       </template>
-      <p class="photo-notice" v-if="photoNotice">{{ photoNotice }}</p>
-      <!-- P6.22：按分级筛选（用筛选条而不是 tab）：
-           ① 不叠第二层导航，和「已选 N 张 / 批量设分级」在同一张网格里；
-           ② 每个档位带数量，「还剩多少张是继承」一眼可见；
-           ③ 只在已加载的全册数据上做前端切片，点一下不发请求。 -->
-      <div class="photo-filter" v-if="photoSource !== 'disk' && photoRowsAll.length" data-testid="photo-rating-filter">
-        <span class="photo-filter-label">本册分级
-          <b class="photo-album-rating" :class="'ar-' + albumPhotoRating">{{ albumPhotoRatingLabel }}</b>
-        </span>
-        <span class="photo-filter-divider"></span>
-        <span class="photo-filter-label">筛选</span>
-        <button v-for="opt in PHOTO_RATING_FILTERS" :key="opt.value" type="button"
-          class="photo-filter-chip" :class="{ on: photoRatingFilter === opt.value, empty: !photoRatingCounts[opt.value] }"
-          :title="photoFilterTitle(opt)"
-          @click="setPhotoRatingFilter(opt.value)">
-          <i class="photo-filter-dot" :class="'dot-' + opt.value"></i>{{ opt.label }}<b>{{ photoRatingCounts[opt.value] }}</b>
-        </button>
-        <!-- P6.24：本册图片的内容自动分级（服务端 NSFW 模型逐张判露点，先预览后写库） -->
-        <el-button size="small" type="primary" plain icon="MagicStick" class="photo-auto-rate"
-          v-hasPermi="['media:admin:edit']" @click="autoRateVisible = true">自动分级</el-button>
-      </div>
+      <!-- 提示行 + 分级筛选条（P6.227 拆分） -->
+      <photo-filter-bar
+        :notice="photoNotice"
+        :source="photoSource"
+        :has-rows="photoRowsAll.length"
+        :album-rating="albumPhotoRating"
+        :album-rating-label="albumPhotoRatingLabel"
+        :filter="photoRatingFilter"
+        :counts="photoRatingCounts"
+        :filters="PHOTO_RATING_FILTERS"
+        :filter-title="photoFilterTitle"
+        @set-filter="setPhotoRatingFilter"
+        @auto-rate="autoRateVisible = true"
+      />
       <!-- 照片网格：纯展示组件，勾选/分级/连选/排序靠事件回传（P6.226 拆分） -->
       <photo-grid-panel
         :rows="photoList"
@@ -800,6 +793,8 @@ import UncategorizedDialog from './UncategorizedDialog.vue'
 import VideoPlayerDialog from './VideoPlayerDialog.vue'
 // P6.226：照片网格（纯展示，勾选/分级/排序靠事件）
 import PhotoGridPanel from './PhotoGridPanel.vue'
+// P6.227：提示行 + 分级筛选条
+import PhotoFilterBar from './PhotoFilterBar.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -3313,81 +3308,7 @@ onBeforeUnmount(() => { stopScanPolling() })
   padding: 8px 0 6px;
   background: var(--el-bg-color);
 }
-.photo-filter-label {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin-right: 2px;
-}
-.photo-filter-divider {
-  width: 1px;
-  height: 14px;
-  margin: 0 2px;
-  background: var(--el-border-color-lighter);
-}
 /* P6.24：自动分级按钮贴右，和筛选 chip 分开 */
-.photo-auto-rate {
-  margin-left: auto;
-  flex: 0 0 auto;
-}
-.photo-album-rating {
-  font-weight: 600;
-}
-.photo-album-rating.ar-general {
-  color: var(--el-color-success);
-}
-.photo-album-rating.ar-guidance {
-  color: var(--el-color-warning);
-}
-.photo-album-rating.ar-restricted {
-  color: var(--el-color-danger);
-}
-.photo-filter-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 2px 10px 2px 8px;
-  font-size: 12px;
-  line-height: 20px;
-  color: var(--el-text-color-regular);
-  background: var(--el-fill-color-light);
-  border: 1px solid transparent;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: background 0.12s, color 0.12s, border-color 0.12s;
-}
-.photo-filter-chip:hover {
-  background: var(--el-fill-color);
-}
-.photo-filter-chip b {
-  font-weight: 600;
-  color: var(--el-text-color-primary);
-}
-.photo-filter-chip.on {
-  color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-  border-color: var(--el-color-primary-light-7);
-}
-.photo-filter-chip.on b {
-  color: var(--el-color-primary);
-}
-.photo-filter-chip.empty {
-  opacity: 0.45;
-}
-.photo-filter-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--el-text-color-placeholder);
-}
-.photo-filter-dot.dot-general {
-  background: var(--el-color-success);
-}
-.photo-filter-dot.dot-guidance {
-  background: var(--el-color-warning);
-}
-.photo-filter-dot.dot-restricted {
-  background: var(--el-color-danger);
-}
 /* P6.14：固定卡片大小——所有格子同一个高度，图片按原比例居中放进去（不裁剪、不撑高） */
 /* P6.15：自定义标题头——完全不依赖 el-dialog 默认标题（它会被裁） */
 :deep(.photos-dialog .el-dialog__header) {
@@ -3585,23 +3506,6 @@ onBeforeUnmount(() => { stopScanPolling() })
 .photos-head { padding: 14px 20px 12px; background: transparent; border-bottom: 0; }
 /* P6.167：筛选条吸顶 + 自身模糊，滚动时缩略图从它的下边缘渐变淡出，
    而不是撞在一条硬线上；也不再是浮在内容上的另一块板。 */
-.photo-filter {
-  position: sticky;
-  top: 0;
-  z-index: 2;
-  padding: 10px 20px;
-  background: transparent;
-  backdrop-filter: blur(10px) saturate(150%);
-  -webkit-backdrop-filter: blur(10px) saturate(150%);
-}
-.photo-filter::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: -12px;
-  height: 12px;
-  pointer-events: none;
-  background: linear-gradient(to bottom, rgba(15, 23, 42, .06), transparent);
-}
 /* 滚动区不再像嵌进来的另一个盒子：去掉自己的描边/焦点框，滚动条做细 */
 :deep(.photos-dialog .el-dialog__body) { padding: 0; max-height: 62vh; overflow: auto; outline: none; box-shadow: none; border: 0; }
 :deep(.photos-dialog .el-dialog__body:focus) { outline: none; }
