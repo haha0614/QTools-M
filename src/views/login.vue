@@ -424,25 +424,42 @@ function getCookie() {
 .code-row { display: flex; align-items: center; gap: 9px; width: 100%; }
 .code-input { flex: 1 1 auto; }
 
+/* 验证码块：原来是写死的白色渐变（rgba 255），暗色主题下就是一块刺眼的白砖。
+   现在用主题填充色 + 发丝边框，和输入框同一套材质。
+   图片用混合模式把自带的白色底"吃掉"，只剩笔画：
+   浅色下 multiply（白→底色，笔画保持深蓝）；暗色下 invert 再 screen（白底→暗，笔画→浅色）。 */
 .code-box {
   flex: 0 0 100px;
   height: 32px;
   padding: 0;
-  border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.85);
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.66), rgba(255, 255, 255, 0.46));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-fill-color-blank);
+  box-shadow: none;
   cursor: pointer;
   overflow: hidden;
   display: flex;
   align-items: center;
   justify-content: center;
+  transition: border-color .12s, background-color .12s;
 
-  &:hover { border-color: rgba(37, 99, 235, 0.45); }
+  &:hover { border-color: var(--el-color-primary-light-5); background: var(--el-fill-color-light); }
 }
 
-.code-img { width: 100%; height: 100%; object-fit: contain; display: block; }
-.code-ph { font-size: 12px; color: #7c8798; }
+.code-img {
+  width: 100%;
+  height: 100%;
+  object-fit: fill;
+  display: block;
+  mix-blend-mode: multiply;
+}
+
+html.dark .code-img {
+  filter: invert(1) hue-rotate(180deg) contrast(1.05);
+  mix-blend-mode: screen;
+}
+
+.code-ph { font-size: 12px; color: var(--el-text-color-placeholder); }
 
 .form-row { display: flex; align-items: center; justify-content: space-between; margin: 2px 0 16px; font-size: 12.5px; }
 
