@@ -11,6 +11,10 @@
         <b class="photo-album-rating" :class="'ar-' + albumRating">{{ albumRatingLabel }}</b>
       </span>
       <span class="photo-filter-divider"></span>
+      <!-- P6.251：册里几百上千张时，按文件名搜一把比翻页快得多（纯前端过滤，零请求） -->
+      <el-input :model-value="keyword" size="small" clearable class="photo-keyword"
+        placeholder="搜文件名…" data-testid="photo-keyword"
+        @update:model-value="v => emit('setKeyword', v)" />
       <span class="photo-filter-label">筛选</span>
       <button v-for="opt in filters" :key="opt.value" type="button"
         class="photo-filter-chip" :class="{ on: filter === opt.value, empty: !counts[opt.value] }"
@@ -33,9 +37,10 @@ defineProps({
   filter: { type: String, default: 'all' },
   counts: { type: Object, default: () => ({}) },
   filters: { type: Array, default: () => [] },
-  filterTitle: { type: Function, required: true }
+  filterTitle: { type: Function, required: true },
+  keyword: { type: String, default: '' }
 })
-const emit = defineEmits(['setFilter', 'autoRate'])
+const emit = defineEmits(['setFilter', 'autoRate', 'setKeyword'])
 </script>
 
 <style scoped>
@@ -77,6 +82,7 @@ const emit = defineEmits(['setFilter', 'autoRate'])
   color: var(--el-text-color-secondary);
   margin-right: 2px;
 }
+.photo-keyword { width: 160px; }
 .photo-filter-divider {
   width: 1px;
   height: 14px;

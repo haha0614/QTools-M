@@ -545,7 +545,9 @@
         :counts="photoRatingCounts"
         :filters="PHOTO_RATING_FILTERS"
         :filter-title="photoFilterTitle"
+        :keyword="photoKeyword"
         @set-filter="setPhotoRatingFilter"
+        @set-keyword="setPhotoKeyword"
         @auto-rate="autoRateVisible = true"
       />
       <!-- 照片网格：纯展示组件，勾选/分级/连选/排序靠事件回传（P6.226 拆分） -->
@@ -1251,6 +1253,7 @@ function openPhotos(row) {
   // P6.17：换一本册就清空勾选与锚点，避免把上一本的选中带过来
   photoSelected.value = []
   photoRatingFilter.value = 'all'
+  photoKeyword.value = ''
   clearPickAnchor()
   loadPhotos()
 }
@@ -1363,11 +1366,25 @@ const photoRatingCounts = computed(() => {
   }
   return counts
 })
+/* P6.251：文件名关键字（纯前端过滤，与分级筛选叠加生效） */
+const photoKeyword = ref('')
+
 const photoFilteredRows = computed(() => {
-  if (photoRatingFilter.value === 'all') return photoRowsAll.value
-  return photoRowsAll.value.filter(p => ((p && p.contentRating) || 'inherit') === photoRatingFilter.value)
+  const kw = photoKeyword.value.trim().toLowerCase()
+  let rows = photoRowsAll.value
+  if (photoRatingFilter.value !== 'all') {
+    rows = rows.filter(p => ((p && p.contentRating) || 'inherit') === photoRatingFilter.value)
+  }
+  if (kw) rows = rows.filter(p => String((p && p.relPath) || '').toLowerCase().includes(kw))
+  return rows
 })
 const photoFilteredTotal = computed(() => (photoSource.value === 'disk' ? photoTotal.value : photoFilteredRows.value.length))
+
+function setPhotoKeyword(value) {
+  photoKeyword.value = value || ''
+  photoQuery.pageNum = 1
+  applyPhotoPage()
+}
 
 function setPhotoRatingFilter(value) {
   if (photoRatingFilter.value === value) return
