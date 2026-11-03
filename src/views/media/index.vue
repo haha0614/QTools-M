@@ -1032,24 +1032,9 @@
     <edit-policy-dialog v-model="policyVisible" />
 
     <!-- 内容分级批量设置（P5.99）：POST /api/media/admin/rating/batch -->
-    <el-dialog v-model="ratingBatchVisible" :title="ratingBatchTitle" width="min(460px, 92vw)" append-to-body>
-      <p class="rating-batch-lead">
-        将给选中的 {{ ratingBatchCount }} 个{{ ratingBatchKindText }}统一设置分级。分级决定未登录访客能不能看到它。
-      </p>
-      <el-radio-group v-model="ratingBatchValue" class="rating-batch-group">
-        <el-radio v-for="opt in RATING_OPTIONS" :key="opt.value" :value="opt.value" :data-testid="'batch-rating-' + opt.value">
-          {{ opt.label }}
-        </el-radio>
-      </el-radio-group>
-      <p class="rating-batch-tip">
-        分级本身不影响已登录用户；「未登录可见」的开关在<strong>库根管理</strong>页的「分级与可见性」里。
-      </p>
-      <template #footer>
-        <el-button @click="ratingBatchVisible = false">取 消</el-button>
-        <el-button type="primary" :loading="ratingBatchSaving" data-testid="batch-rating-submit"
-          @click="submitBatchRating">保 存</el-button>
-      </template>
-    </el-dialog>
+    <!-- 批量分级弹窗：只选档位，写库与列表同步留在本页（P6.215 拆分） -->
+    <rating-batch-dialog v-model="ratingBatchVisible" :type="ratingBatchType"
+      :count="ratingBatchCount" :saving="ratingBatchSaving" @confirm="submitBatchRating" />
 
     <!-- P5.97：扫描入库抽屉（与库根管理页共用同一个执行器组件） -->
     <el-drawer v-model="scanVisible" title="扫描 / 导入媒体库" size="min(920px, 96vw)" append-to-body destroy-on-close>
@@ -1115,6 +1100,8 @@ import DeriveResultDialog from './DeriveResultDialog.vue'
 import PhotoAutoRateDialog from './PhotoAutoRateDialog.vue'
 // P6.213：编辑策略弹窗拆成子组件（原来内联在本页，含全部样式）
 import EditPolicyDialog from './EditPolicyDialog.vue'
+// P6.215：批量分级弹窗拆成子组件（只选档位，写库留在本页）
+import RatingBatchDialog from './RatingBatchDialog.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -2251,19 +2238,16 @@ function clearAlbumSelection() {
 
 const ratingBatchVisible = ref(false)
 const ratingBatchType = ref('video')
-const ratingBatchValue = ref('general')
 const ratingBatchSaving = ref(false)
-const ratingBatchTitle = computed(() => (ratingBatchType.value === 'album' ? '批量设置相册分级' : '批量设置视频分级'))
 const ratingBatchKindText = computed(() => (ratingBatchType.value === 'album' ? '相册' : '视频'))
 const ratingBatchCount = computed(() => (ratingBatchType.value === 'album' ? selectedAlbumTotal.value : selectedVideoTotal.value))
 
 function openBatchRating(type) {
   ratingBatchType.value = type === 'album' ? 'album' : 'video'
-  ratingBatchValue.value = 'general'
   ratingBatchVisible.value = true
 }
 
-function submitBatchRating() {
+function submitBatchRating(value) {
   const ids = (ratingBatchType.value === 'album' ? selectedAlbums.value : selectedVideos.value)
     .map(row => (row && row.id != null ? String(row.id) : ''))
     .filter(Boolean)
@@ -2271,7 +2255,6 @@ function submitBatchRating() {
     proxy.$modal.msgWarning('先勾选要设置的' + ratingBatchKindText.value)
     return
   }
-  const value = ratingBatchValue.value
   ratingBatchSaving.value = true
   setRatingBatch({ type: ratingBatchType.value, ids: ids, rating: value }).then(res => {
     const body = res && res.data && typeof res.data === 'object' ? res.data : res
@@ -4685,24 +4668,6 @@ onBeforeUnmount(() => { stopScanPolling() })
 .album-batch-hint {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-}
-.rating-batch-lead,
-.rating-batch-tip {
-  margin: 0 0 10px;
-  font-size: 13px;
-  line-height: 1.6;
-  color: var(--el-text-color-primary);
-}
-.rating-batch-tip {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-.rating-batch-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: flex-start;
 }
 
 /* P6.159 / P6.161：照片选择弹窗 —— 与页面同一套浅色语言。
