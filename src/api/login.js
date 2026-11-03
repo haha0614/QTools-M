@@ -68,6 +68,40 @@ export function getCodeImg() {
   })
 }
 
+// 登录验证码配置：是否开启 + 形式（char / slider / behavior）
+export function getCaptchaConfig() {
+  return request({
+    url: '/captchaConfig',
+    headers: {
+      isToken: false
+    },
+    method: 'get'
+  })
+}
+
+// 获取行为验证码挑战
+export function getBehaviorCaptcha() {
+  return request({
+    url: '/captchaBehavior',
+    headers: {
+      isToken: false
+    },
+    method: 'get'
+  })
+}
+
+// 提交行为轨迹，通过后拿到一次性 permit
+export function verifyBehaviorCaptcha(data) {
+  return request({
+    url: '/captchaBehaviorVerify',
+    headers: {
+      isToken: false
+    },
+    method: 'post',
+    data
+  })
+}
+
 // 获取滑块拼图验证码
 export function getSliderCaptcha() {
   return request({

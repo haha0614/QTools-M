@@ -49,8 +49,23 @@
           </el-form-item>
 
           <el-form-item prop="code" label="验证码" v-if="captchaEnabled">
-            <!-- 滑块拼图验证码：拖动拼图对进缺口，通过后服务端发一次性凭证 -->
-            <SliderCaptcha ref="sliderRef" @verified="onSliderVerified" />
+            <!-- 形式由后台参数 sys.account.captchaType 决定：char / slider / behavior -->
+            <CharCaptcha
+              v-if="captchaType === 'char' || captchaType === 'math'"
+              ref="charRef"
+              @change="onCharChange"
+              @submit="handleLogin"
+            />
+            <BehaviorCaptcha
+              v-else-if="captchaType === 'behavior'"
+              ref="behaviorRef"
+              @verified="onSliderVerified"
+            />
+            <SliderCaptcha
+              v-else
+              ref="sliderRef"
+              @verified="onSliderVerified"
+            />
           </el-form-item>
 
           <div class="form-row">
@@ -73,8 +88,10 @@
 </template>
 
 <script setup>
-import { getSliderCaptcha } from "@/api/login"
+import { getCaptchaConfig } from "@/api/login"
 import SliderCaptcha from "@/components/SliderCaptcha/index.vue"
+import CharCaptcha from "@/components/CharCaptcha/index.vue"
+import BehaviorCaptcha from "@/components/BehaviorCaptcha/index.vue"
 import Cookies from "js-cookie"
 import { encrypt, decrypt } from "@/utils/jsencrypt"
 import useUserStore from '@/store/modules/user'
@@ -112,6 +129,9 @@ const loginRules = {
 }
 
 const sliderRef = ref(null)
+const charRef = ref(null)
+const behaviorRef = ref(null)
+const captchaType = ref("slider")
 const loading = ref(false)
 // 验证码开关
 const captchaEnabled = ref(true)
@@ -151,30 +171,46 @@ function handleLogin() {
       }).catch(() => {
         loading.value = false
         // 登录失败时验证码已作废，换一张
-        if (captchaEnabled.value) {
-          sliderRef.value?.reset()
-        }
+        resetCaptcha()
       })
     }
   })
 }
 
-/* 滑块验证通过后：permit 当 code、uuid 当标识，一起交给登录接口 */
+/* 滑块 / 行为验证通过后：permit 当 code、uuid 当标识，一起交给登录接口 */
 function onSliderVerified({ uuid, permit }) {
   loginForm.value.uuid = uuid
   loginForm.value.code = permit
 }
 
-/* 只用来判断"是否开启验证码"，图片由组件自己取 */
-function checkCaptchaEnabled() {
-  getSliderCaptcha().then(res => {
-    captchaEnabled.value = res.data?.captchaEnabled !== false
+/* 数字/字母验证码：输入什么就提交什么 */
+function onCharChange({ code, uuid }) {
+  loginForm.value.code = code
+  loginForm.value.uuid = uuid
+}
+
+function resetCaptcha() {
+  if (!captchaEnabled.value) return
+  if (captchaType.value === "char" || captchaType.value === "math") {
+    charRef.value?.load()
+  } else if (captchaType.value === "behavior") {
+    behaviorRef.value?.reset()
+  } else {
+    sliderRef.value?.reset()
+  }
+}
+
+/* 后台参数决定是否开启、用哪种形式；图片/挑战由对应组件自己取 */
+function loadCaptchaConfig() {
+  getCaptchaConfig().then(res => {
+    captchaEnabled.value = res.captchaEnabled !== false
+    captchaType.value = res.captchaType || "char"
   }).catch(() => {
-    captchaEnabled.value = true
+    captchaEnabled.value = false
   })
 }
 
-checkCaptchaEnabled()
+loadCaptchaConfig()
 getCookie()
 
 function getCookie() {
