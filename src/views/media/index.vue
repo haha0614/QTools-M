@@ -571,21 +571,17 @@
          按 seq 升序；接口 404 时回退到旧的磁盘列举（photoSource='disk'），这时会在顶部提示一行 -->
     <el-dialog v-model="photosVisible" :title="photosTitle" width="min(1120px, 94vw)" class="photos-dialog" append-to-body>
       <template #header>
-        <div class="photos-head">
-          <span class="photos-head-title">{{ photosTitle }}</span>
-          <span class="photos-head-picked" v-if="photoSelected.length">已选 {{ photoSelected.length }} 张</span>
-          <span class="photos-head-tip">Shift+点击 / 触屏长按拖动 可连选</span>
-          <!-- P6.57：人工排序（拖拽重排当前页，退出时保存） -->
-          <el-button v-if="photoList.length && photoSource !== 'disk'" link
-            :type="photoSortMode ? 'success' : 'primary'" size="small" data-testid="photo-sort-toggle"
-            v-hasPermi="['media:admin:edit']" @click="toggleSortMode">
-            {{ photoSortMode ? '完成排序' : '排序' }}
-          </el-button>
-          <el-button v-if="photoList.length" link type="primary" size="small" class="photos-head-all"
-            data-testid="photo-select-all" @click="toggleSelectAll">
-            {{ allPicked ? '取消全选本页' : '全选本页（' + photoList.length + '）' }}
-          </el-button>
-        </div>
+        <!-- 标题头：纯展示（P6.229 拆分） -->
+        <photo-picker-header
+          :title="photosTitle"
+          :picked-count="photoSelected.length"
+          :can-sort="!!photoList.length && photoSource !== 'disk'"
+          :sort-mode="photoSortMode"
+          :all-picked="allPicked"
+          :list-count="photoList.length"
+          @toggle-sort="toggleSortMode"
+          @select-all="toggleSelectAll"
+        />
       </template>
       <!-- 提示行 + 分级筛选条（P6.227 拆分） -->
       <photo-filter-bar
@@ -628,25 +624,18 @@
         v-model:limit="photoQuery.pageSize" @pagination="handlePhotoPage" />
       <!-- P6.14：批量条放 footer（固定可见），勾选后立刻能操作；之前它跟在长网格后面，滚到看不见 -->
       <template #footer>
-        <div class="photo-batch" data-testid="photo-batch-bar">
-          <!-- P6.15：批量条只在真的勾选之后出现；没事时底部只有一个关闭 -->
-          <template v-if="photoSelected.length">
-            <span class="photo-batch-count">已选 {{ photoSelected.length }} 张</span>
-            <el-button size="small" :title="'设为继承相册（实际生效：' + albumPhotoRatingLabel + '）'"
-              @click="applyPhotoRating(null)">继承相册</el-button>
-            <el-button size="small" type="primary" plain @click="applyPhotoRating('general')">大众</el-button>
-            <el-button size="small" type="warning" plain @click="applyPhotoRating('guidance')">家长指导</el-button>
-            <el-button size="small" type="danger" plain @click="applyPhotoRating('restricted')">限制</el-button>
-            <!-- P6.51：按图改归属（人工归属，重扫不再按目录拽回） -->
-            <el-button size="small" plain data-testid="photo-move" @click="openPhotoRelocate('move')">移到另一册…</el-button>
-            <el-button size="small" plain data-testid="photo-split" @click="openPhotoRelocate('split')">拆出新册…</el-button>
-            <!-- P6.52：移出本册，变成「未归类」（站端不展示，以后可以再移进别的册） -->
-            <el-button size="small" plain data-testid="photo-detach" @click="detachSelectedPhotos">移出相册（未归类）</el-button>
-            <el-button size="small" link @click="photoSelected = []">清空</el-button>
-            <el-button size="small" v-if="multiMode" @click="exitMultiMode">完成</el-button>
-          </template>
-          <el-button size="small" @click="photosVisible = false">关闭</el-button>
-        </div>
+        <!-- 底部批量条：纯展示（P6.229 拆分） -->
+        <photo-batch-bar
+          :picked-count="photoSelected.length"
+          :album-rating-label="albumPhotoRatingLabel"
+          :multi-mode="multiMode"
+          @rate="applyPhotoRating"
+          @relocate="openPhotoRelocate"
+          @detach="detachSelectedPhotos"
+          @clear="photoSelected = []"
+          @finish="exitMultiMode"
+          @close="photosVisible = false"
+        />
       </template>
     </el-dialog>
 
@@ -795,6 +784,9 @@ import VideoPlayerDialog from './VideoPlayerDialog.vue'
 import PhotoGridPanel from './PhotoGridPanel.vue'
 // P6.227：提示行 + 分级筛选条
 import PhotoFilterBar from './PhotoFilterBar.vue'
+// P6.229：图片弹窗的标题头与底部批量条（纯展示）
+import PhotoPickerHeader from './PhotoPickerHeader.vue'
+import PhotoBatchBar from './PhotoBatchBar.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -3315,31 +3307,6 @@ onBeforeUnmount(() => { stopScanPolling() })
   padding: 0;
   margin: 0;
 }
-.photos-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  /* P6.16：与下面的缩略图网格左对齐（网格 padding 12px），标题不再往右缩进 */
-  padding: 14px 48px 10px 12px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-  box-sizing: border-box;
-  width: 100%;
-}
-.photos-head-all {
-  margin-left: auto;
-}
-.photos-head-title {
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.6;
-  color: var(--el-text-color-primary);
-  word-break: break-all;
-}
-.photos-head-picked {
-  flex: 0 0 auto;
-  font-size: 12px;
-  color: var(--el-color-primary);
-}
 /* P6.14：弹窗顶部留白 + 不裁切（标题已换成自定义 header，见上） */
 :deep(.photos-dialog) {
   margin-top: 4vh !important;
@@ -3358,9 +3325,6 @@ onBeforeUnmount(() => { stopScanPolling() })
 /* P6.20：选中态只框住缩略图（之前整格 outline 会和相邻格挤在一起） */
 /* P6.30：旧选中态已删除——之前和 .photo-thumb 的描边同时生效，选中时是双层蓝框 */
 /* 批量条固定在弹窗底部 */
-.photo-batch {
-  justify-content: flex-end;
-}
 /* P6.13：图片多时弹窗不要撑出屏幕，主体限高内部滚动 */
 :deep(.photos-dialog .el-dialog__body) {
   padding: 12px;
@@ -3377,24 +3341,6 @@ onBeforeUnmount(() => { stopScanPolling() })
   vertical-align: middle;
 }
 /* P6.17：自绘勾选框：16px 方块，勾上后主色填充 + 白勾 */
-.photos-head-tip {
-  font-size: 11.5px;
-  color: var(--el-text-color-secondary);
-  white-space: nowrap;
-}
-.photo-batch {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 10px 0 4px;
-  padding: 8px 10px;
-  background: var(--el-fill-color-lighter);
-  border-radius: 6px;
-}
-.photo-batch-count {
-  font-size: 12.5px;
-  color: var(--el-text-color-regular);
-}
 /* P6.09 图片级分级角标：点一下循环切换；颜色沿用三档语义 */
 .trash-orphan {
   font-size: 12px;
