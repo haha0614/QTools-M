@@ -1051,6 +1051,15 @@ const personVisible = ref(false)
 const personSubmitting = ref(false)
 const personRow = ref(null)
 
+/* P6.219：拆分时脚本连带删掉了这四个声明与两个行引用 —— 模板里用 _ctx 兜底所以页面能渲染，
+   但脚本里 videoPersonRow.value = ... 会直接 ReferenceError（点「人物（多选 + 角色）」整页崩）。补回。 */
+const videoPersonVisible = ref(false)
+const videoPersonSaving = ref(false)
+const videoPersonRow = ref(null)
+const albumPersonVisible = ref(false)
+const albumPersonSaving = ref(false)
+const albumPersonRow = ref(null)
+
 // 标签管理（字典维护）：列表一次取全，前端过滤 + 前端分页
 const TAG_NAME_MAX = 32
 const tagVisible = ref(false)

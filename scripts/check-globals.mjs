@@ -105,14 +105,31 @@ function collectDeclared(code) {
     }
   }
 
-  for (const m of code.matchAll(/\b(?:const|let|var)\s+([\s\S]*?)=/g)) {
-    const target = m[1].trim()
-    const braces = target.match(/\{([\s\S]*?)\}/)
+  /* 声明收集改成**逐行**：
+     之前用 /const\s+([\s\S]*?)=/ 跨行匹配，遇到 const x = computed(() => { ... })
+     这种多行初始化时，一次匹配会吞掉后面一大段，导致后面的声明全被漏掉
+     —— 实测把 bigMap / bigVisible 误报成未声明。逐行匹配没有这个问题。 */
+  for (const line of code.split('\n')) {
+    const trimmed = line.trim()
+    const decl = trimmed.match(/^(?:const|let|var)\s+([\s\S]*)$/)
+    if (!decl) continue
+    const target = decl[1]
+
+    const braces = target.match(/^\{([^}]*)\}/)
     if (braces) {
       for (const part of braces[1].split(',')) {
         const alias = part.split(':').pop().split('=')[0].trim()
         if (/^[A-Za-z_$][\w$]*$/.test(alias)) names.add(alias)
       }
+      continue
+    }
+    const bracket = target.match(/^\[([^\]]*)\]/)
+    if (bracket) {
+      for (const part of bracket[1].split(',')) {
+        const alias = part.trim()
+        if (/^[A-Za-z_$][\w$]*$/.test(alias)) names.add(alias)
+      }
+      continue
     }
     const single = target.match(/^([A-Za-z_$][\w$]*)/)
     if (single) names.add(single[1])
@@ -156,6 +173,17 @@ for (const file of files) {
   }
 
   const code = stripComments(blocks.join('\n'))
+
+  /* 规则二（P6.219 新增）：凡是以 .value 使用的标识符都必须声明过。
+     依据：本站所有弹窗状态都是 ref/reactive，模板里 _ctx 兜底不会报错，
+     但脚本里 `xxx.value = ...` 一旦没声明就是 ReferenceError 整页崩
+     —— 真实事故：拆分时连带删掉 videoPersonRow 的声明，点「人物（多选 + 角色）」页面直接挂。 */
+  for (const m of code.matchAll(/(^|[^.\w$])([A-Za-z_$][\w$]*)\.value\b/g)) {
+    const name = m[2]
+    if (ALLOW.has(name) || declared.has(name)) continue
+    problems.push({ file: path.relative(ROOT, file), name: name + '（.value 但未声明）' })
+  }
+
   for (const name of WATCH) {
     if (ALLOW.has(name) || declared.has(name)) continue
     const re = new RegExp('(^|[^\\w$.])' + name + '\\s*[.(\\[{]', 'm')
