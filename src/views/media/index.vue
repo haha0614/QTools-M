@@ -843,61 +843,13 @@
       @confirm="submitAlbumBatchPerson" />
 
     <!-- 改人物归属 -->
-    <el-dialog v-model="personVisible" title="修改人物归属" width="min(420px, 92vw)" append-to-body>
-      <el-form :model="personForm" label-width="80px">
-        <el-form-item label="相册">
-          <span class="person-album">{{ personAlbumTitle }}</span>
-        </el-form-item>
-        <el-form-item label="人物">
-          <el-select v-model="personForm.personId" placeholder="请选择人物" style="width: 100%">
-            <el-option label="（未归类 / 清空）" value="" />
-            <el-option v-for="item in peopleOptions" :key="item.id" :label="item.name + ' (' + item.albumCount + ')'" :value="item.id" />
-          </el-select>
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="personVisible = false">取 消</el-button>
-        <el-button type="primary" :loading="personSubmitting" @click="submitPerson">确 定</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 视频人物：多选人物 + 为每个选中人物填角色，PUT /api/media/admin/videos/{id}/persons -->
-    <el-dialog v-model="videoPersonVisible" title="视频人物" width="min(560px, 94vw)" append-to-body>
-      <p class="vp-target">{{ videoPersonTitle }}</p>
-      <el-alert v-if="personPickError" :title="personPickError" type="warning" :closable="false" show-icon class="vp-alert" />
-      <el-select v-model="videoPersonIds" multiple filterable clearable placeholder="选择人物（可多选）"
-        :loading="personPickLoading" :disabled="!!personPickError" style="width: 100%">
-        <el-option v-for="item in personPickOptions" :key="item.id" :label="item.name" :value="item.id" />
-      </el-select>
-      <div v-if="videoPersonIds.length" class="vp-role-list">
-        <div v-for="pid in videoPersonIds" :key="'role-' + pid" class="vp-role-row">
-          <span class="vp-role-name">{{ personNameOf(pid) }}</span>
-          <el-input v-model="videoPersonRoles[pid]" maxlength="40" clearable placeholder="角色（选填，如 主角 / 配角）" />
-        </div>
-      </div>
-      <p class="vp-tip">保存会整条覆盖该视频的人物集合与角色（不是增量追加）。</p>
-      <template #footer>
-        <el-button @click="videoPersonVisible = false">取 消</el-button>
-        <el-button type="primary" :loading="videoPersonSaving" :disabled="!!personPickError" @click="submitVideoPersons"
-          v-hasPermi="['media:admin:edit']">保 存</el-button>
-      </template>
-    </el-dialog>
-
-    <!-- 相册人物：多选人物，PUT /api/media/admin/albums/{id}/persons -->
-    <el-dialog v-model="albumPersonVisible" title="相册人物" width="min(520px, 94vw)" append-to-body>
-      <p class="vp-target">{{ albumPersonTitle }}</p>
-      <el-alert v-if="personPickError" :title="personPickError" type="warning" :closable="false" show-icon class="vp-alert" />
-      <el-select v-model="albumPersonIds" multiple filterable clearable placeholder="选择人物（可多选）"
-        :loading="personPickLoading" :disabled="!!personPickError" style="width: 100%">
-        <el-option v-for="item in personPickOptions" :key="item.id" :label="item.name" :value="item.id" />
-      </el-select>
-      <p class="vp-tip">保存会整本覆盖该相册的人物集合；「改人物」按钮仍保留单本单人的旧写法。</p>
-      <template #footer>
-        <el-button @click="albumPersonVisible = false">取 消</el-button>
-        <el-button type="primary" :loading="albumPersonSaving" :disabled="!!personPickError" @click="submitAlbumPersons"
-          v-hasPermi="['media:admin:edit']">保 存</el-button>
-      </template>
-    </el-dialog>
+    <!-- 人物归属三入口：改人物 / 视频人物 / 相册人物（P6.218 拆分） -->
+    <person-assign-dialog v-model="personVisible" kind="albumSingle" :row="personRow"
+      :people-options="peopleOptions" :saving="personSubmitting" @confirm="submitPerson" />
+    <person-assign-dialog v-model="videoPersonVisible" kind="videoMulti" :row="videoPersonRow"
+      :saving="videoPersonSaving" @confirm="submitVideoPersons" />
+    <person-assign-dialog v-model="albumPersonVisible" kind="albumMulti" :row="albumPersonRow"
+      :saving="albumPersonSaving" @confirm="submitAlbumPersons" />
 
     <!-- 封面放大预览：视频用缩略图，相册优先大图预览、缺 preview 时降级缩略图 -->
     <el-dialog v-model="previewVisible" :title="previewTitle" width="min(920px, 94vw)" append-to-body @closed="onPreviewClosed">
@@ -1009,6 +961,8 @@ import RatingBatchDialog from './RatingBatchDialog.vue'
 import TagManageDialog from './TagManageDialog.vue'
 // P6.217：批量设置人物 / 工作室（三个入口共用一个壳）
 import BatchAssignDialog from './BatchAssignDialog.vue'
+// P6.218：人物归属三入口（改人物 / 视频人物 / 相册人物）
+import PersonAssignDialog from './PersonAssignDialog.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -1095,8 +1049,7 @@ const autoRateVisible = ref(false)
 
 const personVisible = ref(false)
 const personSubmitting = ref(false)
-const personAlbumTitle = ref('')
-const personForm = reactive({ albumId: '', personId: '' })
+const personRow = ref(null)
 
 // 标签管理（字典维护）：列表一次取全，前端过滤 + 前端分页
 const TAG_NAME_MAX = 32
@@ -1973,16 +1926,15 @@ function openPhotoPreview(photo) {
 }
 
 function openPerson(row) {
-  personForm.albumId = row.id
-  personForm.personId = row.personId === null || row.personId === undefined ? '' : row.personId
-  personAlbumTitle.value = row.title
+  personRow.value = row || null
   personVisible.value = true
 }
 
-function submitPerson() {
-  const personId = personForm.personId === '' || personForm.personId === null ? null : personForm.personId
+function submitPerson({ personId }) {
+  const row = personRow.value
+  if (!row || row.id == null) return
   personSubmitting.value = true
-  setAlbumPerson(personForm.albumId, personId).then(() => {
+  setAlbumPerson(row.id, personId).then(() => {
     proxy.$modal.msgSuccess('人物归属已更新')
     personVisible.value = false
     loadStats()
@@ -3024,94 +2976,19 @@ function refreshAll() {
 }
 
 /* ------------------------------------------------------------ 人物（P3-B） */
-/* 管理端多选弹窗用的人物下拉：独立于相册筛选的 /people（那是「一本相册一个人物」的老接口，
-   返回里带 albumCount），这里取 /admin/persons 的 id/name，用于视频与相册的多选写入。
-   接口未就绪时只在弹窗内给出可读提示（personPickError），不弹全局错误、不抛异常。 */
-
-const PERSON_PICK_NOT_READY = '人物列表暂不可用：/admin/persons 接口未就绪，稍后重试或联系管理员升级后端'
-
-const personPickOptions = ref([])
-const personPickLoading = ref(false)
-const personPickError = ref('')
-
-const videoPersonVisible = ref(false)
-const videoPersonSaving = ref(false)
-const videoPersonTitle = ref('')
-const videoPersonIds = ref([])
-const videoPersonRoles = reactive({})
-const videoPersonRow = ref(null)
-
-const albumPersonVisible = ref(false)
-const albumPersonSaving = ref(false)
-const albumPersonTitle = ref('')
-const albumPersonIds = ref([])
-const albumPersonRow = ref(null)
-
-function isNotFoundErr(err) {
-  const status = err && err.response && err.response.status ? err.response.status : 0
-  return status === 404 || status === 501 || status === 0
-}
-
-/** 人物下拉数据：{rows|list|items} / 裸数组 / AjaxResult 三种形态都收 */
-function unwrapPersonList(res) {
-  const body = res && typeof res === 'object' && res.data && typeof res.data === 'object' ? res.data : res
-  if (Array.isArray(body)) return body
-  return (body && (body.rows || body.list || body.items || body.records)) || []
-}
-
-function loadPersonPickOptions(force) {
-  if (personPickLoading.value) return
-  if (!force && personPickOptions.value.length) return
-  personPickLoading.value = true
-  personPickError.value = ''
-  listPersons({ page: 1, size: 200 }).then(res => {
-    personPickOptions.value = unwrapPersonList(res).filter(item => item && item.id != null)
-    if (!personPickOptions.value.length) {
-      personPickError.value = '还没有人物：先到「人物管理」新建，再回来关联'
-    }
-  }).catch(err => {
-    personPickOptions.value = []
-    personPickError.value = isNotFoundErr(err)
-      ? PERSON_PICK_NOT_READY
-      : ('人物列表加载失败：' + (errorText(err) || '请求失败，请确认后端已启动'))
-  }).finally(() => { personPickLoading.value = false })
-}
-
-function personNameOf(id) {
-  const hit = personPickOptions.value.find(item => String(item.id) === String(id))
-  return hit ? hit.name : String(id)
-}
 
 function openVideoPersons(row) {
   if (!row || row.id == null) return
   videoPersonRow.value = row
-  videoPersonTitle.value = row.title || row.relPath || String(row.id)
-  videoPersonIds.value = []
-  Object.keys(videoPersonRoles).forEach(key => { delete videoPersonRoles[key] })
-  // 行里已带 persons（P3-A 索引 / 详情）时回填人物与角色，避免每次从零重选
-  ;(row.persons || []).forEach(item => {
-    const pid = item && item.id !== undefined ? item.id : null
-    if (pid === null) return
-    videoPersonIds.value.push(pid)
-    if (item.role) videoPersonRoles[pid] = item.role
-  })
   videoPersonVisible.value = true
-  loadPersonPickOptions(false)
 }
 
-function submitVideoPersons() {
+function submitVideoPersons({ personIds, roles }) {
   if (videoPersonSaving.value) return
   const row = videoPersonRow.value
   if (!row || row.id == null) return
-  // roles 用 { 人物id: 角色名 } 形态：契约里 {personIds, roles} 未指明 roles 的类型，
-  // 这里按「以人物 id 为键的映射」发送，空角色不下发；后端若用数组形态需同步调整这一处。
-  const roles = {}
-  videoPersonIds.value.forEach(id => {
-    const role = (videoPersonRoles[id] || '').trim()
-    if (role) roles[id] = role
-  })
   videoPersonSaving.value = true
-  setVideoPersons(row.id, { personIds: videoPersonIds.value.slice(), roles: roles }).then(() => {
+  setVideoPersons(row.id, { personIds: personIds.slice(), roles: roles }).then(() => {
     proxy.$modal.msgSuccess('视频人物已更新')
     videoPersonVisible.value = false
     loadVideos()
@@ -3540,25 +3417,15 @@ async function doPhotoRelocate() {
 function openAlbumPersons(row) {
   if (!row || row.id == null) return
   albumPersonRow.value = row
-  albumPersonTitle.value = row.title || row.dir || String(row.id)
-  albumPersonIds.value = []
-  // 索引里的 albums[].persons 只有名字没有 id，无法直接回填多选；
-  // 优先用后端可能给的 personIds，其次用老的单值 personId。
-  if (Array.isArray(row.personIds)) {
-    albumPersonIds.value = row.personIds.slice()
-  } else if (row.personId !== null && row.personId !== undefined && row.personId !== '') {
-    albumPersonIds.value = [row.personId]
-  }
   albumPersonVisible.value = true
-  loadPersonPickOptions(false)
 }
 
-function submitAlbumPersons() {
+function submitAlbumPersons({ personIds }) {
   if (albumPersonSaving.value) return
   const row = albumPersonRow.value
   if (!row || row.id == null) return
   albumPersonSaving.value = true
-  setAlbumPersons(row.id, albumPersonIds.value.slice()).then(() => {
+  setAlbumPersons(row.id, personIds.slice()).then(() => {
     proxy.$modal.msgSuccess('相册人物已更新')
     albumPersonVisible.value = false
     loadAlbums()
@@ -4175,10 +4042,6 @@ onBeforeUnmount(() => { stopScanPolling() })
   color: var(--el-color-warning);
   word-break: break-all;
 }
-.person-album {
-  word-break: break-all;
-}
-.trash-cover-ph { color: var(--el-text-color-placeholder); }
 .trash-orphan {
   font-size: 12px;
   color: var(--el-text-color-secondary);
@@ -4194,41 +4057,6 @@ onBeforeUnmount(() => { stopScanPolling() })
   }
 }
 /* 人物弹窗（P3-B）：目标名 / 每个选中人物的角色行 / 未就绪提示 */
-.vp-target {
-  margin: 0 0 10px;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  word-break: break-all;
-}
-.vp-alert {
-  margin-bottom: 10px;
-}
-.vp-role-list {
-  margin-top: 12px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  max-height: 220px;
-  overflow-y: auto;
-}
-.vp-role-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.vp-role-name {
-  flex: 0 0 96px;
-  font-size: 13px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.vp-tip {
-  margin: 10px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--el-text-color-secondary);
-}
 @media (max-width: 560px) {
   .vp-role-name {
     flex-basis: 72px;
