@@ -15,6 +15,10 @@
       <span v-if="selected.length" class="uncat-picked">已选 {{ selected.length }} 张</span>
       <el-button v-if="selected.length" size="small" type="primary" v-hasPermi="['media:admin:edit']"
         data-testid="uncat-claim-picked" @click="claimPicked">建册并入（勾选的 {{ selected.length }} 张）</el-button>
+      <!-- P6.247：勾选后只能「建册并入」（新建一本），没有「移进已有册」的入口 —— 用户实测提出。
+           这里补一个，与卡片上的「移入另一册…」走同一个弹窗。 -->
+      <el-button v-if="selected.length" size="small" plain v-hasPermi="['media:admin:edit']"
+        data-testid="uncat-move-picked" @click="emit('relocateIds', selected.slice())">移入已有册（{{ selected.length }} 张）</el-button>
       <el-button v-if="selected.length" size="small" text @click="selected = []">清空选择</el-button>
     </div>
 
@@ -44,7 +48,7 @@
         </el-image>
         <div class="uncat-name" :title="p.relPath">{{ photoFileName(p.relPath) }}</div>
         <div class="uncat-actions">
-          <el-button link type="primary" size="small" v-hasPermi="['media:admin:edit']"
+          <el-button size="small" plain icon="FolderOpened" v-hasPermi="['media:admin:edit']"
             data-testid="uncat-move" @click="emit('relocate', p)">移入另一册…</el-button>
         </div>
       </div>
@@ -66,7 +70,7 @@ import { errorText } from '@/utils/errorText'
 import { formatVolume, photoFileName, mediaSrc } from './mediaFormat'
 
 defineProps({ modelValue: { type: Boolean, default: false } })
-const emit = defineEmits(['update:modelValue', 'relocate', 'changed'])
+const emit = defineEmits(['update:modelValue', 'relocate', 'relocateIds', 'changed'])
 
 const { proxy } = getCurrentInstance()
 

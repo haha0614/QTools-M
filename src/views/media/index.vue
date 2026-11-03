@@ -511,7 +511,8 @@
 
     <!-- P6.52：未归类照片（album_id 为空）—— 站端不展示，可逐张移进某本册 -->
     <!-- 未归类照片：整体拆到子组件（P6.222 拆分）；「移入另一册」仍复用页面的相册弹层 -->
-    <uncategorized-dialog ref="uncatRef" v-model="uncatVisible" @relocate="onUncatRelocate" @changed="reloadAfterUncat" />
+    <uncategorized-dialog ref="uncatRef" v-model="uncatVisible" @relocate="onUncatRelocate"
+      @relocate-ids="onUncatRelocateIds" @changed="reloadAfterUncat" />
     <!-- P6.46：视频页内播放（以前是新开标签） -->
     <!-- 视频页内播放（P6.223 拆分） -->
     <video-player-dialog v-model="videoPlayVisible" :title="videoPlayTitle" :src="videoPlaySrc" />
@@ -2779,6 +2780,15 @@ function onUncatRelocate(photo) {
   uncatVisible.value = false
   photoSelected.value = [String(photo.id)]
   /* 未归类照片不在任何册里：不排除任何目标册（传空串） */
+  openPhotoRelocate('move', '')
+}
+
+/* 未归类里勾选多张 → 移进已有册（P6.247） */
+function onUncatRelocateIds(ids) {
+  const list = (ids || []).map(String).filter(Boolean)
+  if (!list.length) return
+  uncatVisible.value = false
+  photoSelected.value = list
   openPhotoRelocate('move', '')
 }
 
