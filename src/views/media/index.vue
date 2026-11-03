@@ -608,68 +608,28 @@
         <el-button size="small" type="primary" plain icon="MagicStick" class="photo-auto-rate"
           v-hasPermi="['media:admin:edit']" @click="autoRateVisible = true">自动分级</el-button>
       </div>
-      <div
-        class="photo-grid"
-        :class="{ 'range-on': multiMode }"
-        v-loading="photosLoading"
-        @pointermove="onGridPointerMove($event)"
-        @pointerup="onGridPointerUp($event)"
-        @pointercancel="onGridPointerUp($event)"
-      >
-        <div
-          class="photo-item"
-          :class="{ picked: photoSelected.includes(String(photo.id)), 'sorting': photoSortMode }"
-          :data-id="String(photo.id)"
-          v-for="(photo, photoIndex) in photoList"
-          :key="photoKey(photo)"
-          :draggable="photoSortMode"
-          @dragstart="onSortDragStart(photoIndex)"
-          @dragover.prevent
-          @drop.prevent="onSortDrop(photoIndex)"
-          @click="photoSortMode || onPhotoClick(photo)"
-          @pointerdown="onCardPointerDown(photo, $event)"
-        >
-          <!-- P6.17：自绘勾选框（el-checkbox 的 change 拿不到 shiftKey），支持 Shift 连选 -->
-          <span
-            class="photo-pick"
-            :class="{ on: photoSelected.includes(String(photo.id)) }"
-            role="checkbox"
-            :aria-checked="photoSelected.includes(String(photo.id))"
-            title="勾选；按住 Shift 点击可连选一段"
-            @click.stop="onPickClick(photo, $event)"
-          ></span>
-          <div class="photo-thumb">
-            <img :src="mediaSrc(photo.thumbUrl)" loading="lazy" :alt="'第 ' + photo.seq + ' 张'" />
-            <span class="photo-seq">{{ photo.seq }}</span>
-            <!-- P6.20：悬停出现「选到此」——从上一张点过的图连选到这里（触屏上直接点这个按钮也可以） -->
-            <span class="photo-range" title="从上次点选的那张，连选到这里" @click.stop="selectToHere(photo)">选到此</span>
-            <!-- P6.09 原子级分级：点角标展开 4 个选项（继承/大众/家长指导/限制），一次点到位 -->
-            <el-dropdown
-              trigger="click"
-              class="photo-rating-dd"
-              placement="bottom-end"
-              @command="(v) => setPhotoRating(photo, v)"
-              @click.stop
-            >
-              <span
-                class="photo-rating"
-                :class="['pr-' + (photo.contentRating || 'inherit'), { wider: photoIsWider(photo) }]"
-                :title="'这张图的分级：' + photoRatingLabel(photo) + (photoIsWider(photo) ? '（比本册更宽，访客能单独看到这张）' : '')"
-                @click.stop
-              >{{ photoRatingShort(photo) }}</span>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item command="inherit">继承相册（{{ albumPhotoRatingLabel }}）</el-dropdown-item>
-                  <el-dropdown-item command="general">大众级</el-dropdown-item>
-                  <el-dropdown-item command="guidance">家长指导级</el-dropdown-item>
-                  <el-dropdown-item command="restricted">限制级</el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-          </div>
-          <span class="photo-name" :title="photo.relPath || photoFileName(photo.relPath)">{{ photoFileName(photo.relPath) }}</span>
-        </div>
-      </div>
+      <!-- 照片网格：纯展示组件，勾选/分级/连选/排序靠事件回传（P6.226 拆分） -->
+      <photo-grid-panel
+        :rows="photoList"
+        :selected="photoSelected"
+        :sort-mode="photoSortMode"
+        :multi-mode="multiMode"
+        :loading="photosLoading"
+        :album-rating-label="albumPhotoRatingLabel"
+        :rating-short="photoRatingShort"
+        :rating-label="photoRatingLabel"
+        :is-wider="photoIsWider"
+        :photo-key="photoKey"
+        @pick="onPickClick"
+        @pick-to-here="selectToHere"
+        @rate="setPhotoRating"
+        @photo-click="onPhotoClick"
+        @card-pointer-down="onCardPointerDown"
+        @sort-drag-start="onSortDragStart"
+        @sort-drop="onSortDrop"
+        @grid-pointer-move="onGridPointerMove"
+        @grid-pointer-up="onGridPointerUp"
+      />
       <el-empty :description="photoRatingFilter === 'all' ? '暂无图片' : '该分级下没有图片'" v-if="!photosLoading && !photoList.length" />
       <pagination v-show="photoFilteredTotal > 0" :page-sizes="[48, 96, 192]" :total="photoFilteredTotal" v-model:page="photoQuery.pageNum"
         v-model:limit="photoQuery.pageSize" @pagination="handlePhotoPage" />
@@ -838,6 +798,8 @@ import AlbumRuleDialog from './AlbumRuleDialog.vue'
 import UncategorizedDialog from './UncategorizedDialog.vue'
 // P6.223：视频页内播放
 import VideoPlayerDialog from './VideoPlayerDialog.vue'
+// P6.226：照片网格（纯展示，勾选/分级/排序靠事件）
+import PhotoGridPanel from './PhotoGridPanel.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -3152,17 +3114,6 @@ onBeforeUnmount(() => { stopScanPolling() })
 .album-merge-dup { color: var(--el-color-warning); }
 .album-merge-tip { margin: 0 0 12px; font-size: 13px; line-height: 1.7; color: var(--el-text-color-regular); }
 /* P6.57：排序模式：可拖 + 抓手光标 */
-.photo-item.sorting { cursor: grab; }
-.photo-item.sorting:active { cursor: grabbing; }
-
-/* P6.54：建议册徽标 */
-.album-suggest-tag { margin-left: 8px; transform: scale(0.9); }
-
-/* P6.52：未归类网格 */
-.uncat-card {
-  width: 150px; border: 1px solid var(--el-border-color-light); border-radius: 6px;
-  overflow: hidden; background: var(--el-bg-color);
-}
 .album-opt-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .album-opt-count { flex: none; font-size: 12px; color: var(--el-text-color-secondary); }
 
@@ -3437,35 +3388,7 @@ onBeforeUnmount(() => { stopScanPolling() })
 .photo-filter-dot.dot-restricted {
   background: var(--el-color-danger);
 }
-.photo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(132px, 1fr));
-  align-items: stretch;
-  gap: 8px;
-  min-height: 40px;
-}
-.photo-item {
-  position: relative;   /* P6.15：勾选框/角标都相对卡片定位；缺这行会让它们全叠到弹窗左上角 */
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  cursor: pointer;
-  line-height: 0;
-}
-.photo-thumb {
-  position: relative;
-  line-height: 0;
-}
 /* P6.14：固定卡片大小——所有格子同一个高度，图片按原比例居中放进去（不裁剪、不撑高） */
-.photo-item img {
-  display: block;
-  width: 100%;
-  height: 150px;
-  object-fit: contain;
-  object-position: center center;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
-}
 /* P6.15：自定义标题头——完全不依赖 el-dialog 默认标题（它会被裁） */
 :deep(.photos-dialog .el-dialog__header) {
   padding: 0;
@@ -3510,46 +3433,8 @@ onBeforeUnmount(() => { stopScanPolling() })
   user-select: none;
 }
 /* P6.18：触屏长按拖动选图——禁止长按选中文字/弹出系统菜单，滑动时不要滚动页面 */
-.photo-grid {
-  touch-action: pan-y;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-}
 /* P6.20：悬停出现的「选到此」按钮（触屏没有 hover，所以它本身是个可点的按钮） */
-.photo-range {
-  position: absolute;
-  left: 50%;
-  bottom: 6px;
-  transform: translateX(-50%);
-  z-index: 3;
-  padding: 3px 8px;
-  font-size: 11px;
-  line-height: 1.2;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.62);
-  border-radius: 10px;
-  cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.12s;
-  white-space: nowrap;
-}
-.photo-item:hover .photo-range,
-/* 触屏没有 hover：进入多选或已勾选时全部显形，否则手机上根本点不到 */
-.photo-grid.range-on .photo-range {
-  opacity: 1;
-  pointer-events: auto;
-}
-.photo-range:hover {
-  background: var(--el-color-primary);
-}
 /* P6.20：选中态只框住缩略图（之前整格 outline 会和相邻格挤在一起） */
-.photo-item.picked .photo-thumb {
-  outline: 2px solid var(--el-color-primary);
-  outline-offset: -2px;
-  border-radius: 5px;
-}
 /* P6.30：旧选中态已删除——之前和 .photo-thumb 的描边同时生效，选中时是双层蓝框 */
 /* 批量条固定在弹窗底部 */
 .photo-batch {
@@ -3566,60 +3451,11 @@ onBeforeUnmount(() => { stopScanPolling() })
 :deep(.el-pagination__sizes .el-select) {
   width: 118px;
 }
-.photo-name {
-  font-size: 11px;
-  line-height: 1.2;
-  text-align: center;
-  color: var(--el-text-color-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.photo-seq {
-  position: absolute;
-  left: 4px;
-  bottom: 4px;
-  font-size: 11px;
-  line-height: 1;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: 3px;
-  padding: 2px 4px;
-}
 .row-more {
   margin: 0 2px;
   vertical-align: middle;
 }
 /* P6.17：自绘勾选框：16px 方块，勾上后主色填充 + 白勾 */
-.photo-pick {
-  position: absolute;
-  left: 6px;
-  top: 6px;
-  z-index: 2;
-  width: 16px;
-  height: 16px;
-  border-radius: 3px;
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  background: rgba(0, 0, 0, 0.35);
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
-  cursor: pointer;
-  box-sizing: border-box;
-}
-.photo-pick.on {
-  background: var(--el-color-primary);
-  border-color: var(--el-color-primary);
-}
-.photo-pick.on::after {
-  content: '';
-  position: absolute;
-  left: 4px;
-  top: 1px;
-  width: 5px;
-  height: 9px;
-  border: solid #fff;
-  border-width: 0 2px 2px 0;
-  transform: rotate(45deg);
-}
 .photos-head-tip {
   font-size: 11.5px;
   color: var(--el-text-color-secondary);
@@ -3639,35 +3475,6 @@ onBeforeUnmount(() => { stopScanPolling() })
   color: var(--el-text-color-regular);
 }
 /* P6.09 图片级分级角标：点一下循环切换；颜色沿用三档语义 */
-.photo-rating-dd {
-  position: absolute;
-  right: 4px;
-  top: 4px;
-  z-index: 2;
-}
-.photo-rating {
-  min-width: 18px;
-  text-align: center;
-  font-size: 11px;
-  line-height: 1;
-  color: #fff;
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: 3px;
-  padding: 2px 4px;
-  cursor: pointer;
-  user-select: none;
-}
-.photo-rating.pr-general { background: rgba(64, 158, 255, 0.85); }
-.photo-rating.pr-guidance { background: rgba(230, 162, 60, 0.9); }
-.photo-rating.pr-restricted { background: rgba(245, 108, 108, 0.9); }
-/* P6.25：比册级更宽的图（图级优先后会单独可见）——白虚线描一圈，和「继承」区分开 */
-.photo-rating.wider { outline: 1px dashed #fff; outline-offset: -2px; box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.9); }
-.photo-notice {
-  margin: 0 0 8px;
-  font-size: 12px;
-  color: var(--el-color-warning);
-  word-break: break-all;
-}
 .trash-orphan {
   font-size: 12px;
   color: var(--el-text-color-secondary);
