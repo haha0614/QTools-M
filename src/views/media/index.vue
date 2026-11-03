@@ -715,9 +715,6 @@
       @confirm="submitAlbumBatchPerson" />
 
     <!-- 改人物归属 -->
-    <!-- 人物归属三入口：改人物 / 视频人物 / 相册人物（P6.218 拆分） -->
-    <person-assign-dialog v-model="personVisible" kind="albumSingle" :row="personRow"
-      :people-options="peopleOptions" :saving="personSubmitting" @confirm="submitPerson" />
     <person-assign-dialog v-model="videoPersonVisible" kind="videoMulti" :row="videoPersonRow"
       :saving="videoPersonSaving" @confirm="submitVideoPersons" />
     <person-assign-dialog v-model="albumPersonVisible" kind="albumMulti" :row="albumPersonRow"
@@ -925,9 +922,6 @@ const photoNotice = ref('')
 // P6.24：图片内容自动分级弹窗
 const autoRateVisible = ref(false)
 
-const personVisible = ref(false)
-const personSubmitting = ref(false)
-const personRow = ref(null)
 
 /* P6.219：拆分时脚本连带删掉了这四个声明与两个行引用 —— 模板里用 _ctx 兜底所以页面能渲染，
    但脚本里 videoPersonRow.value = ... 会直接 ReferenceError（点「人物（多选 + 角色）」整页崩）。补回。 */
@@ -1812,22 +1806,6 @@ function openPhotoPreview(photo) {
   previewVisible.value = true
 }
 
-function openPerson(row) {
-  personRow.value = row || null
-  personVisible.value = true
-}
-
-function submitPerson({ personId }) {
-  const row = personRow.value
-  if (!row || row.id == null) return
-  personSubmitting.value = true
-  setAlbumPerson(row.id, personId).then(() => {
-    proxy.$modal.msgSuccess('人物归属已更新')
-    personVisible.value = false
-    loadStats()
-    loadAlbums()
-  }).finally(() => { personSubmitting.value = false })
-}
 
 // ------------------------------------------------------------------ 内容分级（P5.99）
 

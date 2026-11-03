@@ -1,31 +1,19 @@
 <template>
-  <!-- 人物归属（三个入口共用）：P6.218 拆分
-       1. albumSingle  修改人物归属（单本相册 → 单个人物）
-       2. videoMulti   视频人物（多选 + 每个选中的角色）
-       3. albumMulti   相册人物（整本覆盖）
+  <!-- 人物归属（两个入口）：P6.218 拆分 / P6.225 清理
+       1. videoMulti   视频人物（多选 + 每个选中的角色）
+       2. albumMulti   相册人物（整本覆盖）
+       原来的 albumSingle「修改人物归属」自 P6.11 起已无任何入口（按钮并进了「人物（多选）」），
+       属于死代码，随本次清理一并删除（如需恢复见 git 历史 P6.218）。
        子组件只负责选人与角色，写库与列表刷新留在页面。 -->
   <el-dialog
     :model-value="modelValue"
     :title="dialogTitle"
-    :width="kind === 'albumSingle' ? 'min(420px, 92vw)' : (kind === 'videoMulti' ? 'min(560px, 94vw)' : 'min(520px, 94vw)')"
+    :width="kind === 'videoMulti' ? 'min(560px, 94vw)' : 'min(520px, 94vw)'"
     append-to-body
     @update:model-value="v => emit('update:modelValue', v)"
     @open="onOpen"
   >
-    <!-- 单本相册改人物 -->
-    <el-form v-if="kind === 'albumSingle'" :model="form" label-width="80px">
-      <el-form-item label="相册">
-        <span class="person-album">{{ targetText }}</span>
-      </el-form-item>
-      <el-form-item label="人物">
-        <el-select v-model="form.personId" placeholder="请选择人物" style="width: 100%">
-          <el-option label="（未归类 / 清空）" value="" />
-          <el-option v-for="item in peopleOptions" :key="item.id" :label="item.name + ' (' + item.albumCount + ')'" :value="item.id" />
-        </el-select>
-      </el-form-item>
-    </el-form>
-
-    <template v-else>
+    <div class="vp-body">
       <p class="vp-target">{{ targetText }}</p>
       <el-alert v-if="pickError" :title="pickError" type="warning" :closable="false" show-icon class="vp-alert" />
       <el-select v-model="picked" multiple filterable clearable placeholder="选择人物（可多选）"
@@ -41,17 +29,17 @@
       </div>
 
       <p class="vp-tip">{{ tip }}</p>
-    </template>
+    </div>
 
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">取 消</el-button>
       <el-button
         type="primary"
         :loading="saving"
-        :disabled="kind !== 'albumSingle' && !!pickError"
+        :disabled="!!pickError"
         @click="submit"
         v-hasPermi="['media:admin:edit']"
-      >{{ kind === 'albumSingle' ? '确 定' : '保 存' }}</el-button>
+      >保 存</el-button>
     </template>
   </el-dialog>
 </template>
@@ -62,12 +50,10 @@ import { errorText } from '@/utils/errorText'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
-  /** albumSingle | videoMulti | albumMulti */
-  kind: { type: String, default: 'albumSingle' },
+  /** videoMulti（视频人物，带角色）| albumMulti（相册人物） */
+  kind: { type: String, default: 'videoMulti' },
   /** 当前操作的行（视频或相册） */
   row: { type: Object, default: null },
-  /** 单本相册改人物用的候选（带 albumCount） */
-  peopleOptions: { type: Array, default: () => [] },
   saving: { type: Boolean, default: false }
 })
 const emit = defineEmits(['update:modelValue', 'confirm'])
@@ -80,13 +66,8 @@ const pickError = ref('')
 
 const picked = ref([])
 const roles = reactive({})
-const form = reactive({ personId: '' })
 
-const dialogTitle = computed(() => {
-  if (props.kind === 'videoMulti') return '视频人物'
-  if (props.kind === 'albumMulti') return '相册人物'
-  return '修改人物归属'
-})
+const dialogTitle = computed(() => (props.kind === 'videoMulti' ? '视频人物' : '相册人物'))
 
 const targetText = computed(() => {
   const row = props.row || {}
@@ -138,10 +119,6 @@ function onOpen() {
   picked.value = []
   Object.keys(roles).forEach(k => { delete roles[k] })
 
-  if (props.kind === 'albumSingle') {
-    form.personId = row.personId === null || row.personId === undefined ? '' : row.personId
-    return
-  }
   if (props.kind === 'videoMulti') {
     ;(row.persons || []).forEach(item => {
       const pid = item && item.id !== undefined ? item.id : null
@@ -158,11 +135,6 @@ function onOpen() {
 }
 
 function submit() {
-  if (props.kind === 'albumSingle') {
-    const personId = form.personId === '' || form.personId === null ? null : form.personId
-    emit('confirm', { kind: props.kind, personId })
-    return
-  }
   if (props.kind === 'videoMulti') {
     const out = {}
     picked.value.forEach(id => {
@@ -177,7 +149,6 @@ function submit() {
 </script>
 
 <style scoped>
-.person-album { font-size: 13px; color: var(--el-text-color-regular); word-break: break-all; }
 .vp-target { margin: 0 0 10px; font-size: 13px; color: var(--el-text-color-secondary); word-break: break-all; }
 .vp-alert { margin-bottom: 10px; }
 .vp-role-list { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow-y: auto; }
