@@ -905,8 +905,9 @@ const statCards = computed(() => {
   return [
     { key: 'videos', label: '视频', value: formatNumber(data.videos), sub: '隐藏 ' + formatNumber(data.hiddenVideos) },
     { key: 'albums', label: '相册', value: formatNumber(data.albums), sub: '隐藏 ' + formatNumber(data.hiddenAlbums) },
-    { key: 'photos', label: '图片', value: formatNumber(data.photos), sub: '隐藏 ' + formatNumber(data.hiddenPhotos) },
-    { key: 'people', label: '人物', value: formatNumber(data.people), sub: '含未归类' },
+    { key: 'photos', label: '图片', value: formatNumber(data.photos),
+      sub: '隐藏 ' + formatNumber(data.hiddenPhotos) + ' · 未归类 ' + formatNumber(uncatPhotoTotal.value) },
+    { key: 'people', label: '人物', value: formatNumber(data.people), sub: '含「未归类」类目' },
     { key: 'bytes', label: '总占用', value: formatGb(data.totalBytes), sub: '视频 ' + formatGb(data.videoBytes) + ' / 相册 ' + formatGb(data.albumBytes) },
     { key: 'trash', label: '回收站', value: formatGb(data.trashBytes), sub: formatNumber(data.trashCount) + ' 个对象' }
   ]
@@ -1066,12 +1067,22 @@ function openAlbumPreview(row) {
 
 // ------------------------------------------------------------------ 统计 / 人物
 
+/* P6.252：统计接口没有「未归类照片」这一项，单独取一次（只取 1 条，用 total 即可），
+   让「图片」卡片能直接显示有多少张没归属 —— 否则用户只知道总数 8468，不知道其中多少是散的。 */
+const uncatPhotoTotal = ref(0)
+function loadUncatPhotoTotal() {
+  listUncategorizedPhotos({ page: 1, size: 1 })
+    .then(res => { uncatPhotoTotal.value = Number((res && res.total) || 0) })
+    .catch(() => { uncatPhotoTotal.value = 0 })
+}
+
 function loadStats() {
   statsLoading.value = true
   getStats().then(res => {
     stats.value = res || {}
     folderOptions.value = (res && res.byFolder) || []
     statsUpdatedAt.value = new Date().toLocaleTimeString('zh-CN', { hour12: false })
+    loadUncatPhotoTotal()
   }).finally(() => { statsLoading.value = false })
 }
 
