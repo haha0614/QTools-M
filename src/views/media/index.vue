@@ -2886,6 +2886,16 @@ async function saveSort() {
   try {
     const res = await reorderAlbumPhotos(albumId, ids, startSeq)
     proxy.$modal.msgSuccess('顺序已保存（' + ((res && res.updated) || ids.length) + ' 张）')
+    /* P6.231：保存后画面又变回旧顺序 —— 因为 applyPhotoPage() 只从 photoRowsAll 切片，
+       而 photoRowsAll 还是服务器返回时的旧顺序。这里把新 seq 就地写回全量列表并重排，
+       画面立刻就是新顺序，切筛选/翻页也不会跳回去。 */
+    const byId = new Map(photoRowsAll.value.map(p => [String(p.id), p]))
+    ids.forEach((id, i) => {
+      const row = byId.get(String(id))
+      if (row) row.seq = startSeq + i
+    })
+    photoRowsAll.value = photoRowsAll.value.slice()
+      .sort((a, b) => Number(a && a.seq ? a.seq : 0) - Number(b && b.seq ? b.seq : 0))
     applyPhotoPage()
   } catch (e) {
     proxy.$modal.msgError('保存顺序失败：' + (errorText(e) || (e && e.message) || '请求失败'))
