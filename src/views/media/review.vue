@@ -337,9 +337,11 @@
       </div>
       <!-- P6.70：Ctrl+滚轮缩放网格（普通滚轮仍然是滚动浏览） -->
       <div class="pv-grid" v-if="pvRows.length" :style="pvGridStyle" @wheel.ctrl.prevent="onGridWheel">
-        <div class="pv-item" v-for="p in pvFilteredRows" :key="p.id" :class="{ on: pvIsSelected(p.id) }">
+        <!-- P6.233：编号统一为位置号（与媒体库图片弹窗一致）：第 N 张 = 当前筛选列表里的位置，
+             不再用库里的 seq（历史排序号，多次排序后会从 4、5 开始）。 -->
+        <div class="pv-item" v-for="(p, pIdx) in pvFilteredRows" :key="p.id" :class="{ on: pvIsSelected(p.id) }">
           <img :src="mediaSrc(p.thumb)" loading="lazy" decoding="async" alt=""
-            :title="'第 ' + (Number(p.seq) + 1) + ' 张 · ' + pvRatingLabel(p.rating)"
+            :title="'第 ' + (pIdx + 1) + ' 张 · ' + pvRatingLabel(p.rating)"
             @click="openBig(p)" />
           <span class="pv-badge" :class="p.rating || 'inherit'">{{ pvRatingShort(p.rating) }}</span>
           <span class="pv-check" @click.stop="togglePv(p.id, $event)">{{ pvIsSelected(p.id) ? '✓' : '' }}</span>
@@ -352,7 +354,7 @@
     </el-dialog>
 
     <!-- 大图 + 单张定级 -->
-    <el-dialog v-model="pvBigVisible" :title="pvBig ? ('第 ' + (Number(pvBig.seq) + 1) + ' 张 · ' + pvRatingLabel(pvBig.rating) + ' · ' + (pvBigIndex + 1) + '/' + pvBigList.length + (pvRatingFilter === 'all' ? '' : '（已筛选）')) : ''"
+    <el-dialog v-model="pvBigVisible" :title="pvBig ? ('第 ' + (pvBigIndex + 1) + '/' + pvBigList.length + ' 张 · ' + pvRatingLabel(pvBig.rating) + (pvRatingFilter === 'all' ? '' : '（已筛选）')) : ''"
       width="min(1200px, 96vw)" append-to-body>
       <div class="pv-big-status" v-if="pvBig">
         当前分级
