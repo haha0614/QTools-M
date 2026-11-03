@@ -38,7 +38,7 @@
         </el-button>
         <el-button icon="Refresh" :loading="statsLoading" @click="refreshAll">刷新</el-button>
         <el-button icon="PriceTag" @click="openTagManager" v-hasPermi="['media:admin:list']">标签管理</el-button>
-        <el-button icon="Setting" @click="openEditPolicy" v-hasPermi="['media:admin:edit']">编辑策略</el-button>
+        <el-button icon="Setting" @click="policyVisible = true" v-hasPermi="['media:admin:edit']">编辑策略</el-button>
         <!-- P5.97：扫盘入库的唯一入口（原来这里 4 个按钮 = 维护面板里那 4 个的重复入口）。
              一次点击跑完整条流水线：扫盘 → 补哈希 → 补元数据 → 封面缩略图 → 重建索引。 -->
         <el-button type="primary" icon="Upload" @click="openScanDrawer" v-hasPermi="['media:admin:scan', 'media:admin:edit']">
@@ -1028,23 +1028,8 @@
     </el-dialog>
 
     <!-- 站端编辑策略：三档（禁止编辑 / 本地编辑 / 完全编辑） -->
-    <el-dialog v-model="policyVisible" title="编辑策略" width="min(600px, 94vw)" append-to-body>
-      <div v-loading="policyLoading" class="policy-box">
-        <p class="policy-lead">决定站端访客能对媒体库做什么。保存后访客刷新页面即生效。</p>
-        <el-radio-group v-model="policyForm.level" class="policy-group">
-          <div v-for="opt in POLICY_OPTIONS" :key="opt.value" class="policy-item" :class="{ 'is-on': policyForm.level === opt.value }"
-            @click="policyForm.level = opt.value">
-            <el-radio :value="opt.value">{{ opt.label }}</el-radio>
-            <span class="policy-desc">{{ opt.desc }}</span>
-          </div>
-        </el-radio-group>
-        <p class="policy-warn">若把本实例挂在公网做演示，请选「本地编辑」或「禁止编辑」，否则陌生人可修改你的媒体库</p>
-      </div>
-      <template #footer>
-        <el-button @click="policyVisible = false">取 消</el-button>
-        <el-button type="primary" :loading="policySaving" @click="submitEditPolicy" v-hasPermi="['media:admin:edit']">保 存</el-button>
-      </template>
-    </el-dialog>
+    <!-- 编辑策略弹窗：自读自写，页面只负责开关（P6.213 拆分） -->
+    <edit-policy-dialog v-model="policyVisible" />
 
     <!-- 内容分级批量设置（P5.99）：POST /api/media/admin/rating/batch -->
     <el-dialog v-model="ratingBatchVisible" :title="ratingBatchTitle" width="min(460px, 92vw)" append-to-body>
@@ -1108,7 +1093,7 @@
 
 <script setup name="Media">
 import { useRoute } from 'vue-router'
-import { listVideos, listAlbums, listPhotos, getAlbumPhotos, setHidden, removeMedia, restoreMedia, restoreTrash, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag, getEditPolicy, setEditPolicy } from '@/api/media'
+import { listVideos, listAlbums, listPhotos, getAlbumPhotos, setHidden, removeMedia, restoreMedia, restoreTrash, setAlbumPerson, listPeople, getStats, startScan, getScanJob, getScanLatest, listTrash, trashStats, purgeTrash, listTags, createTag, deleteTag, updateTag } from '@/api/media'
 // 人物管理（P3-B）：独立 import 行，不改动上面那行既有导入
 import { listPersons, setVideoPersons, setAlbumPersons } from '@/api/media'
 // P6.10：批量人物 / 工作室归属
@@ -1128,6 +1113,8 @@ import DeriveBadges from './DeriveBadges.vue'
 import DeriveResultDialog from './DeriveResultDialog.vue'
 // P6.24：图片内容自动分级（服务端 NSFW 模型，先预览后写库）
 import PhotoAutoRateDialog from './PhotoAutoRateDialog.vue'
+// P6.213：编辑策略弹窗拆成子组件（原来内联在本页，含全部样式）
+import EditPolicyDialog from './EditPolicyDialog.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -1233,16 +1220,7 @@ const tagEditVisible = ref(false)
 const tagEditSaving = ref(false)
 const tagEditForm = reactive({ id: null, name: '', color: null, parentId: null })
 
-/* 站端编辑策略（三档）：与后端 GET/PUT /api/media/admin/edit-policy 对齐 */
-const POLICY_OPTIONS = [
-  { value: 'off', label: '禁止编辑', desc: '站端所有编辑入口禁用：只能浏览，不能评分 / 打标签 / 加标记' },
-  { value: 'local', label: '本地编辑', desc: '允许编辑，但只写访客自己的浏览器（localStorage），服务端数据不变' },
-  { value: 'full', label: '完全编辑', desc: '允许编辑并写入服务端（匿名访客也能修改媒体库）' }
-]
 const policyVisible = ref(false)
-const policyLoading = ref(false)
-const policySaving = ref(false)
-const policyForm = reactive({ level: 'full' })
 
 // 前端过滤：名称或颜色包含关键词（颜色支持输 #abc 之类）
 const filteredTags = computed(() => {
@@ -3010,39 +2988,6 @@ function submitTagEdit() {
   })
 }
 
-function policyLabel(level) {
-  const hit = POLICY_OPTIONS.find(opt => opt.value === level)
-  return hit ? hit.label : level
-}
-
-/** 打开弹窗时读一次当前策略：读到之前按要求显示「完全编辑」（与后端缺省一致） */
-function openEditPolicy() {
-  policyVisible.value = true
-  policyLoading.value = true
-  getEditPolicy().then(res => {
-    const level = res && res.level ? res.level : ''
-    policyForm.level = POLICY_OPTIONS.some(opt => opt.value === level) ? level : 'full'
-  }).catch(err => {
-    policyForm.level = 'full'
-    proxy.$modal.notifyWarning({ title: '编辑策略读取失败', message: (errorText(err) || '接口未就绪') + '，当前按「完全编辑」显示', duration: 8000 })
-  }).finally(() => {
-    policyLoading.value = false
-  })
-}
-
-function submitEditPolicy() {
-  if (policySaving.value) return
-  policySaving.value = true
-  setEditPolicy(policyForm.level).then(() => {
-    proxy.$modal.msgSuccess('编辑策略已保存：' + policyLabel(policyForm.level) + '（访客刷新页面后生效）')
-    policyVisible.value = false
-  }).catch(err => {
-    proxy.$modal.notifyError({ title: '保存编辑策略失败', message: errorText(err) || '请求失败，请查看后端日志', duration: 8000 })
-  }).finally(() => {
-    policySaving.value = false
-  })
-}
-
 // ------------------------------------------------------------------ 工具
 
 /** 空筛选值不传给后端（hidden=all 由后端归一化，这里直接省略） */
@@ -4614,49 +4559,6 @@ onBeforeUnmount(() => { stopScanPolling() })
   color: var(--el-text-color-secondary);
 }
 
-/* 编辑策略弹窗：三档单选 + 每档一行说明 + 红字公网提示 */
-.policy-box {
-  min-height: 150px;
-}
-.policy-lead {
-  margin: 0 0 10px;
-  font-size: 13px;
-  color: var(--el-text-color-regular);
-}
-.policy-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-}
-.policy-item {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border: 1px solid var(--el-border-color);
-  border-radius: 6px;
-  transition: border-color 0.12s, background 0.12s;
-}
-.policy-item.is-on {
-  border-color: var(--el-color-primary);
-  background: var(--el-color-primary-light-9);
-}
-.policy-desc {
-  padding-left: 24px;
-  font-size: 12px;
-  line-height: 1.5;
-  color: var(--el-text-color-secondary);
-}
-.policy-warn {
-  margin: 12px 0 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--el-color-danger-light-9);
-  color: var(--el-color-danger);
-  font-size: 12.5px;
-  line-height: 1.6;
-}
 @media (max-width: 560px) {
   .media-page :deep(.el-pagination__sizes),
   .media-page :deep(.el-pagination__jump) {

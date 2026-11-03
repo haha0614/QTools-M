@@ -34,7 +34,14 @@ const WATCH = [
   'useDict',
   'selectDictLabel',
   'permission',
-  'auth'
+  'auth',
+  // 这些工具函数在多处被"各自复制一份"，拆组件时最容易漏 import
+  'errorText',
+  'errorStatus',
+  'isJobGone',
+  'failSummary',
+  'formatBytes',
+  'copyText'
 ]
 
 /** auto-import 与运行时全局，出现不算错 */
