@@ -831,39 +831,16 @@
       :album-title="(currentAlbum && currentAlbum.title) || ''" :items="autoRateItems"
       @applied="onAutoRateApplied" />
 
-    <!-- P6.10 批量设置人物 / 工作室 -->
-    <el-dialog v-model="videoBatchPersonVisible" title="批量设置人物" width="min(460px, 92vw)" append-to-body>
-      <p class="batch-lead">将替换选中 {{ selectedVideos.length }} 个视频的人物归属；留空 = 清空（回到「素人」兜底）。</p>
-      <el-select v-model="videoBatchPersonIds" multiple filterable placeholder="选择人物（可多选）" style="width: 100%">
-        <el-option v-for="item in peopleOptions" :key="item.id" :label="item.name + ' (' + item.videoCount + ')'" :value="item.id" />
-      </el-select>
-      <template #footer>
-        <el-button @click="videoBatchPersonVisible = false">取消</el-button>
-        <el-button type="primary" :loading="batchSaving" data-testid="video-batch-person-submit" @click="submitVideoBatchPerson">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="videoBatchStudioVisible" title="批量设置工作室" width="min(460px, 92vw)" append-to-body>
-      <p class="batch-lead">将替换选中 {{ selectedVideos.length }} 个视频的工作室；留空 = 清空。</p>
-      <el-select v-model="videoBatchStudioIds" multiple filterable placeholder="选择工作室（可多选）" style="width: 100%">
-        <el-option v-for="item in studioOptions" :key="item.id" :label="item.name" :value="item.id" />
-      </el-select>
-      <template #footer>
-        <el-button @click="videoBatchStudioVisible = false">取消</el-button>
-        <el-button type="primary" :loading="batchSaving" data-testid="video-batch-studio-submit" @click="submitVideoBatchStudio">保存</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="albumBatchPersonVisible" title="批量设置相册人物" width="min(460px, 92vw)" append-to-body>
-      <p class="batch-lead">将把选中 {{ selectedAlbums.length }} 本相册归到同一人物（相册是单人物字段）；留空 = 未归类。</p>
-      <el-select v-model="albumBatchPersonId" filterable clearable placeholder="选择人物" style="width: 100%">
-        <el-option v-for="item in peopleOptions" :key="item.id" :label="item.name + ' (' + item.albumCount + ')'" :value="item.id" />
-      </el-select>
-      <template #footer>
-        <el-button @click="albumBatchPersonVisible = false">取消</el-button>
-        <el-button type="primary" :loading="batchSaving" data-testid="album-batch-person-submit" @click="submitAlbumBatchPerson">保存</el-button>
-      </template>
-    </el-dialog>
+    <!-- 批量设置人物 / 工作室：三个入口共用一个子组件（P6.217 拆分） -->
+    <batch-assign-dialog v-model="videoBatchPersonVisible" kind="videoPerson"
+      :count="selectedVideos.length" :options="peopleOptions" :saving="batchSaving"
+      @confirm="submitVideoBatchPerson" />
+    <batch-assign-dialog v-model="videoBatchStudioVisible" kind="videoStudio"
+      :count="selectedVideos.length" :options="studioOptions" :saving="batchSaving"
+      @confirm="submitVideoBatchStudio" />
+    <batch-assign-dialog v-model="albumBatchPersonVisible" kind="albumPerson"
+      :count="selectedAlbums.length" :options="peopleOptions" :saving="batchSaving"
+      @confirm="submitAlbumBatchPerson" />
 
     <!-- 改人物归属 -->
     <el-dialog v-model="personVisible" title="修改人物归属" width="min(420px, 92vw)" append-to-body>
@@ -1030,6 +1007,8 @@ import EditPolicyDialog from './EditPolicyDialog.vue'
 import RatingBatchDialog from './RatingBatchDialog.vue'
 // P6.216：标签管理（含父级推导、增删改）整体拆成子组件
 import TagManageDialog from './TagManageDialog.vue'
+// P6.217：批量设置人物 / 工作室（三个入口共用一个壳）
+import BatchAssignDialog from './BatchAssignDialog.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -1867,17 +1846,13 @@ function applyPhotoRating(rating) {
 
 /* ---------------------------------------------------------------- P6.10 批量人物 / 工作室 */
 const videoBatchPersonVisible = ref(false)
-const videoBatchPersonIds = ref([])
 const videoBatchStudioVisible = ref(false)
-const videoBatchStudioIds = ref([])
 const studioOptions = ref([])
 let studioLoaded = false
 const albumBatchPersonVisible = ref(false)
-const albumBatchPersonId = ref(null)
 const batchSaving = ref(false)
 
 function openVideoBatchPerson() {
-  videoBatchPersonIds.value = []
   videoBatchPersonVisible.value = true
 }
 
@@ -1888,20 +1863,18 @@ function openVideoBatchStudio() {
       studioOptions.value = (res && (res.rows || res)) || []
     }).catch(() => { studioLoaded = false })
   }
-  videoBatchStudioIds.value = []
   videoBatchStudioVisible.value = true
 }
 
 function openAlbumBatchPerson() {
-  albumBatchPersonId.value = null
   albumBatchPersonVisible.value = true
 }
 
-function submitVideoBatchPerson() {
+function submitVideoBatchPerson(values) {
   const ids = selectedVideos.value.map((v) => String(v.id))
   if (!ids.length) return
   batchSaving.value = true
-  batchPerson({ type: 'video', ids, personIds: videoBatchPersonIds.value }).then(() => {
+  batchPerson({ type: 'video', ids, personIds: values }).then(() => {
     proxy.$modal.msgSuccess('已更新 ' + ids.length + ' 个视频的人物归属')
     videoBatchPersonVisible.value = false
     loadVideos()
@@ -1910,11 +1883,11 @@ function submitVideoBatchPerson() {
   }).finally(() => { batchSaving.value = false })
 }
 
-function submitVideoBatchStudio() {
+function submitVideoBatchStudio(values) {
   const ids = selectedVideos.value.map((v) => String(v.id))
   if (!ids.length) return
   batchSaving.value = true
-  batchStudio({ ids, studioIds: videoBatchStudioIds.value }).then(() => {
+  batchStudio({ ids, studioIds: values }).then(() => {
     proxy.$modal.msgSuccess('已更新 ' + ids.length + ' 个视频的工作室')
     videoBatchStudioVisible.value = false
     loadVideos()
@@ -1923,11 +1896,11 @@ function submitVideoBatchStudio() {
   }).finally(() => { batchSaving.value = false })
 }
 
-function submitAlbumBatchPerson() {
+function submitAlbumBatchPerson(value) {
   const ids = selectedAlbums.value.map((a) => String(a.id))
   if (!ids.length) return
   batchSaving.value = true
-  const personIds = albumBatchPersonId.value == null ? [] : [albumBatchPersonId.value]
+  const personIds = value == null ? [] : [value]
   batchPerson({ type: 'album', ids, personIds }).then(() => {
     proxy.$modal.msgSuccess('已更新 ' + ids.length + ' 本相册的人物')
     albumBatchPersonVisible.value = false
