@@ -30,6 +30,15 @@
       </el-option>
     </el-select>
 
+    <!-- P6.249：原来只取前 30 本、没有翻页也没有提示，册一多就「找不到目标册」。
+         现在按张数倒序取第一页，并给出「已显示 X / Y 本 + 加载更多」。 -->
+    <div v-if="mode === 'move'" class="relocate-more">
+      <span>按张数倒序 · 已显示 {{ options.length }} / {{ total }} 本</span>
+      <el-button v-if="options.length < total" link type="primary" size="small"
+        :loading="loading" data-testid="relocate-more" @click="loadMore">加载更多</el-button>
+      <span v-else-if="total > 0" class="relocate-more-done">已全部加载</span>
+    </div>
+
     <div v-if="mode === 'move' && preview.duplicates" class="relocate-dup">
       <el-alert type="warning" :closable="false" show-icon
         :title="'目标册已有同内容：选中的 ' + preview.moving + ' 张里有 ' + preview.duplicates + ' 张重复'">
@@ -108,17 +117,42 @@ function open(nextMode, photoIds, currentAlbumId) {
   if (mode.value === 'move') searchTargets('')
 }
 
-async function searchTargets(keyword) {
+const PAGE_SIZE = 50
+const page = ref(1)
+const total = ref(0)
+const keyword = ref('')
+
+/* 拉一页目标册；append=true 时接着上一页往下堆 */
+async function fetchTargets(append) {
   loading.value = true
   try {
-    const res = await listAlbums({ keyword: keyword || '', pageNum: 1, pageSize: 30, hidden: 'all' })
+    /* 按张数倒序：目标册通常是“量大的那几本”，比默认顺序好找得多 */
+    const res = await listAlbums({
+      keyword: keyword.value || '', pageNum: page.value, pageSize: PAGE_SIZE,
+      hidden: 'all', sort: 'photoCount-desc'
+    })
     const selfId = albumId.value
-    options.value = ((res && res.rows) || []).filter(a => String(a.id) !== String(selfId))
+    const rows = ((res && res.rows) || []).filter(a => String(a.id) !== String(selfId))
+    total.value = Number((res && res.total) || rows.length)
+    options.value = append ? options.value.concat(rows) : rows
   } catch (e) {
-    options.value = []
+    if (!append) options.value = []
   } finally {
     loading.value = false
   }
+}
+
+/** 搜索框的 remote-method：换了关键字就从第一页重来 */
+function searchTargets(kw) {
+  keyword.value = kw || ''
+  page.value = 1
+  return fetchTargets(false)
+}
+
+function loadMore() {
+  if (options.value.length >= total.value) return
+  page.value += 1
+  return fetchTargets(true)
 }
 
 /** 选中目标册后立刻预检：目标册里有几张同内容（决定要不要弹三选一） */
@@ -180,6 +214,8 @@ defineExpose({ open })
 .album-merge-preview { margin: 10px 0 0; font-size: 12px; line-height: 1.6; color: var(--el-text-color-secondary); }
 .relocate-dup { margin-top: 12px; }
 .relocate-dup-group { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.relocate-more { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12px; color: var(--el-text-color-secondary); }
+.relocate-more-done { color: var(--el-text-color-placeholder); }
 .album-opt { display: flex; align-items: center; gap: 8px; }
 .album-opt-cover { width: 28px; height: 28px; border-radius: 4px; object-fit: cover; }
 .album-opt-title { flex: 1 1 auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
