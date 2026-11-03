@@ -2884,7 +2884,9 @@ function openPhotoRelocate(mode, selfAlbumId) {
 /* 改归属成功后：清选择、刷新当前页与相册/统计 */
 function afterPhotoRelocate() {
   photoSelected.value = []
-  applyPhotoPage()
+  /* P6.256：和「移出相册」同一个坑 —— applyPhotoPage() 只从 photoRowsAll 切片，
+     而里面还有刚搬走的图，于是列表里它还在原位；必须重新拉取。 */
+  loadPhotos()
   loadAlbums()
   loadStats()
 }
