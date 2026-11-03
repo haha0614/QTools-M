@@ -78,7 +78,8 @@
           </el-button>
         </el-form>
 
-        <p class="form-hint">默认账号 <code>admin</code> / <code>admin123</code></p>
+        <!-- P6.214：去掉"默认账号 admin / admin123"提示 —— 改过密码后这句话是错的，
+             而且页面上不该出现任何口令字样。 -->
       </main>
     </section>
 
@@ -114,9 +115,12 @@ const showPassword = ref(false)
 
 
 
+/* P6.214：不再预填账号密码。
+   原来写死 admin/admin123 —— 一来等于把默认口令写在页面上，二来改过密码后
+   输入框里还是旧的假密码，用户（包括我）会误以为"密码就是它"。 */
 const loginForm = ref({
-  username: "admin",
-  password: "admin123",
+  username: "",
+  password: "",
   rememberMe: false,
   code: "",
   uuid: ""
