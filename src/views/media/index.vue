@@ -2778,7 +2778,8 @@ function onUncatRelocate(photo) {
   if (!photo || photo.id == null) return
   uncatVisible.value = false
   photoSelected.value = [String(photo.id)]
-  openPhotoRelocate('move')
+  /* 未归类照片不在任何册里：不排除任何目标册（传空串） */
+  openPhotoRelocate('move', '')
 }
 
 /* 未归类里建册并入之后：相册与统计会变 */
@@ -2816,9 +2817,16 @@ const photoRelocateVisible = ref(false)
 /* P6.234：改归属弹窗已拆成组件，页面只保留开关与打开入口 */
 const relocateRef = ref(null)
 
-function openPhotoRelocate(mode) {
+/**
+ * @param {'move'|'split'} mode
+ * @param {string} [selfAlbumId] 要从目标列表里排除的册（当前所在的册）；
+ *        从「未归类」进来时传空串 —— 否则会用上一次打开过的册 id 去排除，
+ *        把用户真正想选的册藏起来（P6.243 实测踩到）。
+ */
+function openPhotoRelocate(mode, selfAlbumId) {
   if (!photoSelected.value.length) return
-  relocateRef.value && relocateRef.value.open(mode, photoSelected.value.slice(), photoQuery.albumId)
+  const self = selfAlbumId === undefined ? photoQuery.albumId : selfAlbumId
+  relocateRef.value && relocateRef.value.open(mode, photoSelected.value.slice(), self)
 }
 
 /* 改归属成功后：清选择、刷新当前页与相册/统计 */
