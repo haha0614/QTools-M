@@ -1681,7 +1681,7 @@ function setPhotoRating(photo, value) {
     photo.contentRating = next
     // P6.22：筛选态下这张可能不再属于当前档位，重新切页让网格与计数同步
     applyPhotoPage()
-    proxy.$modal.msgSuccess('第 ' + (Number(photo.seq) + 1) + ' 张 → ' + (next ? photoRatingLabel(photo) : '继承相册'))
+    proxy.$modal.msgSuccess('第 ' + photoPos(photo) + ' 张 → ' + (next ? photoRatingLabel(photo) : '继承相册'))
   }).catch((err) => {
     proxy.$modal.notifyError({ title: '设置图片分级失败', message: (err && err.message) || '请求失败', duration: 6000 })
   })
@@ -1700,12 +1700,22 @@ function photoFileName(relPath) {
  * 取图口径不变：is_big 才有 pv 大图，其余走原图接口，库数据没 relPath 时退缩略图；
  * 大图 404 时 onPreviewError 会自动降级到缩略图。</p>
  */
+/* 当前页里的位置（1 基）：找不到就退回 seq+1，保证文案永远有值 */
+function photoPos(photo) {
+  const id = photo && photo.id != null ? String(photo.id) : ''
+  const idx = photoList.value.findIndex(p => p && String(p.id) === id)
+  if (idx >= 0) return idx + 1
+  return Number(photo && photo.seq != null ? photo.seq : 0) + 1
+}
+
 function openPhotoPreview(photo) {
   if (!photo) return
   const url = photo.isBig
     ? '/api/media/preview/p/' + photoQuery.albumId + '/' + photo.seq
     : (photo.relPath ? '/api/media/file?p=' + encodeURIComponent(photo.relPath) : photo.thumbUrl)
-  previewTitle.value = '第 ' + (Number(photo.seq) + 1) + ' 张 · ' + photoFileName(photo.relPath)
+  /* P6.238：标题里的「第 N 张」要按**位置**算，不能用库里的 seq ——
+     seq 是历史排序列号，第一张的 seq 可能是 6，于是点第一张却显示「第 7 张」。 */
+  previewTitle.value = '第 ' + photoPos(photo) + '/' + photoList.value.length + ' 张 · ' + photoFileName(photo.relPath)
   previewFallback.value = photo.thumbUrl ? mediaSrc(photo.thumbUrl) : ''
   previewSrc.value = mediaSrc(url)
   previewMeta.value = [photo.relPath, photo.bytes ? formatSize(photo.bytes) : '',
