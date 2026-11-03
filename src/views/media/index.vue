@@ -2415,7 +2415,9 @@ function openAlbumRules() {
 
 /* 规则弹窗内部自读自写；页面只需要在规则变化后刷新一次未归类列表 */
 function loadAlbumRules() {
-  loadUncategorized()
+  /* P6.221：这里原来写的是 loadUncategorized() —— 全仓没有这个函数，规则一改就 ReferenceError。
+     正确函数名是 loadUncat()。 */
+  loadUncat()
 }
 
 // ------------------------------------------------------------------ 相册改名 / 删除（P6.86）

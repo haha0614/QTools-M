@@ -112,6 +112,10 @@
 </template>
 
 <script setup>
+/* P6.221：ElMessage 在本文件里用了两处却从未 import —— 点「复制」就是 ReferenceError。
+   （app.use(ElementPlus) 只注册组件，不会把 ElMessage 这个函数挂到全局。） */
+import { ElMessage } from 'element-plus'
+
 const props = defineProps({
   visible: { type: Boolean, default: false },
   row: { type: Object, default: () => ({}) }

@@ -60,7 +60,8 @@ const ALLOW = new Set([
   'decodeURIComponent', 'encodeURI', 'decodeURI', 'setTimeout', 'clearTimeout',
   'setInterval', 'clearInterval', 'requestAnimationFrame', 'cancelAnimationFrame',
   'URL', 'URLSearchParams', 'FormData', 'Blob', 'FileReader', 'Event', 'CustomEvent',
-  'alert', 'confirm', 'process', 'defineOptions'
+  'alert', 'confirm', 'process', 'defineOptions',
+  'fetch', 'getComputedStyle', 'matchMedia', 'requestIdleCallback'
 ])
 
 function walk(dir, out = []) {
@@ -182,6 +183,23 @@ for (const file of files) {
     const name = m[2]
     if (ALLOW.has(name) || declared.has(name)) continue
     problems.push({ file: path.relative(ROOT, file), name: name + '（.value 但未声明）' })
+  }
+
+  /* 规则三（P6.221 新增）：被**当函数调用**但没声明的名字。
+     依据：真实事故两起 —— loadUncategorized() 写错名字（函数存在但叫 loadUncat），
+     以及 videoPersonRow 那类。模板不报错、构建不报错，只有点下去才 ReferenceError。
+     关键词与已知全局白名单排除，方法调用（x.foo()）因前导点被正则排除。 */
+  const KEYWORDS = new Set(['if', 'for', 'while', 'switch', 'catch', 'return', 'typeof',
+    'function', 'new', 'await', 'super', 'do', 'else', 'try', 'throw', 'delete', 'void',
+    'in', 'of', 'instanceof', 'case', 'default', 'yield', 'async', 'class', 'with'])
+  /* 只看"行首的裸调用"（如 `  loadUncat()`）：这样能避开对象字面量里的方法简写、
+     内置全局（Error/RegExp/fetch）、模板字符串里的 CSS var(--x) 等大量误报。 */
+  for (const m of code.matchAll(/^[ \t]*([A-Za-z_$][\w$]*)\s*\(([^)]*)\)\s*\{?[^\n]*$/gm)) {
+    const name = m[1]
+    /* 行尾是 { 的是**定义**（对象方法简写 / 生命周期钩子 / function 体），不是调用 */
+    if (/\{\s*$/.test(m[0])) continue
+    if (KEYWORDS.has(name) || ALLOW.has(name) || declared.has(name)) continue
+    problems.push({ file: path.relative(ROOT, file), name: name + '()（调用了但未声明）' })
   }
 
   for (const name of WATCH) {
