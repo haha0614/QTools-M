@@ -307,9 +307,12 @@ function getCookie() {
   z-index: 2;
   display: flex;
   width: min(860px, 94vw);
-  /* 高度改成自适应：滑块验证码比原来那一行高，固定 500px 会把登录按钮挤出去 */
-  min-height: min(500px, 88vh);
-  height: auto;
+  /* P6.206：高度完全由内容决定。
+     上一版写 min-height: 500px + height: auto —— 卡片被垫高到 500，而 .cover 的
+     min-height: 100% 在 auto 高度下无法解析，只长到 480，底部空出 20px 白条。 */
+  align-items: stretch;
+  /* 内容驱动为主，给一个下限让卡片不至于太扁；封面现在会跟着拉伸（已清掉 aside 的 margin） */
+  min-height: min(470px, 86vh);
   border-radius: 28px;
   overflow: hidden;
   isolation: isolate;
@@ -362,10 +365,11 @@ function getCookie() {
   position: relative;
   z-index: 2;
   flex: 0 0 45%;
-  /* P6.97.1：不写不行 —— 实测 .cover 高度只有 480（卡片 500），底部 20px 空出来，
-     正是用户两次圈到的那道"白条"。显式拉伸到卡片满高。 */
+  /* P6.207：真正的元凶是 globals 里的 aside 规则（assets/styles/index.scss）
+     —— 若依给所有 <aside> 加了 margin-bottom: 20px，于是封面比卡片矮 20px，
+     底部永远留一条"白带"。class 选择器比元素选择器权重高，这里显式清零。 */
+  margin-bottom: 0;
   align-self: stretch;
-  min-height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
