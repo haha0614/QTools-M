@@ -563,10 +563,8 @@
     <!-- 未归类照片：整体拆到子组件（P6.222 拆分）；「移入另一册」仍复用页面的相册弹层 -->
     <uncategorized-dialog ref="uncatRef" v-model="uncatVisible" @relocate="onUncatRelocate" @changed="reloadAfterUncat" />
     <!-- P6.46：视频页内播放（以前是新开标签） -->
-    <el-dialog v-model="videoPlayVisible" :title="videoPlayTitle" width="min(1100px, 94vw)" append-to-body
-      destroy-on-close class="video-dialog">
-      <video v-if="videoPlaySrc" :src="videoPlaySrc" controls autoplay class="video-player"></video>
-    </el-dialog>
+    <!-- 视频页内播放（P6.223 拆分） -->
+    <video-player-dialog v-model="videoPlayVisible" :title="videoPlayTitle" :src="videoPlaySrc" />
     <!-- 图片浏览：用库数据（GET /album/{id}/photos）渲染，每格 = 缩略图 + seq + 文件名（relPath 末段），
          按 seq 升序；接口 404 时回退到旧的磁盘列举（photoSource='disk'），这时会在顶部提示一行 -->
     <el-dialog v-model="photosVisible" :title="photosTitle" width="min(1120px, 94vw)" class="photos-dialog" append-to-body>
@@ -839,6 +837,8 @@ import PersonAssignDialog from './PersonAssignDialog.vue'
 import AlbumRuleDialog from './AlbumRuleDialog.vue'
 // P6.222：未归类照片（列表 / 目录归册 / 建册并入）
 import UncategorizedDialog from './UncategorizedDialog.vue'
+// P6.223：视频页内播放
+import VideoPlayerDialog from './VideoPlayerDialog.vue'
 // P5.12：顶部「资源类型 × 状态」筛选条独立成子组件（样式与选项都在子组件里），页面只接线
 import DeriveFilterBar from './DeriveFilterBar.vue'
 import DeriveEmptyState from './DeriveEmptyState.vue'
@@ -3191,12 +3191,6 @@ onBeforeUnmount(() => { stopScanPolling() })
 .relocate-dup p { margin: 6px 0 0; line-height: 1.7; font-size: 13px; }
 .relocate-dup-group { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
 .dup-tabs :deep(.el-tabs__content) { overflow: visible; }
-.video-player { width: 100%; max-height: 70vh; background: #000; }
-/* P6.04：维护抽屉内容变长后整体滚动（375 窄屏时抽屉 = 96vw，近似全宽） */
-.maint-drawer :deep(.el-drawer__body) {
-  overflow-y: auto;
-  overflow-x: hidden;
-}
 @media (max-width: 480px) {
   .maint-drawer :deep(.el-drawer__body) {
     padding: 10px;
