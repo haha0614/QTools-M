@@ -7,13 +7,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "prebuild:prod": "node scripts/check-globals.mjs",
+    "prebuild:prod": "node scripts/check-globals.mjs && node scripts/check-styles.mjs",
     "build:prod": "vite build",
     "build:stage": "vite build --mode staging",
     "preview": "vite preview",
     "check:menu-icons": "node scripts/check-menu-icons.mjs",
     "check:globals": "node scripts/check-globals.mjs",
-    "check": "node scripts/check-menu-icons.mjs && node scripts/check-globals.mjs"
+    "check:styles": "node scripts/check-styles.mjs",
+    "check": "node scripts/check-menu-icons.mjs && node scripts/check-globals.mjs && node scripts/check-styles.mjs"
   },
   "repository": {
     "type": "git",
