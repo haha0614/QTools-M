@@ -7,6 +7,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild:prod": "node scripts/check-globals.mjs",
     "build:prod": "vite build",
     "build:stage": "vite build --mode staging",
     "preview": "vite preview",
