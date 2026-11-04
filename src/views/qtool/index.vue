@@ -25,6 +25,11 @@
           @keyup.enter="handleQuery"
         />
       </el-form-item>
+      <el-form-item label="分类" prop="category">
+        <el-select v-model="form.category" placeholder="选择分类" clearable style="width: 180px">
+          <el-option v-for="c in CATEGORY_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
+        </el-select>
+      </el-form-item>
       <el-form-item label="图标名称" prop="icon">
         <el-input
           v-model="queryParams.icon"
@@ -110,6 +115,13 @@
           <span v-else>-</span>
         </template>
       </el-table-column>
+      <el-table-column label="分类" align="center" prop="category" width="110">
+        <template #default="scope">
+          <!-- P6.262：分类由这里维护，站点工具页直接读它（不再按 id 硬编码） -->
+          <el-tag v-if="scope.row.category" size="small" effect="plain">{{ categoryLabel(scope.row.category) }}</el-tag>
+          <span v-else class="text-muted">未分类</span>
+        </template>
+      </el-table-column>
       <el-table-column label="图标" align="center" prop="icon" min-width="140">
         <template #default="scope">
           <span class="tool-icon-cell">
@@ -175,6 +187,11 @@
             </el-form-item>
           </el-col>
           <el-col :span="24">
+            <el-form-item label="分类" prop="category">
+              <el-select v-model="form.category" placeholder="选择分类" clearable style="width: 180px">
+                <el-option v-for="c in CATEGORY_OPTIONS" :key="c.value" :label="c.label" :value="c.value" />
+              </el-select>
+            </el-form-item>
             <el-form-item label="前端访问路由" prop="toolRoute">
               <el-input v-model="form.toolRoute" placeholder="请输入前端访问路由" />
             </el-form-item>
@@ -266,6 +283,19 @@ const multiple = ref(true)
 const total = ref(0)
 const title = ref("")
 
+/* P6.262：分类值域。后端 tool_info.category 存英文 key，站点按 key 分 chips。 */
+const CATEGORY_OPTIONS = [
+  { value: 'text', label: '文本' },
+  { value: 'encode', label: '编码' },
+  { value: 'generate', label: '生成' },
+  { value: 'security', label: '安全' },
+  { value: 'media', label: '媒体' }
+]
+function categoryLabel(value) {
+  const hit = CATEGORY_OPTIONS.find(c => c.value === value)
+  return hit ? hit.label : value
+}
+
 const data = reactive({
   form: {},
   queryParams: {
@@ -275,6 +305,7 @@ const data = reactive({
     toolDesc: undefined,
     toolRoute: undefined,
     icon: undefined,
+    category: undefined,
     sort: undefined,
     status: undefined,
   },
