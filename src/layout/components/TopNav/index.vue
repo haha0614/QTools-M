@@ -35,6 +35,7 @@
 <script setup>
 import { constantRoutes } from "@/router"
 import { isHttp } from '@/utils/validate'
+import { parseJson } from '@/utils/safeJson'
 import useAppStore from '@/store/modules/app'
 import useSettingsStore from '@/store/modules/settings'
 import usePermissionStore from '@/store/modules/permission'
@@ -127,7 +128,7 @@ function handleSelect(key, keyPath) {
     // 没有子路由路径内部打开
     const routeMenu = childrenMenus.value.find(item => item.path === key)
     if (routeMenu && routeMenu.query) {
-      let query = JSON.parse(routeMenu.query)
+      let query = parseJson(routeMenu.query, {})
       router.push({ path: key, query: query })
     } else {
       router.push({ path: key })

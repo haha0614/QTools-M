@@ -31,6 +31,7 @@
 import { isExternal } from '@/utils/validate'
 import AppLink from './Link'
 import { getNormalPath } from '@/utils/ruoyi'
+import { parseJson } from '@/utils/safeJson'
 
 const props = defineProps({
   // route object
@@ -84,7 +85,8 @@ function resolvePath(routePath, routeQuery) {
     return props.basePath
   }
   if (routeQuery) {
-    let query = JSON.parse(routeQuery)
+    /* P6.261：菜单 query 是后台手填的，解析失败不该让整页崩 */
+    let query = parseJson(routeQuery, {})
     return { path: getNormalPath(props.basePath + '/' + routePath), query: query }
   }
   return getNormalPath(props.basePath + '/' + routePath)

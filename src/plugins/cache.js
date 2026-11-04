@@ -24,7 +24,12 @@ const sessionCache = {
   getJSON (key) {
     const value = this.get(key)
     if (value != null) {
-      return JSON.parse(value)
+      /* P6.261：缓存被外部改坏时，解析失败返回 null 而不是抛异常 */
+      try {
+        return JSON.parse(value)
+      } catch (e) {
+        return null
+      }
     }
     return null
   },
@@ -58,7 +63,12 @@ const localCache = {
   getJSON (key) {
     const value = this.get(key)
     if (value != null) {
-      return JSON.parse(value)
+      /* P6.261：缓存被外部改坏时，解析失败返回 null 而不是抛异常 */
+      try {
+        return JSON.parse(value)
+      } catch (e) {
+        return null
+      }
     }
     return null
   },

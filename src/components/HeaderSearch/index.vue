@@ -80,6 +80,7 @@
 import Fuse from 'fuse.js'
 import { getNormalPath } from '@/utils/ruoyi'
 import { isHttp } from '@/utils/validate'
+import { parseJson } from '@/utils/safeJson'
 import useSettingsStore from '@/store/modules/settings'
 import usePermissionStore from '@/store/modules/permission'
 
@@ -124,7 +125,7 @@ function change(val) {
     window.open(p.substr(pindex, p.length), "_blank")
   } else {
     if (query) {
-      router.push({ path: p, query: JSON.parse(query) })
+      router.push({ path: p, query: parseJson(query, {}) })
     } else {
       router.push(p)
     }
