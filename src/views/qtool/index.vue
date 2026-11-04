@@ -289,6 +289,7 @@ const CATEGORY_OPTIONS = [
   { value: 'encode', label: '编码' },
   { value: 'generate', label: '生成' },
   { value: 'security', label: '安全' },
+  { value: 'dev', label: '开发' },
   { value: 'media', label: '媒体' }
 ]
 function categoryLabel(value) {
