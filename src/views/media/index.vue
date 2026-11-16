@@ -117,6 +117,27 @@
           </el-form-item>
         </el-form>
 
+        <!-- 界面上看不到、但确实在过滤的条件：显式列出来，避免"统计 241 / 列表 33"这种困惑 -->
+        <el-alert
+          v-if="hiddenVideoFilters.length"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="media-hidden-filter"
+        >
+          <template #title>
+            还有看不见的过滤条件：
+            <el-tag
+              v-for="f in hiddenVideoFilters"
+              :key="f.key"
+              size="small"
+              closable
+              class="media-hidden-tag"
+              @close="clearHiddenFilter(f.key)"
+            >{{ f.label }}</el-tag>
+          </template>
+        </el-alert>
+
         <!-- P5.12：派生资源汇总（随资源类型变化）+「资源类型 × 状态」两个下拉（只过滤当前页显示，不动请求与分页） -->
         <derive-filter-bar :ready="deriveReady" :rows="deriveRows" :legacy="deriveLegacy" v-model:filter="deriveFilter"
           :algo-since="deriveMeta.algoSince" :algo-since-source="deriveMeta.algoSinceSource" :loading="deriveLoading"
@@ -131,7 +152,7 @@
           <el-table-column label="封面" width="66" align="center">
             <template #default="scope">
               <span class="media-cover-wrap">
-                <img class="media-cover media-cover-click" :src="mediaSrc('/api/media/thumb/v/' + scope.row.id)" loading="lazy"
+                <img class="media-cover media-cover-click" :src="videoThumbUrl(scope.row)" loading="lazy"
                   alt="封面" title="点击放大" @click="openVideoPreview(scope.row)" />
                 <!-- P6.00：posterSource=file = 同目录「视频名-封面」自带封面（不是 ffmpeg 截帧） -->
                 <el-tooltip v-if="scope.row.posterSource === 'file'"
@@ -790,7 +811,9 @@ const FILTER_KEYS = {
   // P6.21：pageSize 不进筛选记忆——它一旦被记住（比如选过 1000 条/页）就会让表格一次渲染上百行，
   // 首屏和切 tab 都要重排这些行（实测 169 行的相册表 = 1.9 万个 DOM 节点 / 414 个弹层 / 切一次 500ms+）。
   // 每页条数属于「临时查看姿势」，刷新回默认 10 行。
-  video: ['keyword', 'folder', 'vcodec', 'hidden', 'sort', 'ids'],
+  // folder 不再记忆：分类输入框已于 P6.82 下线（模板里 v-if="false"），
+  // 一旦记住就会变成"看不见的过滤器"，表现为「统计 241 条、列表只有 33 条」。
+  video: ['keyword', 'vcodec', 'hidden', 'sort', 'ids'],
   album: ['keyword', 'personId', 'hidden', 'sort']
 }
 const TRASH_PAGE_MAX = 200 // 与后端 /trash 的 pageSize 上限一致
@@ -851,6 +874,20 @@ const previewMeta = ref('')
 
 const scanJob = ref(null)
 const scanRunning = ref(false)
+/**
+ * 视频缩略图 URL。
+ *
+ * 缩略图响应带 immutable 长缓存（max-age 一年），换了封面但 URL 不变时
+ * 浏览器根本不会重新取，于是页面一直显示旧图。这里把封面字段拼成查询串，
+ * 封面一变 URL 就变，缓存自然失效。
+ */
+function videoThumbUrl(row) {
+  const ver = (row && (row.posterPath || row.poster)) || ''
+  let h = 0
+  for (let i = 0; i < ver.length; i += 1) h = (h * 31 + ver.charCodeAt(i)) | 0
+  return mediaSrc('/api/media/thumb/v/' + row.id + (ver ? '?v=' + Math.abs(h).toString(16) : ''))
+}
+
 /** 试跑条数：0 = 不限；只对 thumb / sprite,preview 生效（后端对 scan / gc 会 400） */
 const scanLimit = ref(0)
 let scanTimer = null
@@ -1018,6 +1055,17 @@ function restoreFilters(kind, query) {
     saved = null
   }
   if (!saved || typeof saved !== 'object') return
+  // 迁移：老版本把 folder 记进了存储，现在这个字段没有 UI 可以清，
+  // 会在列表上留下一个用户看不见的过滤条件（统计 241 / 列表 33 的成因）
+  if (saved.folder) {
+    query.folder = ''
+    delete saved.folder
+    try {
+      localStorage.setItem(FILTER_STORAGE[kind], JSON.stringify(saved))
+    } catch (e) {
+      /* 隐私模式忽略 */
+    }
+  }
   FILTER_KEYS[kind].forEach(key => {
     const value = saved[key]
     if (value !== undefined && value !== null) query[key] = value
@@ -1046,7 +1094,7 @@ function clearFilters(kind) {
 
 function openVideoPreview(row) {
   previewTitle.value = '视频封面 · ' + (row.title || row.id)
-  previewSrc.value = '/api/media/thumb/v/' + row.id
+  previewSrc.value = videoThumbUrl(row)
   previewFallback.value = ''
   previewMeta.value = '缩略图接口 /api/media/thumb/v/' + row.id + '（原视频见「预览」按钮）'
   previewVisible.value = true
@@ -1155,6 +1203,19 @@ function loadVcodecOptions() {
   }).catch(() => {
     /* 枚举失败不影响主流程，下拉退化为空（可手动清空筛选） */
   })
+}
+
+/** 当前生效但界面上看不到的筛选（folder / ids）：有就显式提示并给一键清除 */
+const hiddenVideoFilters = computed(() => {
+  const out = []
+  if (videoQuery.folder) out.push({ key: 'folder', label: '分类：' + videoQuery.folder })
+  if (videoQuery.ids) out.push({ key: 'ids', label: '指定 id' })
+  return out
+})
+
+function clearHiddenFilter(key) {
+  videoQuery[key] = ''
+  handleVideoQuery()
 }
 
 function handleVideoQuery() {
@@ -3105,7 +3166,9 @@ onBeforeUnmount(() => { stopScanPolling() })
 .media-cover {
   width: 40px;
   height: 60px;
-  object-fit: cover;
+  /* 竖版视频（2:3）正好填满；横版封面（比如内容聚合导入的源站封面 1300×640）
+     用 cover 会被裁成中间一条，看着像"封面对不上"，所以改成 contain + 底色衬托 */
+  object-fit: contain;
   border-radius: 3px;
   background: var(--el-fill-color-light);
 }
@@ -3320,6 +3383,8 @@ onBeforeUnmount(() => { stopScanPolling() })
    之前它带一层淡灰底 + 顶部线，看着像弹窗下面又接了一个框。 */
 :deep(.photos-dialog .el-dialog__footer) { padding: 8px 20px 12px; background: transparent; border-top: 0; }
 .photo-batch { background: transparent; }
+.media-hidden-filter { margin: 0 0 10px; }
+.media-hidden-tag { margin-right: 6px; }
 </style>
 
 
