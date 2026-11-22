@@ -20,7 +20,8 @@
             highlight-current-row
             @row-click="getCacheKeys"
             style="width: 100%"
-          >
+          
+          :tooltip-options="{ appendTo: 'body' }">
             <el-table-column
               label="序号"
               width="60"
@@ -79,7 +80,8 @@
             highlight-current-row
             @row-click="handleCacheValue"
             style="width: 100%"
-          >
+          
+          :tooltip-options="{ appendTo: 'body' }">
             <el-table-column
               label="序号"
               width="60"

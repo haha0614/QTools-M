@@ -101,7 +101,8 @@
       row-key="id"
       :empty-text="emptyText"
       @selection-change="(v) => (selection = v)"
-    >
+    
+          :tooltip-options="{ appendTo: 'body' }">
       <el-table-column type="selection" width="36" />
       <el-table-column label="ID" width="40">
         <template #default="{ row }">

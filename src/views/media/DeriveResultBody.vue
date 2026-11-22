@@ -10,7 +10,8 @@
     <el-alert v-if="model.degraded" type="info" :closable="false" show-icon class="dr-alert"
       title="后端只给了汇总（日志里没有 ITEM 明细行）：下面退化为「已处理的 videoId 列表」，标题会用列表 / 派生资源接口补齐。" />
 
-    <el-table v-if="rows.length" :data="rows" size="small" max-height="380" class="dr-table">
+    <el-table v-if="rows.length" :data="rows" size="small" max-height="380" class="dr-table"
+          :tooltip-options="{ appendTo: 'body' }">
       <el-table-column label="视频标题" min-width="240" :show-overflow-tooltip="true">
         <template #default="scope">{{ titleOf(scope.row) }}</template>
       </el-table-column>

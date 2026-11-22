@@ -22,7 +22,8 @@
         </span>
       </el-form-item>
     </el-form>
-    <el-table v-loading="loading" :data="userList" size="small" stripe height="340px">
+    <el-table v-loading="loading" :data="userList" size="small" stripe height="340px"
+          :tooltip-options="{ appendTo: 'body' }">
       <el-table-column type="index" label="序号" width="55" align="center" />
       <el-table-column label="登录名称" prop="userName" align="center" :show-overflow-tooltip="true" />
       <el-table-column label="用户名称" prop="nickName" align="center" :show-overflow-tooltip="true" />

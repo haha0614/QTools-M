@@ -94,7 +94,8 @@
       <right-toolbar v-model:showSearch="showSearch" @queryTable="getList"></right-toolbar>
     </el-row>
 
-    <el-table v-loading="loading" :data="infoList" @selection-change="handleSelectionChange">
+    <el-table v-loading="loading" :data="infoList" @selection-change="handleSelectionChange"
+          :tooltip-options="{ appendTo: 'body' }">
       <el-table-column type="selection" width="55" align="center" />
       <el-table-column label="工具ID" align="center" prop="id" />
       <el-table-column label="工具名称" align="center" prop="toolName" />

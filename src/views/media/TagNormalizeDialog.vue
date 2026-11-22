@@ -63,7 +63,8 @@
       </div>
 
       <div class="tn-sub">每个旧标签的处置（{{ rows.length }} 条{{ onlyChanged ? '，已过滤掉「保留」' : '' }}）</div>
-      <el-table :data="rows" size="small" max-height="300" class="tn-table">
+      <el-table :data="rows" size="small" max-height="300" class="tn-table"
+          :tooltip-options="{ appendTo: 'body' }">
         <el-table-column label="旧标签" min-width="130" :show-overflow-tooltip="true">
           <template #default="scope">{{ scope.row.name }}</template>
         </el-table-column>

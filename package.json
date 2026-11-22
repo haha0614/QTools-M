@@ -15,7 +15,7 @@
     "check:globals": "node scripts/check-globals.mjs",
     "check:styles": "node scripts/check-styles.mjs",
     "test:selection": "node tests/photo-selection.test.mjs",
-    "check": "node scripts/check-menu-icons.mjs && node scripts/check-globals.mjs && node scripts/check-styles.mjs"
+    "check": "node scripts/check-menu-icons.mjs && node scripts/check-globals.mjs && node scripts/check-styles.mjs && node scripts/check-table-tooltip.mjs"
   },
   "repository": {
     "type": "git",

@@ -63,7 +63,8 @@
          row-key="menuId"
          :default-expand-all="isExpandAll"
          :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
-      >
+      
+          :tooltip-options="{ appendTo: 'body' }">
          <el-table-column prop="menuName" label="菜单名称" :show-overflow-tooltip="true" width="220">
             <template #default="scope">
                <svg-icon :icon-class="scope.row.icon" />

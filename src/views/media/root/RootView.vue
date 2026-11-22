@@ -78,7 +78,8 @@
       class="root-alert root-guest-warning" data-testid="guest-hidden-warning" />
 
     <el-table ref="tableRef" v-if="loading || rows.length" v-loading="loading" :data="rows" class="root-table"
-      row-key="id" :row-class-name="rowClass" @expand-change="onExpandChange">
+      row-key="id" :row-class-name="rowClass" @expand-change="onExpandChange"
+          :tooltip-options="{ appendTo: 'body' }">
       <el-table-column type="expand" width="34" class-name="root-expand-col">
         <template #default="scope">
           <div class="root-artifact-panel" :data-testid="'artifact-panel-' + scope.row.id">

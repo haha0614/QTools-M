@@ -185,7 +185,8 @@
           <el-button icon="FirstAidKit" :loading="healthLoading" :disabled="healthLoading"
             v-hasPermi="['media:admin:list']" data-testid="maint-health-check" @click="runHealth">体检</el-button>
         </div>
-        <el-table v-if="healthChecks.length" :data="healthChecks" size="small" border class="maint-health-table">
+        <el-table v-if="healthChecks.length" :data="healthChecks" size="small" border class="maint-health-table"
+          :tooltip-options="{ appendTo: 'body' }">
           <el-table-column label="检查项" prop="label" min-width="150" />
           <el-table-column label="结果" width="86" align="center">
             <template #default="scope">
@@ -284,7 +285,8 @@
         <div class="maint-task-last" data-testid="maint-last-export">上次：{{ lastText('export') }}</div>
         <div class="maint-sub-title">最近导出（最多 10 次）</div>
         <el-alert v-if="exportError" :title="exportError" type="warning" :closable="false" show-icon class="maint-alert" />
-        <el-table v-if="exportRows.length" :data="exportRows" size="small" class="maint-table">
+        <el-table v-if="exportRows.length" :data="exportRows" size="small" class="maint-table"
+          :tooltip-options="{ appendTo: 'body' }">
           <el-table-column label="目录" prop="dir" min-width="200" :show-overflow-tooltip="true" />
           <el-table-column label="文件" prop="name" min-width="180" :show-overflow-tooltip="true" />
           <el-table-column label="大小" width="100" align="right">
@@ -343,7 +345,8 @@
           </el-tooltip>
           <span class="maint-inline-note">扫描 / 导入请用工具栏「扫描 / 导入」抽屉，或库根管理页行内「扫描」</span>
         </div>
-        <el-table v-if="watchRoots.length" :data="watchRoots" size="small" class="maint-table">
+        <el-table v-if="watchRoots.length" :data="watchRoots" size="small" class="maint-table"
+          :tooltip-options="{ appendTo: 'body' }">
           <el-table-column label="路径" prop="path" min-width="240" :show-overflow-tooltip="true" />
           <el-table-column label="已注册" width="80" align="center">
             <template #default="scope">
@@ -423,7 +426,8 @@
         只有点原图或下载才会 404。<strong>清理</strong>会硬删这些行（SQL 恒带 <code>missing=1</code>，扫描又把文件找回来的行删不掉）。
         删完相册可能变成 0 图空壳，需要再跑「重建索引」或去重脚本收尾。
       </p>
-      <el-table v-loading="missingLoading" :data="missingRows" size="small" border max-height="420">
+      <el-table v-loading="missingLoading" :data="missingRows" size="small" border max-height="420"
+          :tooltip-options="{ appendTo: 'body' }">
         <el-table-column label="类型" width="72" align="center">
           <template #default="scope">{{ scope.row.kind === 'video' ? '视频' : '图片' }}</template>
         </el-table-column>

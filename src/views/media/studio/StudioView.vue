@@ -29,7 +29,8 @@
     <el-alert v-if="notReady" :title="notReady" type="warning" :closable="false" show-icon class="studio-alert" />
     <el-alert v-else-if="pageError" :title="pageError" type="error" :closable="false" show-icon class="studio-alert" />
 
-    <el-table v-if="loading || rows.length" v-loading="loading" :data="rows" class="studio-table">
+    <el-table v-if="loading || rows.length" v-loading="loading" :data="rows" class="studio-table"
+          :tooltip-options="{ appendTo: 'body' }">
       <el-table-column label="名称" min-width="160" :show-overflow-tooltip="true">
         <template #default="scope">
           <span class="studio-name">{{ scope.row.name || '—' }}</span>

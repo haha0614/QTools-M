@@ -36,7 +36,8 @@
           @click="setPhotoState(photoSelection.map((r) => r.id), 'rejected')">驳回选中</el-button>
       </div>
       <el-table v-loading="photoLoading" :data="photoRows" class="rv-table" row-key="id"
-        @selection-change="(rows) => (photoSelection = rows)">
+        @selection-change="(rows) => (photoSelection = rows)"
+          :tooltip-options="{ appendTo: 'body' }">
         <el-table-column type="selection" width="44" align="center" />
         <el-table-column label="缩略图" width="86" align="center">
           <template #default="scope">
@@ -118,7 +119,8 @@
         </el-button>
       </div>
       <el-table v-loading="inboundLoading" :data="inboundRows" class="rv-table" row-key="id"
-        @selection-change="(rows) => (inboundSelection = rows)">
+        @selection-change="(rows) => (inboundSelection = rows)"
+          :tooltip-options="{ appendTo: 'body' }">
         <el-table-column type="selection" width="44" align="center" />
         <el-table-column label="封面" width="76" align="center">
           <template #default="scope">
@@ -192,7 +194,8 @@
         <el-button type="danger" plain :disabled="!selection.length" @click="batch('rejected')">驳回选中</el-button>
       </div>
 
-      <el-table :data="rows" border row-key="id" @selection-change="onSelect">
+      <el-table :data="rows" border row-key="id" @selection-change="onSelect"
+          :tooltip-options="{ appendTo: 'body' }">
         <el-table-column type="selection" width="42" />
         <el-table-column label="封面" width="100">
           <template #default="{ row }">

@@ -71,7 +71,8 @@
       </div>
 
       <div class="rc-sub">命中词统计（点开规则表可核对词义，见后端 rating-rules.json 的 note）</div>
-      <el-table :data="report.hitsTop" size="small" max-height="240" class="rc-table">
+      <el-table :data="report.hitsTop" size="small" max-height="240" class="rc-table"
+          :tooltip-options="{ appendTo: 'body' }">
         <el-table-column label="命中词" prop="word" width="120" />
         <el-table-column label="档位" width="110" align="center">
           <template #default="scope">
@@ -87,7 +88,8 @@
       <el-empty v-if="!report.hitsTop.length" description="一条规则都没命中（词表可能没加载？）" :image-size="50" />
 
       <div class="rc-sub">前 {{ report.samples.length }} 条样例（标题 → 判定 → 理由；*会改库* = 与现状不同）</div>
-      <el-table :data="report.samples" size="small" max-height="320" class="rc-table">
+      <el-table :data="report.samples" size="small" max-height="320" class="rc-table"
+          :tooltip-options="{ appendTo: 'body' }">
         <el-table-column label="类型" width="66" align="center">
           <template #default="scope">{{ scope.row.kind === 'album' ? '相册' : '视频' }}</template>
         </el-table-column>
@@ -115,7 +117,8 @@
         </span>
       </div>
       <el-alert v-if="report.llm.note" :title="report.llm.note" type="info" :closable="false" show-icon class="rc-alert" />
-      <el-table v-if="report.llm.samples.length" :data="report.llm.samples" size="small" max-height="240" class="rc-table">
+      <el-table v-if="report.llm.samples.length" :data="report.llm.samples" size="small" max-height="240" class="rc-table"
+          :tooltip-options="{ appendTo: 'body' }">
         <el-table-column label="标题" min-width="240" :show-overflow-tooltip="true">
           <template #default="scope">{{ scope.row.title }}<span class="rc-group"> · {{ scope.row.group || '根目录' }}</span></template>
         </el-table-column>
@@ -129,7 +132,8 @@
           <template #default="scope">{{ scope.row.ms }} ms</template>
         </el-table-column>
       </el-table>
-      <el-table v-if="report.llm.failedSamples.length" :data="report.llm.failedSamples" size="small" max-height="180" class="rc-table">
+      <el-table v-if="report.llm.failedSamples.length" :data="report.llm.failedSamples" size="small" max-height="180" class="rc-table"
+          :tooltip-options="{ appendTo: 'body' }">
         <el-table-column label="兜底失败（保持原值）" min-width="240" :show-overflow-tooltip="true">
           <template #default="scope">{{ scope.row.title }}</template>
         </el-table-column>

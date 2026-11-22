@@ -143,7 +143,8 @@
           :algo-since="deriveMeta.algoSince" :algo-since-source="deriveMeta.algoSinceSource" :loading="deriveLoading"
           @refresh="loadDeriveStatus()" />
         <el-table ref="videoTableRef" v-loading="videoLoading" :data="videoDisplayList" class="media-table" row-key="id"
-          @selection-change="handleVideoSelection">
+          @selection-change="handleVideoSelection"
+          :tooltip-options="{ appendTo: 'body' }">
           <!-- P5.12：筛选结果为空时的友好空态（不过滤时仍是原来的「暂无数据」） -->
           <template #empty>
             <derive-empty-state :filter="deriveFilter" :has-rows="videoList.length" />
@@ -309,7 +310,8 @@
           <span v-else class="album-batch-hint">勾选多本相册可批量设置分级</span>
         </div>
         <el-table ref="albumTableRef" v-loading="albumLoading" :data="albumList" class="media-table" row-key="id"
-          @selection-change="handleAlbumSelection">
+          @selection-change="handleAlbumSelection"
+          :tooltip-options="{ appendTo: 'body' }">
           <el-table-column type="selection" width="44" align="center" />
           <el-table-column label="封面" width="66" align="center">
             <template #default="scope">
@@ -419,7 +421,8 @@
           </el-form-item>
         </el-form>
 
-        <el-table v-loading="trashLoading" :data="trashList" class="media-table">
+        <el-table v-loading="trashLoading" :data="trashList" class="media-table"
+          :tooltip-options="{ appendTo: 'body' }">
           <el-table-column label="封面" width="76" align="center">
             <template #default="scope">
               <!-- 封面走内容寻址：文件已经进了回收站，缩略图/预览图仍在（按内容哈希落盘） -->

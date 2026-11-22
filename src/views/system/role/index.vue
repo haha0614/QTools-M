@@ -92,7 +92,8 @@
       </el-row>
 
       <!-- 表格数据 -->
-      <el-table v-loading="loading" :data="roleList" @selection-change="handleSelectionChange">
+      <el-table v-loading="loading" :data="roleList" @selection-change="handleSelectionChange"
+          :tooltip-options="{ appendTo: 'body' }">
          <el-table-column type="selection" width="55" align="center" />
          <el-table-column label="角色编号" prop="roleId" width="120" />
          <el-table-column label="角色名称" prop="roleName" :show-overflow-tooltip="true" width="150" />

@@ -23,7 +23,8 @@
       <el-button size="small" type="primary" plain v-hasPermi="['media:admin:edit']"
         data-testid="rule-create" @click="openCreate">新增规则…</el-button>
     </div>
-    <el-table :data="rows" v-loading="loading" size="small" class="rule-table">
+    <el-table :data="rows" v-loading="loading" size="small" class="rule-table"
+          :tooltip-options="{ appendTo: 'body' }">
       <el-table-column label="册" min-width="220">
         <template #default="scope">
           <span class="rule-album">{{ scope.row.albumTitle || scope.row.albumId }}</span>

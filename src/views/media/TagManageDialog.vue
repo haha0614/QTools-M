@@ -26,7 +26,8 @@
     </div>
 
     <el-alert v-if="tagError" :title="tagError" type="error" :closable="false" show-icon class="tag-error" />
-    <el-table v-if="tagLoading || tagPageList.length" v-loading="tagLoading" :data="tagPageList" class="media-table">
+    <el-table v-if="tagLoading || tagPageList.length" v-loading="tagLoading" :data="tagPageList" class="media-table"
+          :tooltip-options="{ appendTo: 'body' }">
       <el-table-column label="名称" prop="name" min-width="200" :show-overflow-tooltip="true" />
       <el-table-column label="父标签" width="140" :show-overflow-tooltip="true">
         <template #default="scope">{{ tagParentLabel(scope.row) }}</template>
