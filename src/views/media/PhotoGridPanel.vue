@@ -2,7 +2,7 @@
   <!-- 照片网格（P6.226）：纯展示组件。
        勾选 / 分级 / 连选 / 拖拽排序 / 触屏长按拖动全部通过事件回传给页面，
        状态与业务逻辑仍在 index.vue；样式与拆分前逐条对齐（密度、悬停显形、选中描边）。 -->
-  <div class="photo-grid-wrap">
+  <div>
   <!-- P6.253：排序模式是“看不见的 affordance” —— 进来后没有任何提示，用户不知道该拖什么。
        这里给一条提示条，说明怎么拖、怎么存、直接关会怎样。 -->
   <div v-if="sortMode" class="photo-sort-hint" data-testid="photo-sort-hint">
